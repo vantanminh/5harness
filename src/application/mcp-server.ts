@@ -1,5 +1,5 @@
-/**
- * MCP (Model Context Protocol) handler for harness — HTTP transport.
+﻿/**
+ * MCP (Model Context Protocol) handler for harness Ã¢â‚¬â€ HTTP transport.
  * Pure request/response: takes JSON-RPC 2.0 body, returns response string.
  * Used by dashboard at POST /mcp and standalone `harness mcp` HTTP server.
  */
@@ -8,6 +8,8 @@ import { buildHandoff, formatHandoff } from "./handoff.js";
 import { executeGet, executeSearch, executeLinks } from "../commands/index-tools.js";
 import { executeContext } from "../commands/context.js";
 import { executeQuery } from "../commands/query.js";
+import type { McpCallInput } from "../domain/mcp-call-record.js";
+import { appendMcpCall } from "./mcp-monitor.js";
 
 type RpcReq = { jsonrpc: "2.0"; id?: number | string; method: string; params?: Record<string, unknown> };
 type RpcRes = { jsonrpc: "2.0"; id: number | string; result?: unknown; error?: { code: number; message: string } };
@@ -70,38 +72,106 @@ function err(id: number | string, code: number, msg: string): RpcRes {
   return { jsonrpc: "2.0", id, error: { code, message: msg } };
 }
 
-function dispatch(root: string, req: RpcReq): RpcRes | null {
+/**
+ * Input summary for monitoring (truncated JSON, max 500 chars).
+ */
+function summarizeInput(method: string, params?: Record<string, unknown>): string | null {
+  if (!params || method !== "tools/call") return null;
+  const args = params.arguments as Record<string, unknown> | undefined;
+  if (!args) return null;
+  const s = JSON.stringify(args);
+  return s.length > 500 ? s.slice(0, 497) + "..." : s;
+}
+function dispatch(root: string, req: RpcReq): { result: RpcRes | null; callInfo?: McpCallInput } {
   const { id, method, params } = req;
-  if (id === undefined) return null;
+  if (id === undefined) return { result: null };
+  const startMs = Date.now();
+  const inputSum = summarizeInput(method, params);
   try {
     switch (method) {
       case "initialize":
-        return { jsonrpc: "2.0", id, result: { protocolVersion: "2024-11-05", serverInfo: SERVER_INFO, capabilities: { tools: {} } } };
+        return {
+          result: { jsonrpc: "2.0", id, result: { protocolVersion: "2024-11-05", serverInfo: SERVER_INFO, capabilities: { tools: {} } } },
+          callInfo: { method, tool_name: null, input_summary: null, duration_ms: Date.now() - startMs, status: "success", error_message: null, project_root: root },
+        };
       case "tools/list":
-        return { jsonrpc: "2.0", id, result: { tools: MCP_TOOLS } };
+        return {
+          result: { jsonrpc: "2.0", id, result: { tools: MCP_TOOLS } },
+          callInfo: { method, tool_name: null, input_summary: null, duration_ms: Date.now() - startMs, status: "success", error_message: null, project_root: root },
+        };
       case "tools/call": {
         const p = params as { name?: string; arguments?: Record<string, unknown> };
-        if (!p?.name) return err(id, -32602, "Missing tool name");
-        return { jsonrpc: "2.0", id, result: callTool(root, p.name, p.arguments ?? {}) };
+        if (!p?.name) {
+          return {
+            result: err(id, -32602, "Missing tool name"),
+            callInfo: { method, tool_name: null, input_summary: inputSum, duration_ms: Date.now() - startMs, status: "error", error_message: "Missing tool name", project_root: root },
+          };
+        }
+        try {
+          const toolResult = callTool(root, p.name, p.arguments ?? {});
+          return {
+            result: { jsonrpc: "2.0", id, result: toolResult },
+            callInfo: { method, tool_name: p.name, input_summary: inputSum, duration_ms: Date.now() - startMs, status: "success", error_message: null, project_root: root },
+          };
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          return {
+            result: err(id, -32603, msg),
+            callInfo: { method, tool_name: p.name, input_summary: inputSum, duration_ms: Date.now() - startMs, status: "error", error_message: msg, project_root: root },
+          };
+        }
       }
       default:
-        return err(id, -32601, `Method not found: ${method}`);
+        return {
+          result: err(id, -32601, `Method not found: ${method}`),
+          callInfo: { method, tool_name: null, input_summary: null, duration_ms: Date.now() - startMs, status: "error", error_message: `Method not found: ${method}`, project_root: root },
+        };
     }
   } catch (e) {
-    return err(id, -32603, e instanceof Error ? e.message : String(e));
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      result: err(id, -32603, msg),
+      callInfo: { method, tool_name: null, input_summary: null, duration_ms: Date.now() - startMs, status: "error", error_message: msg, project_root: root },
+    };
   }
 }
 
 /** Handle a JSON-RPC body string, return the response string (or "" for notifications). */
-export function handleMcpRequest(body: string, projectRoot?: string): string {
+export function handleMcpRequest(
+  body: string,
+  projectRoot?: string,
+  onCall?: (info: McpCallInput) => void,
+): string {
   const root = projectRoot ?? process.cwd();
   let req: RpcReq;
   try { req = JSON.parse(body) as RpcReq; } catch {
-    return JSON.stringify(err(0, -32700, "Parse error"));
+    const resp = JSON.stringify(err(0, -32700, "Parse error"));
+    if (onCall) onCall({ method: "<parse-error>", tool_name: null, input_summary: body.slice(0, 200), duration_ms: 0, status: "error", error_message: "Parse error", project_root: root });
+    return resp;
   }
   if (req.jsonrpc !== "2.0") {
-    return JSON.stringify(err(req.id ?? 0, -32600, "Invalid Request"));
+    const resp = JSON.stringify(err(req.id ?? 0, -32600, "Invalid Request"));
+    if (onCall) onCall({ method: req.method ?? "<invalid>", tool_name: null, input_summary: null, duration_ms: 0, status: "error", error_message: "Invalid Request", project_root: root });
+    return resp;
   }
-  const res = dispatch(root, req);
-  return res ? JSON.stringify(res) : "";
+  const { result, callInfo } = dispatch(root, req);
+  if (callInfo && onCall) onCall(callInfo);
+  return result ? JSON.stringify(result) : "";
 }
+
+/**
+ * Create a wrapped MCP handler that automatically persists call records to disk.
+ * Used by the dashboard HTTP server (which has the project root context).
+ */
+export function createMonitoredMcpHandler(projectRoot: string): (body: string) => string {
+  return (body: string) => {
+    return handleMcpRequest(body, projectRoot, (info) => {
+      try {
+        appendMcpCall(projectRoot, info);
+      } catch {
+        // monitoring write failures are non-fatal
+      }
+    });
+  };
+}
+

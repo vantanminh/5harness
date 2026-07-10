@@ -15,6 +15,12 @@ export type McpCallRecord = {
   project_root: string;
 };
 
+/** Input type for appendMcpCall — id and timestamp are optional (auto-generated). */
+export type McpCallInput = Omit<McpCallRecord, "id" | "timestamp"> & {
+  id?: number;
+  timestamp?: string;
+};
+
 export type McpCallStats = {
   total_calls: number;
   error_count: number;

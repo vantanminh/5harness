@@ -5,7 +5,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import type { McpCallFilter, McpCallRecord, McpCallStats } from "../domain/mcp-call-record.js";
+import type { McpCallFilter, McpCallInput, McpCallRecord, McpCallStats } from "../domain/mcp-call-record.js";
 
 export function mcpCallsPath(projectRoot: string): string {
   return path.join(projectRoot, ".harness", "local", "mcp-calls.jsonl");
@@ -46,7 +46,7 @@ export function listMcpCalls(
 
 export function appendMcpCall(
   projectRoot: string,
-  record: Omit<McpCallRecord, "id" | "timestamp">,
+  record: McpCallInput,
 ): McpCallRecord {
   ensureDir(projectRoot);
   const all = listMcpCalls(projectRoot);
