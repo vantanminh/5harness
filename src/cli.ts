@@ -16,6 +16,12 @@ import { executeNext } from "./commands/next.js";
 
 import { executeContext } from "./commands/context.js";
 
+import {
+  executeToolRegister,
+  executeToolCheck,
+  executeToolRemove,
+} from "./commands/tool.js";
+
 import { executeBacklogAdd, executeBacklogClose } from "./commands/backlog.js";
 import { executeDecisionAdd } from "./commands/decision.js";
 import {
@@ -572,6 +578,53 @@ async function main(argv: string[] = process.argv): Promise<void> {
         withErrors(() => executeContext(id, opts));
       }),
   );
+
+  // -- Tool Registry ---------------------------------------------------------
+  const toolCmd = program
+    .command("tool")
+    .description("Inbound tool registry: register, check, and remove external tools");
+
+  addDirOptions(
+    toolCmd
+      .command("register")
+      .description("Register an external project tool")
+      .requiredOption("--name <name>", "unique tool name")
+      .requiredOption("--command <command>", "command path or run string")
+      .requiredOption("--description <desc>", "10-200 char description")
+      .requiredOption("--responsibility <resp>", "responsibility label")
+      .option("--kind <kind>", "cli | binary | mcp | skill | http (default: cli)")
+      .option("--capability <name>", "workflow capability (kebab-case)")
+      .option("--scan <path>", "declarative path/URL for mcp/skill/http")
+      .option("--args <args>", "parameter spec (name:type:required:help)")
+      .option("--force", "skip PATH check for cli/binary")
+      .option("--json", "machine-readable JSON output")
+      .action((opts) => {
+        withErrors(() => executeToolRegister(opts));
+      }),
+  );
+
+  addDirOptions(
+    toolCmd
+      .command("check")
+      .description("Scan registered tools and persist present/missing status")
+      .option("--name <name>", "check a single tool")
+      .option("--json", "machine-readable JSON output")
+      .action((opts) => {
+        withErrors(() => executeToolCheck(opts));
+      }),
+  );
+
+  addDirOptions(
+    toolCmd
+      .command("remove")
+      .description("Remove a registered external tool")
+      .requiredOption("--name <name>", "tool name to remove")
+      .option("--json", "machine-readable JSON output")
+      .action((opts) => {
+        withErrors(() => executeToolRemove(opts));
+      }),
+  );
+
 
 
 

@@ -8,6 +8,7 @@ import {
 } from "../application/md-query.js";
 import { queryTracesMd } from "../application/local-traces.js";
 import { listTools } from "../domain/tools.js";
+import { listAllTools } from "../application/tool-registry.js";
 import {
   resolveTargetFromOptions,
   type TargetOptions,
@@ -23,12 +24,22 @@ export type QueryCliOptions = TargetOptions & {
 };
 
 function formatTools(options: QueryCliOptions): string {
-  const tools = listTools({
+  const builtins = listTools({
     capability: options.capability,
     status: options.status,
   });
-  return formatTable(
-    tools.map((t) => ({
+  const { targetDir } = resolveTargetFromOptions(options);
+  const registered = listAllTools(targetDir);
+
+  // Apply filters to registered tools too
+  const filteredRegistered = registered.filter((t) => {
+    if (options.capability && t.capability !== options.capability) return false;
+    if (options.status && t.status !== options.status) return false;
+    return true;
+  });
+
+  const combined = [
+    ...builtins.map((t) => ({
       name: t.name,
       kind: t.kind,
       capability: t.capability,
@@ -36,15 +47,24 @@ function formatTools(options: QueryCliOptions): string {
       status: t.status,
       source: t.source,
     })),
-    [
-      "name",
-      "kind",
-      "capability",
-      "responsibility",
-      "status",
-      "source",
-    ],
-  );
+    ...filteredRegistered.map((t) => ({
+      name: t.name,
+      kind: t.kind,
+      capability: t.capability ?? "",
+      responsibility: t.responsibility,
+      status: t.status ?? "unknown",
+      source: "registered",
+    })),
+  ];
+
+  return formatTable(combined, [
+    "name",
+    "kind",
+    "capability",
+    "responsibility",
+    "status",
+    "source",
+  ]);
 }
 
 /**
