@@ -267,6 +267,30 @@ export const BUILTIN_TOOLS: ToolEntry[] = [
     status: "present",
     source: "compiled",
   },
+  {
+    name: "docs search",
+    kind: "builtin",
+    capability: "tool-access",
+    responsibility: "Search harness own docs (snippet results)",
+    status: "present",
+    source: "compiled",
+  },
+  {
+    name: "docs list",
+    kind: "builtin",
+    capability: "tool-access",
+    responsibility: "List all harness docs with titles",
+    status: "present",
+    source: "compiled",
+  },
+  {
+    name: "docs read",
+    kind: "builtin",
+    capability: "tool-access",
+    responsibility: "Read one harness doc file in full",
+    status: "present",
+    source: "compiled",
+  },
 ];
 
 export function listTools(filter?: {

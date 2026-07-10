@@ -2,6 +2,12 @@
 import { Command } from "commander";
 import { executeDashboard } from "./commands/dashboard.js";
 import { executeAudit } from "./commands/audit.js";
+import {
+  executeDocsSearch,
+  executeDocsList,
+  executeDocsRead,
+} from "./commands/docs.js";
+
 import { executeBacklogAdd, executeBacklogClose } from "./commands/backlog.js";
 import { executeDecisionAdd } from "./commands/decision.js";
 import {
@@ -175,6 +181,32 @@ async function main(argv: string[] = process.argv): Promise<void> {
         });
       });
     });
+
+  // Docs command group
+  const docsCmd = program
+    .command("docs")
+    .description("Browse and search harness documentation");
+  docsCmd
+    .command("search")
+    .description("Search harness docs for text (snippet results)")
+    .argument("<query>", "search query text")
+    .action((query: string) => {
+      withErrors(() => executeDocsSearch(query));
+    });
+  docsCmd
+    .command("list")
+    .description("List all available harness documentation files")
+    .action(() => {
+      withErrors(() => executeDocsList());
+    });
+  docsCmd
+    .command("read")
+    .description("Read a harness documentation file in full")
+    .argument("<path>", "relative path within docs/ (e.g. HARNESS.md)")
+    .action((docPath: string) => {
+      withErrors(() => executeDocsRead(docPath));
+    });
+
 
   program
     .command("update")
