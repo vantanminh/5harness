@@ -23,7 +23,7 @@ import { executePropose } from "./commands/propose.js";
 import { executeQuery } from "./commands/query.js";
 import { executeStoryAdd, executeStoryUpdate } from "./commands/story.js";
 import { executeScoreTrace, executeTrace } from "./commands/trace.js";
-import { executeUpdate } from "./commands/update.js";
+import { executeUpdate, executeRepoUpgrade } from "./commands/update.js";
 import {
   executeDecisionVerify,
   executeStoryVerify,
@@ -180,6 +180,18 @@ async function main(argv: string[] = process.argv): Promise<void> {
     .action(() => {
       withErrors(() => executeUpdate());
     });
+
+
+  addDirOptions(
+    program
+      .command("upgrade")
+      .description(
+        "Upgrade harness block in AGENTS.md to match current CLI version (only updates HARNESS:BEGIN/END section)",
+      )
+      .action((opts) => {
+        withErrors(() => executeRepoUpgrade(opts));
+      }),
+  );
 
 
   addDirOptions(

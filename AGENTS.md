@@ -56,6 +56,7 @@ needs discussion, feature intake, docs, or story shaping. The skill is
 project-scoped; do not use a global copy as the source of truth.
 
 <!-- HARNESS:BEGIN -->
+<!-- harness-version: 0.9.7 -->
 ## Harness
 
 This repo uses **Harness** (`@vantanminh/harness`, bin `harness`).
@@ -95,4 +96,13 @@ explicitly asks to run the **local source** CLI while developing this package.
 
 **Do not** hand-edit operational durable markdown (stories / decisions /
 intakes / backlog entities). Use `harness` only.
+
+All mutation commands auto-reindex after writing. Do NOT call `harness reindex`
+manually after mutations.
+
+### Upgrade
+
+When a newer harness CLI version is installed, run `harness upgrade` in this
+repo to update the harness block. Only the `<!-- HARNESS:BEGIN/END -->`
+section is modified.
 <!-- HARNESS:END -->

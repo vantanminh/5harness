@@ -1,6 +1,7 @@
 # Agent Instructions
 
 <!-- HARNESS:BEGIN -->
+<!-- harness-version: 0.9.7 -->
 ## Harness
 
 This repo uses **Harness** (`@vantanminh/harness`, bin `harness`).
@@ -14,7 +15,6 @@ harness --help
 
 # after cloning a repo that already has harness markdown history:
 harness link
-harness reindex   # link may do this automatically
 ```
 
 ### Before work — read
@@ -41,6 +41,9 @@ harness decision add --id … --title "…" --doc docs/decisions/….md
 harness query matrix
 ```
 
+All mutation commands auto-reindex after writing. You do NOT need to call
+`harness reindex` manually after mutations.
+
 ### Read with tools (prefer over dumping large trees)
 
 ```bash
@@ -49,9 +52,15 @@ harness get <id>
 harness links <id>
 harness query matrix
 harness query stats
-harness reindex
 ```
 
 Classify work with feature intake before large edits. Record durable decisions
 when architecture or product rules change.
+
+### Upgrade
+
+When a newer harness CLI version is installed (`npm i -g @vantanminh/harness`),
+run `harness upgrade` to update the harness block in this AGENTS.md.
+Only the section between `<!-- HARNESS:BEGIN -->` and `<!-- HARNESS:END -->`
+is modified — all other content is preserved.
 <!-- HARNESS:END -->

@@ -1,10 +1,19 @@
 import { spawnSync } from "node:child_process";
 import { VERSION } from "../version.js";
+import {
+  checkUpgradeAvailable,
+  applyUpgrade,
+} from "../application/upgrade.js";
+import {
+  resolveTargetFromOptions,
+  type TargetOptions,
+} from "../infrastructure/context.js";
+import { resolvePackageRoot } from "../package-root.js";
+import { maybeReindex } from "./_reindex-helper.js";
 
 export type PackageManager = "npm" | "pnpm" | "yarn" | "bun";
 
 export function detectPackageManager(): PackageManager {
-  // Explicit override via env
   const override = process.env.HARNESS_PM?.toLowerCase();
   if (
     override === "npm" ||
@@ -15,15 +24,12 @@ export function detectPackageManager(): PackageManager {
     return override;
   }
 
-  // npm/pnpm/yarn set npm_config_user_agent when running lifecycle scripts;
-  // some shells also inherit it. Check for hints.
   const userAgent = process.env.npm_config_user_agent ?? "";
   if (userAgent.startsWith("pnpm/")) return "pnpm";
   if (userAgent.startsWith("yarn/")) return "yarn";
   if (userAgent.startsWith("bun/")) return "bun";
   if (userAgent.startsWith("npm/")) return "npm";
 
-  // Probe PATH for known package managers (order: pnpm, yarn, bun, npm fallback)
   const candidates: { name: PackageManager; cmd: string }[] = [
     { name: "pnpm", cmd: process.platform === "win32" ? "pnpm.cmd" : "pnpm" },
     { name: "yarn", cmd: process.platform === "win32" ? "yarn.cmd" : "yarn" },
@@ -62,6 +68,9 @@ export function updateCommand(pm: PackageManager): { cmd: string; args: string[]
   }
 }
 
+/**
+ * Update the global npm package to latest.
+ */
 export function executeUpdate(): void {
   const pm = detectPackageManager();
   const { cmd, args } = updateCommand(pm);
@@ -87,3 +96,56 @@ export function executeUpdate(): void {
     );
   }
 }
+
+/**
+ * Upgrade the harness block in the current project's AGENTS.md.
+ *
+ * Only replaces content between `<!-- HARNESS:BEGIN -->` and
+ * `<!-- HARNESS:END -->`. User content outside the block is preserved.
+ */
+export function executeRepoUpgrade(options: TargetOptions = {}): void {
+  const { targetDir } = resolveTargetFromOptions(options);
+  const packageRoot = resolvePackageRoot();
+
+  const check = checkUpgradeAvailable(targetDir, packageRoot);
+
+  if (!check.repoVersion) {
+    console.log("No harness version found in AGENTS.md.");
+    console.log("This repo may have been initialized with an older harness.");
+    console.log("Run `harness init --force` to re-scaffold (with backup).");
+    return;
+  }
+
+  if (!check.available) {
+    console.log(
+      `Harness block is up-to-date (repo v${check.repoVersion}, CLI v${check.cliVersion}).`,
+    );
+    return;
+  }
+
+  console.log(
+    `Repo harness version: ${check.repoVersion} → ${check.cliVersion}`,
+  );
+  console.log(
+    "Upgrading harness block in AGENTS.md (HARNESS:BEGIN/END section only)...",
+  );
+
+  const result = applyUpgrade(targetDir, packageRoot);
+
+  if (!result.modified) {
+    console.log("No changes needed — harness block already matches.");
+    return;
+  }
+
+  console.log(`  updated: AGENTS.md`);
+  if (result.backupPath) {
+    console.log(`  backup: ${result.backupPath}`);
+  }
+  console.log(
+    `  repo harness block upgraded: v${result.repoVersion} → v${result.cliVersion}`,
+  );
+
+  // Auto-reindex after upgrade so any new template changes are indexed
+  maybeReindex(targetDir);
+}
+
