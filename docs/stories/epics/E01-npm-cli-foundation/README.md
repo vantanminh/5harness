@@ -10,7 +10,7 @@ target project.
 
 | ID | Title | Status |
 | --- | --- | --- |
-| US-001 | Scaffold npm package and `harness init` | planned |
+| US-001 | Scaffold npm package and `harness init` | implemented |
 
 ## Out of this epic
 

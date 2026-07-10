@@ -5,9 +5,11 @@ User-facing bin name: `harness`.
 Install (preferred):
 
 ```bash
-npm i -D <package-name>   # package name finalized in US-001
+npm i -D npm-harness
 npx harness <command>
 ```
+
+Package name: **`npm-harness`**. Bin name: **`harness`**.
 
 ## Commands in scope for Phase A (US-001)
 

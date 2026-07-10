@@ -7,13 +7,13 @@ and validation work.
 
 | Epic | Focus | Stories |
 | --- | --- | --- |
-| [E01-npm-cli-foundation](./epics/E01-npm-cli-foundation/README.md) | Phase A: npm package + `harness init` | US-001 planned |
+| [E01-npm-cli-foundation](./epics/E01-npm-cli-foundation/README.md) | Phase A: npm package + `harness init` | US-001 implemented |
 
 ## Story Index
 
 | ID | Title | Lane | Status | Path |
 | --- | --- | --- | --- | --- |
-| US-001 | Scaffold npm package and `harness init` | normal | planned | [epics/E01-…/US-001-…](./epics/E01-npm-cli-foundation/US-001-scaffold-package-and-harness-init.md) |
+| US-001 | Scaffold npm package and `harness init` | normal | implemented | [epics/E01-…/US-001-…](./epics/E01-npm-cli-foundation/US-001-scaffold-package-and-harness-init.md) |
 
 ## Normal Story
 

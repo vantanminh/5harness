@@ -34,16 +34,27 @@ Turn any software repo into an agent-ready workspace with:
 ### Intended CLI (target contract)
 
 ```bash
-# preferred: project-local
-npm i -D @harness/cli          # package name TBD; pin version per project
+# preferred: project-local (package name: npm-harness)
+npm i -D npm-harness
 npx harness init               # install operating files + init DB in target repo
-npx harness intake --type ... --summary ... --lane normal
-npx harness story add --id US-001 --title "..." --lane normal
-npx harness story update --id US-001 --unit 1 --integration 1
-npx harness story verify US-001
-npx harness decision add --id 0001 --title "..." --doc docs/decisions/0001.md
-npx harness query matrix
-npx harness audit
+npx harness migrate
+
+# Phase B+ (not implemented yet)
+# npx harness intake ...
+# npx harness story add ...
+# npx harness query matrix
+```
+
+### Local development (this repo)
+
+```bash
+cd harness
+npm install
+npm run build
+npm test
+node dist/cli.js init ./tmp-demo --dry-run
+node dist/cli.js init ./tmp-demo
+# or: npm run harness -- init ./tmp-demo
 ```
 
 Global install (`npm i -g ...`) is optional convenience. **Version pinning via
@@ -79,15 +90,15 @@ Primary reference docs (outside this tree):
 | Area | Status |
 | --- | --- |
 | Product direction | Documented (`docs/product/overview.md`) |
-| Operating harness for *this* repo | Installed (docs, AGENTS, temporary bootstrap CLI) |
+| Operating harness for *this* repo | Installed (docs, AGENTS, bootstrap CLI for durable records) |
 | Durable DB for *this* repo | Initialized (`harness.db`, gitignored) |
-| Product npm package / `harness` CLI | **Not implemented yet** |
-| Target-project installer via npm | **Not implemented yet** |
+| Product npm package | **`npm-harness` v0.1.0** — bin `harness` |
+| `harness init` / `harness migrate` | **Implemented** (US-001) |
+| Durable commands (intake/story/query) | Not yet (Phase B) |
 
-Bootstrap: while the product CLI is missing, maintainers may use
-`scripts/bin/harness-cli[.exe]` (temporary upstream binary) only to record
-intakes, stories, and decisions **for this repository**. That path is not the
-user-facing contract.
+User-facing install path is npm. Maintainers of **this** product repo may still
+use `scripts/bin/harness-cli[.exe]` temporarily to record intakes/stories until
+Phase B lands those commands on the product CLI.
 
 ## Read First (agents)
 

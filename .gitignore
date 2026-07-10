@@ -10,9 +10,12 @@ harness.db-shm
 target/
 dist/
 
-# JavaScript dependencies for local web UI packages.
+# JavaScript dependencies and local build output.
 node_modules/
 *.tsbuildinfo
+coverage/
+*.tgz
+.harness-backup/
 
 # Local web UI build and test output.
 desktop-dist/

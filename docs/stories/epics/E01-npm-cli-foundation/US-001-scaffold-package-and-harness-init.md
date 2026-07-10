@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+implemented
 
 ## Lane
 
@@ -127,7 +127,16 @@ When updating durable proof status, use numeric booleans:
 
 ## Evidence
 
-_None yet — planned story._
+```text
+npm test
+  ✓ 17 tests (paths, conflicts, init integration, CLI e2e)
+npm run build
+  ✓ dist/cli.js with shebang
+npm pack --dry-run
+  ✓ includes dist/, templates/, migrations/
+node dist/cli.js init <temp> && node dist/cli.js migrate --dir <temp>
+  ✓ Windows smoke in this workspace
+```
 
 ## Implementation Checklist (for the implementing agent)
 

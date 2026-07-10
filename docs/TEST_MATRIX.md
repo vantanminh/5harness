@@ -19,7 +19,7 @@ implemented until tests or validation evidence exist.
 
 | Story | Contract | Unit | Integration | E2E | Platform | Status | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| US-001 | npm package exposes `harness`; `init` scaffolds Phase A payload + SQLite; `migrate` applies schema | no | no | no | no | planned | none |
+| US-001 | npm package exposes `harness`; `init` scaffolds Phase A payload + SQLite; `migrate` applies schema | yes | yes | yes | yes | implemented | `npm test` (17); `npm run build`; Windows `node dist/cli.js init` smoke; `npm pack --dry-run` |
 
 ## Evidence Rules
 
