@@ -3,6 +3,7 @@ import {
   resolveTargetFromOptions,
   type TargetOptions,
 } from "../infrastructure/context.js";
+import { maybeReindex } from "./_reindex-helper.js";
 
 export type BacklogAddCliOptions = TargetOptions & {
   title: string;
@@ -41,6 +42,7 @@ export function executeBacklogAdd(options: BacklogAddCliOptions): void {
   );
   console.log(`Backlog ${result.id} added.`);
   console.log(`  file: ${result.file.relativePath}`);
+  maybeReindex(targetDir);
 }
 
 export function executeBacklogClose(options: BacklogCloseCliOptions): void {
@@ -58,4 +60,5 @@ export function executeBacklogClose(options: BacklogCloseCliOptions): void {
   );
   console.log(`Backlog ${options.id} closed.`);
   console.log(`  file: ${file.relativePath}`);
+  maybeReindex(targetDir);
 }

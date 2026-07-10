@@ -6,6 +6,7 @@ import {
   resolveTargetFromOptions,
   type TargetOptions,
 } from "../infrastructure/context.js";
+import { maybeReindex } from "./_reindex-helper.js";
 
 export type StoryAddCliOptions = TargetOptions & {
   id: string;
@@ -51,6 +52,7 @@ export function executeStoryAdd(options: StoryAddCliOptions): void {
   );
   console.log(`Story ${options.id} added.`);
   console.log(`  file: ${file.relativePath}`);
+  maybeReindex(targetDir);
 }
 
 export function executeStoryUpdate(options: StoryUpdateCliOptions): void {
@@ -77,4 +79,5 @@ export function executeStoryUpdate(options: StoryUpdateCliOptions): void {
   );
   console.log(`Story ${options.id} updated.`);
   console.log(`  file: ${file.relativePath}`);
+  maybeReindex(targetDir);
 }

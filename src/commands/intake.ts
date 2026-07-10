@@ -3,6 +3,7 @@ import {
   resolveTargetFromOptions,
   type TargetOptions,
 } from "../infrastructure/context.js";
+import { maybeReindex } from "./_reindex-helper.js";
 
 export type IntakeCliOptions = TargetOptions & {
   type: string;
@@ -35,4 +36,5 @@ export function executeIntake(options: IntakeCliOptions): void {
   );
   console.log(`Intake ${result.id} recorded.`);
   console.log(`  file: ${result.file.relativePath}`);
+  maybeReindex(targetDir);
 }

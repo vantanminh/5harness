@@ -3,6 +3,7 @@ import {
   resolveTargetFromOptions,
   type TargetOptions,
 } from "../infrastructure/context.js";
+import { maybeReindex } from "./_reindex-helper.js";
 
 export type DecisionAddCliOptions = TargetOptions & {
   id: string;
@@ -33,4 +34,5 @@ export function executeDecisionAdd(options: DecisionAddCliOptions): void {
   );
   console.log(`Decision ${options.id} added.`);
   console.log(`  file: ${file.relativePath}`);
+  maybeReindex(targetDir);
 }
