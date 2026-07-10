@@ -1,5 +1,8 @@
-import { addBacklog, closeBacklog } from "../application/durable.js";
-import { withHarnessDb, type TargetOptions } from "../infrastructure/context.js";
+import { addBacklogMd, closeBacklogMd } from "../application/md-durable.js";
+import {
+  withOptionalHarnessDb,
+  type TargetOptions,
+} from "../infrastructure/context.js";
 
 export type BacklogAddCliOptions = TargetOptions & {
   title: string;
@@ -9,6 +12,7 @@ export type BacklogAddCliOptions = TargetOptions & {
   risk?: string;
   predicted?: string;
   notes?: string;
+  links?: string;
 };
 
 export type BacklogCloseCliOptions = TargetOptions & {
@@ -21,30 +25,42 @@ export function executeBacklogAdd(options: BacklogAddCliOptions): void {
   if (!options.title) {
     throw new Error("backlog add requires --title");
   }
-  const { id } = withHarnessDb(options, (db) =>
-    addBacklog(db, {
-      title: options.title,
-      while: options.while,
-      pain: options.pain,
-      suggestion: options.suggestion,
-      risk: options.risk,
-      predicted: options.predicted,
-      notes: options.notes,
-    }),
+  const result = withOptionalHarnessDb(options, (db, { targetDir }) =>
+    addBacklogMd(
+      { projectRoot: targetDir, db },
+      {
+        title: options.title,
+        while: options.while,
+        pain: options.pain,
+        suggestion: options.suggestion,
+        risk: options.risk,
+        predicted: options.predicted,
+        notes: options.notes,
+        links: options.links,
+      },
+    ),
   );
-  console.log(`Backlog #${id} added.`);
+  const label = result.numericId
+    ? `Backlog ${result.id} (#${result.numericId}) added.`
+    : `Backlog ${result.id} added.`;
+  console.log(label);
+  console.log(`  file: ${result.file.relativePath}`);
 }
 
 export function executeBacklogClose(options: BacklogCloseCliOptions): void {
   if (!options.id) {
     throw new Error("backlog close requires --id");
   }
-  withHarnessDb(options, (db) => {
-    closeBacklog(db, {
-      id: options.id,
-      status: options.status,
-      outcome: options.outcome,
-    });
-  });
-  console.log(`Backlog #${options.id} closed.`);
+  const file = withOptionalHarnessDb(options, (db, { targetDir }) =>
+    closeBacklogMd(
+      { projectRoot: targetDir, db },
+      {
+        id: options.id,
+        status: options.status,
+        outcome: options.outcome,
+      },
+    ),
+  );
+  console.log(`Backlog ${options.id} closed.`);
+  console.log(`  file: ${file.relativePath}`);
 }

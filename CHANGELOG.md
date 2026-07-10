@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-10
+
+### Added
+
+- Markdown entity store writes for intake, story, decision, backlog:
+  - `docs/stories/<id>.md`, `docs/decisions/<id>.md`, `docs/intakes/IN-###.md`,
+    `docs/backlog/BL-###.md` with YAML frontmatter (`id`, `type`, …).
+- Optional `--links <csv>` on write commands for entity graph edges.
+- Atomic entity file writes; works **without** `harness.db` (MD-only).
+- Dual-write to SQLite when `harness.db` exists (transition until US-008/013).
+
+### Changed
+
+- CLI durable write commands no longer require an existing database.
+- Intake/backlog display ids use `IN-###` / `BL-###` (SQLite numeric id still
+  dual-written when DB present).
+
 ## [0.6.0] - 2026-07-10
 
 ### Added

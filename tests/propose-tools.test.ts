@@ -59,10 +59,10 @@ describe("propose", () => {
       expect(proposals.length).toBeGreaterThan(0);
       expect(formatProposals(proposals)).toContain("Proposal");
 
-      const first = proposeFromDb(db, { commit: true });
+      const first = proposeFromDb(db, { commit: true, projectRoot: dir });
       expect(first.committed).toBeGreaterThan(0);
       const title = first.proposals[0]!.title;
-      const second = proposeFromDb(db, { commit: true });
+      const second = proposeFromDb(db, { commit: true, projectRoot: dir });
       // same titles are not duplicated; new findings (e.g. open backlog
       // without outcomes created by the first commit) may still add rows
       const count = db

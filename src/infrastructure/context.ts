@@ -59,3 +59,27 @@ export function withHarnessDb<T>(
     db.close();
   }
 }
+
+/**
+ * Open DB if present (for dual-write transition). Never throws for missing DB.
+ */
+export function withOptionalHarnessDb<T>(
+  options: TargetOptions,
+  fn: (
+    db: DatabaseSync | null,
+    meta: { dbPath: string; targetDir: string },
+  ) => T,
+): T {
+  const { targetDir, dbPath, packageRoot } = resolveTargetFromOptions(options);
+  if (!fs.existsSync(dbPath)) {
+    return fn(null, { dbPath, targetDir });
+  }
+  const migrationsDir = path.join(packageRoot, "migrations");
+  migrateDatabase(dbPath, migrationsDir);
+  const db = openDatabase(dbPath);
+  try {
+    return fn(db, { dbPath, targetDir });
+  } finally {
+    db.close();
+  }
+}

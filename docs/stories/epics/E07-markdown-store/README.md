@@ -16,7 +16,7 @@ the only writer for operational entities.
 
 | ID | Title | Status |
 | --- | --- | --- |
-| US-007 | Markdown entity writes | planned |
+| US-007 | Markdown entity writes | implemented |
 | US-008 | Query/matrix reads from markdown | planned |
 
 ## Exit criteria

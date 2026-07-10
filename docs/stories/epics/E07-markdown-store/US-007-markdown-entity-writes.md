@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+implemented
 
 ## Lane
 
@@ -64,4 +64,11 @@ hand-edit path is required or supported for correctness.
 
 ## Evidence
 
-_(fill when implemented)_
+```text
+npm test   # frontmatter, md-durable, md-durable-cli e2e, dual-write matrix
+npm run typecheck
+npm run pack:check
+```
+
+Version: 0.7.0  
+Dual-write to SQLite when DB present (documented).

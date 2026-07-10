@@ -8,6 +8,20 @@
 Operational records live as **markdown entity files inside the project**
 (committed to Git). Humans and agents share the same history via clone/push.
 
+| Type | Path | Id form |
+| --- | --- | --- |
+| Story | `docs/stories/<id>.md` | caller id (e.g. `US-001`) |
+| Decision | `docs/decisions/<id>.md` (or `--doc`) | caller id |
+| Intake | `docs/intakes/IN-###.md` | auto `IN-001`… |
+| Backlog | `docs/backlog/BL-###.md` | auto `BL-001`… |
+
+Frontmatter always includes `id`, `type`, plus type-specific fields. Optional
+`links:` (or CLI `--links`) for graph edges.
+
+**Transition (v0.7):** write commands **always** write markdown. If
+`harness.db` exists they also dual-write SQLite so `query` still works until
+US-008 (query-from-MD) / US-013 (SQLite retirement).
+
 Derived artifacts (search index, optional FTS database) are **rebuildable** and
 are **not** the source of truth.
 

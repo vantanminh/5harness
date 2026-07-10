@@ -34,10 +34,11 @@ installers, curl pipelines, or manual `.exe` paths.
 `backlog add|close`, `trace`, `score-trace`, `audit`, `propose`,
 `query matrix|stats|intakes|decisions|stories|backlog|traces|tools`.
 
-Durable store is still SQLite MVP (v0.5); global registry is v0.6 (`HARNESS_HOME`).
+Writes go to **markdown entities** (v0.7); dual-write SQLite when DB exists.
+Global registry is v0.6 (`HARNESS_HOME`). Queries still read SQLite until US-008.
 
-**Target next (0011):** markdown SoT, `reindex`/`get`/`search`/`links`, init
-auto-register, dashboard.
+**Target next (0011):** `query` from MD (US-008), `reindex`/`get`/`search`/`links`,
+init auto-register, dashboard.
 
 **Tracking:** implement order and story status live in
 `docs/product/roadmap.md` and `docs/stories/README.md` (US-006 → US-014).

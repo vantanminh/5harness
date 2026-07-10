@@ -9,8 +9,11 @@ export type ProposeCliOptions = TargetOptions & {
 };
 
 export function executePropose(options: ProposeCliOptions): void {
-  const { proposals, committed } = withHarnessDb(options, (db) =>
-    proposeFromDb(db, { commit: Boolean(options.commit) }),
+  const { proposals, committed } = withHarnessDb(options, (db, { targetDir }) =>
+    proposeFromDb(db, {
+      commit: Boolean(options.commit),
+      projectRoot: targetDir,
+    }),
   );
   console.log(formatProposals(proposals));
   if (options.commit) {

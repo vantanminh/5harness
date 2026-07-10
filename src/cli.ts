@@ -125,6 +125,7 @@ function main(argv: string[] = process.argv): void {
       .option("--docs <csv>", "affected docs")
       .option("--story <id>", "linked story id")
       .option("--notes <text>", "notes")
+      .option("--links <csv>", "related entity links (wikilink-style ids)")
       .action((opts) => {
         withErrors(() => executeIntake(opts));
       }),
@@ -144,6 +145,7 @@ function main(argv: string[] = process.argv): void {
       .option("--contract <path>", "product contract path")
       .option("--verify <command>", "verify command")
       .option("--notes <text>", "notes")
+      .option("--links <csv>", "related entity links")
       .action((opts) => {
         withErrors(() => executeStoryAdd(opts));
       }),
@@ -164,6 +166,7 @@ function main(argv: string[] = process.argv): void {
       .option("--title <text>", "title")
       .option("--contract <path>", "contract path")
       .option("--notes <text>", "notes")
+      .option("--links <csv>", "related entity links")
       .action((opts) => {
         withErrors(() => executeStoryUpdate(opts));
       }),
@@ -199,9 +202,10 @@ function main(argv: string[] = process.argv): void {
       .requiredOption("--id <id>", "decision id")
       .requiredOption("--title <text>", "title")
       .option("--status <status>", "proposed|accepted|superseded|rejected", "accepted")
-      .option("--doc <path>", "markdown decision path")
+      .option("--doc <path>", "markdown decision path (default docs/decisions/<id>.md)")
       .option("--verify <command>", "optional verify command")
       .option("--notes <text>", "notes")
+      .option("--links <csv>", "related entity links")
       .action((opts) => {
         withErrors(() => executeDecisionAdd(opts));
       }),
@@ -232,6 +236,7 @@ function main(argv: string[] = process.argv): void {
       .option("--risk <lane>", "tiny | normal | high-risk")
       .option("--predicted <text>", "predicted impact")
       .option("--notes <text>", "notes")
+      .option("--links <csv>", "related entity links")
       .action((opts) => {
         withErrors(() => executeBacklogAdd(opts));
       }),

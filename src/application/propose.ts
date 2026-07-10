@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { AuditFinding, AuditResult } from "../domain/audit.js";
-import { addBacklog } from "./durable.js";
+import { addBacklogMd } from "./md-durable.js";
 import { runAudit } from "./quality.js";
 
 export type Proposal = {
@@ -92,7 +92,7 @@ export function formatProposals(proposals: Proposal[]): string {
 
 export function proposeFromDb(
   db: DatabaseSync,
-  options: { commit?: boolean } = {},
+  options: { commit?: boolean; projectRoot?: string } = {},
 ): { proposals: Proposal[]; committed: number } {
   const audit = runAudit(db);
   const proposals = generateProposals(audit);
@@ -109,15 +109,22 @@ export function proposeFromDb(
         )
         .get(p.title) as { id: number } | undefined;
       if (existing) continue;
-      addBacklog(db, {
-        title: p.title,
-        while: "harness propose --commit",
-        pain: p.evidence,
-        suggestion: p.suggestedAction,
-        risk: p.risk === "high_risk" ? "high-risk" : p.risk,
-        predicted: p.predictedImpact,
-        notes: `component=${p.component}`,
-      });
+      const projectRoot = options.projectRoot;
+      if (!projectRoot) {
+        throw new Error("propose --commit requires project root for markdown store");
+      }
+      addBacklogMd(
+        { projectRoot, db },
+        {
+          title: p.title,
+          while: "harness propose --commit",
+          pain: p.evidence,
+          suggestion: p.suggestedAction,
+          risk: p.risk === "high_risk" ? "high-risk" : p.risk,
+          predicted: p.predictedImpact,
+          notes: `component=${p.component}`,
+        },
+      );
       committed += 1;
     }
   }

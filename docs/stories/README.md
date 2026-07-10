@@ -15,7 +15,7 @@ and validation work.
 | [E04-release-hardening](./epics/E04-release-hardening/README.md) | Phase D: release hardening | US-004 **implemented** |
 | [E05-evolution](./epics/E05-evolution/README.md) | Phase E: propose + tools | US-005 **implemented** |
 | [E06-global-registry](./epics/E06-global-registry/README.md) | Phase F1: global registry + link | US-006 **implemented** |
-| [E07-markdown-store](./epics/E07-markdown-store/README.md) | Phase F2: markdown durable SoT | US-007–008 planned |
+| [E07-markdown-store](./epics/E07-markdown-store/README.md) | Phase F2: markdown durable SoT | US-007 **implemented**; US-008 planned |
 | [E08-agent-index](./epics/E08-agent-index/README.md) | Phase F3: get/search/links | US-009 planned |
 | [E09-init-link-pivot](./epics/E09-init-link-pivot/README.md) | Phase F4: init + templates pivot | US-010–011 planned |
 | [E10-quality-on-md](./epics/E10-quality-on-md/README.md) | Phase F5: quality + SQLite retire | US-012–013 planned |
@@ -31,7 +31,7 @@ and validation work.
 | US-004 | Phase D release hardening | normal | implemented | [E04](./epics/E04-release-hardening/US-004-release-hardening.md) |
 | US-005 | Propose + tool registry | normal | implemented | [E05](./epics/E05-evolution/US-005-propose-and-tools.md) |
 | US-006 | Global registry + link/unlink/projects | normal | implemented | [E06](./epics/E06-global-registry/US-006-global-registry-and-link.md) |
-| US-007 | Markdown entity writes | normal | planned | [E07](./epics/E07-markdown-store/US-007-markdown-entity-writes.md) |
+| US-007 | Markdown entity writes | normal | implemented | [E07](./epics/E07-markdown-store/US-007-markdown-entity-writes.md) |
 | US-008 | Markdown query reads | normal | planned | [E07](./epics/E07-markdown-store/US-008-markdown-query-reads.md) |
 | US-009 | reindex / get / search / links | normal | planned | [E08](./epics/E08-agent-index/US-009-reindex-get-search-links.md) |
 | US-010 | Init payload + registration | normal | planned | [E09](./epics/E09-init-link-pivot/US-010-init-payload-and-registration.md) |

@@ -53,7 +53,7 @@ describe("durable CLI e2e", () => {
       "US-100",
     ]);
     expect(intake.status, intake.stderr + intake.stdout).toBe(0);
-    expect(intake.stdout).toMatch(/Intake #1/);
+    expect(intake.stdout).toMatch(/Intake IN-001/);
 
     const storyAdd = runHarness([
       "story",
