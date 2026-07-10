@@ -83,7 +83,7 @@ describe("markdown durable CLI e2e", () => {
     expect(d2.unit).toBe(1);
   });
 
-  it("init project dual-writes story to md and keeps query matrix", () => {
+  it("init project then story query matrix from markdown", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-md-dual-"));
     tempDirs.push(dir);
 

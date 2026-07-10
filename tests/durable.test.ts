@@ -33,7 +33,7 @@ afterEach(() => {
 function tempProject(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-durable-"));
   tempDirs.push(dir);
-  runInit({ directory: dir, packageRoot });
+  runInit({ directory: dir, packageRoot, createLegacyDb: true, skipRegister: true });
   return dir;
 }
 

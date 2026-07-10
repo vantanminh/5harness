@@ -121,14 +121,10 @@ describe("durable CLI e2e", () => {
     expect(stats.status, stats.stderr + stats.stdout).toBe(0);
     expect(stats.stdout).toContain("Harness Stats");
 
-    const missing = runHarness([
-      "query",
-      "matrix",
-      "--dir",
-      path.join(dir, "does-not-exist-db-only"),
-    ]);
-    // dir may not exist - resolveDbPath still points to non-existing db
-    expect(missing.status).not.toBe(0);
-    expect(missing.stderr).toMatch(/init/i);
+    // empty project: query works without harness.db
+    const empty = fs.mkdtempSync(path.join(os.tmpdir(), "harness-empty-q-"));
+    tempDirs.push(empty);
+    const emptyMatrix = runHarness(["query", "matrix", "--dir", empty]);
+    expect(emptyMatrix.status, emptyMatrix.stderr + emptyMatrix.stdout).toBe(0);
   });
 });

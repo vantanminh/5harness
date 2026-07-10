@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - YAML frontmatter correctly round-trips JSON-escaped strings (e.g. verify commands).
 
+### Changed
+
+- **Breaking (US-013):** project `harness.db` is no longer created by `init` and is not
+  the operational SoT. Durable writes are markdown-only (no dual-write).
+- `harness migrate` only touches an existing legacy DB (or reports none).
+- Added `harness import-sqlite` for one-shot conversion (skips existing entities
+  unless `--force`).
+
 ## [0.7.2] - 2026-07-10
 
 ### Added

@@ -21,10 +21,19 @@ export const BUILTIN_TOOLS: ToolEntry[] = [
     name: "migrate",
     kind: "builtin",
     capability: "task-state",
-    responsibility: "Apply SQL migrations",
+    responsibility: "Legacy: migrate existing harness.db if present",
     status: "present",
     source: "compiled",
   },
+  {
+    name: "import-sqlite",
+    kind: "builtin",
+    capability: "task-state",
+    responsibility: "Import legacy harness.db into markdown entities",
+    status: "present",
+    source: "compiled",
+  },
+
   {
     name: "link",
     kind: "builtin",

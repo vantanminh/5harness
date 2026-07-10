@@ -36,8 +36,10 @@ export type InitOptions = {
   log?: (message: string) => void;
   /** Skip global registry registration (tests). */
   skipRegister?: boolean;
-  /** Skip creating legacy harness.db (US-013 default path). */
+  /** Skip creating legacy harness.db (default true since US-013). */
   skipDb?: boolean;
+  /** Explicitly create legacy harness.db (transition/import only). */
+  createLegacyDb?: boolean;
 };
 
 export type InitResult = {
@@ -150,7 +152,8 @@ export function runInit(options: InitOptions): InitResult {
   const env = options.env ?? process.env;
   const force = Boolean(options.force);
   const dryRun = Boolean(options.dryRun);
-  const skipDb = Boolean(options.skipDb);
+  // US-013: default is no project SQLite SoT; opt-in via skipDb: false or createLegacyDb
+  const skipDb = options.skipDb !== false && !options.createLegacyDb;
   const targetDir = resolveTargetDir(options.directory, cwd);
   const dbPath = resolveDbPath(targetDir, env);
   const migrationsDir = path.join(options.packageRoot, "migrations");

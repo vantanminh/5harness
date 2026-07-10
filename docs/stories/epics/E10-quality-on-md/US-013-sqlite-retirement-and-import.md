@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## Lane
 
@@ -56,4 +56,6 @@ project SoT are removed or marked legacy.
 
 ## Evidence
 
-_(fill when implemented)_
+- Init no longer creates harness.db; migrate is legacy-only messaging
+- `harness import-sqlite` non-clobber import; dual-write removed from write CLI
+- Tests: import-sqlite.test.ts, init/cli e2e updated

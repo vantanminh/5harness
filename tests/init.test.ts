@@ -41,7 +41,7 @@ describe("runInit", () => {
     expect(fs.existsSync(path.join(dir, "harness.db"))).toBe(false);
   });
 
-  it("inits empty target with payload files, entity dirs, gitignore, registry", () => {
+  it("inits empty target with payload files, entity dirs, gitignore, registry (no SQLite SoT)", () => {
     const dir = tempDir();
     const home = tempDir();
     const result = runInit({
@@ -51,15 +51,14 @@ describe("runInit", () => {
     });
 
     expect(result.dryRun).toBe(false);
-    expect(result.schemaVersion).toBe(2);
+    expect(result.schemaVersion).toBe(0);
     expect(result.registered).toBe(true);
     for (const relative of manifest.files) {
       expect(fs.existsSync(path.join(dir, relative)), relative).toBe(true);
     }
     expect(fs.existsSync(path.join(dir, "docs", "intakes"))).toBe(true);
     expect(fs.existsSync(path.join(dir, "docs", "backlog"))).toBe(true);
-    expect(fs.existsSync(path.join(dir, "harness.db"))).toBe(true);
-    expect(schemaIsReadable(path.join(dir, "harness.db"))).toBe(true);
+    expect(fs.existsSync(path.join(dir, "harness.db"))).toBe(false);
 
     const gitignore = fs.readFileSync(path.join(dir, ".gitignore"), "utf8");
     expect(gitignore).toContain("harness.db");
@@ -76,8 +75,6 @@ describe("runInit", () => {
     expect(harnessDoc).not.toMatch(/Rust binary/i);
 
     const registry = fs.readFileSync(path.join(home, "registry.json"), "utf8");
-    expect(registry).toContain(dir.replace(/\\/g, "\\\\") === dir ? path.basename(dir) : path.basename(dir));
-    // registry has projects array with path
     expect(registry).toMatch(/"projects"/);
 
     // no upstream binary scaffold
@@ -118,21 +115,23 @@ describe("runInit", () => {
     expect(fs.existsSync(backupRoot)).toBe(true);
   });
 
-  it("migrate is idempotent after init", () => {
+  it("optional legacy db create still migrates", () => {
     const dir = tempDir();
-    runInit({ directory: dir, packageRoot, skipRegister: true });
+    runInit({
+      directory: dir,
+      packageRoot,
+      skipRegister: true,
+      createLegacyDb: true,
+    });
     const dbPath = path.join(dir, "harness.db");
+    expect(fs.existsSync(dbPath)).toBe(true);
+    expect(schemaIsReadable(dbPath)).toBe(true);
     const first = migrateDatabase(
       dbPath,
       path.join(packageRoot, "migrations"),
     );
     expect(first.alreadyLatest).toBe(true);
-    const second = migrateDatabase(
-      dbPath,
-      path.join(packageRoot, "migrations"),
-    );
-    expect(second.alreadyLatest).toBe(true);
-    expect(second.currentVersion).toBe(2);
+    expect(first.currentVersion).toBe(2);
   });
 });
 

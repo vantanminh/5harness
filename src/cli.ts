@@ -16,6 +16,7 @@ import {
   executeProjects,
   executeUnlink,
 } from "./commands/link.js";
+import { executeImportSqlite } from "./commands/import-sqlite.js";
 import { executeMigrate } from "./commands/migrate.js";
 import { executePropose } from "./commands/propose.js";
 import { executeQuery } from "./commands/query.js";
@@ -79,10 +80,26 @@ function main(argv: string[] = process.argv): void {
   addDirOptions(
     program
       .command("migrate")
-      .description("Apply pending SQL migrations to the harness database")
+      .description(
+        "Legacy: migrate existing harness.db if present (markdown is SoT)",
+      )
       .argument("[directory]", "target project directory (default: cwd)")
       .action((directory: string | undefined, opts) => {
         withErrors(() => executeMigrate(directory, opts));
+      }),
+  );
+
+  addDirOptions(
+    program
+      .command("import-sqlite")
+      .description(
+        "Import legacy harness.db rows into markdown entities (non-clobbering)",
+      )
+      .argument("[directory]", "target project directory (default: cwd)")
+      .option("--db <path>", "path to harness.db (default: <project>/harness.db)")
+      .option("--force", "overwrite existing entity files")
+      .action((directory: string | undefined, opts) => {
+        withErrors(() => executeImportSqlite(directory, opts));
       }),
   );
 

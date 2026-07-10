@@ -54,11 +54,13 @@ describe("CLI e2e", () => {
     const init = runHarness(["init", "--dir", dir]);
     expect(init.status, init.stderr + init.stdout).toBe(0);
     expect(fs.existsSync(path.join(dir, "AGENTS.md"))).toBe(true);
-    expect(fs.existsSync(path.join(dir, "harness.db"))).toBe(true);
+    expect(fs.existsSync(path.join(dir, "docs", "stories"))).toBe(true);
+    // US-013: no project SQLite SoT by default
+    expect(fs.existsSync(path.join(dir, "harness.db"))).toBe(false);
 
     const migrate = runHarness(["migrate", "--dir", dir]);
     expect(migrate.status, migrate.stderr + migrate.stdout).toBe(0);
-    expect(migrate.stdout).toMatch(/Already up to date|schema v2/i);
+    expect(migrate.stdout).toMatch(/markdown|No harness\.db|nothing to migrate/i);
   });
 
   it("conflict without force exits non-zero", () => {
