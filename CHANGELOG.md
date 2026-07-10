@@ -1,0 +1,43 @@
+# Changelog
+
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.4.0] - 2026-07-10
+
+### Added
+
+- Release hardening: `LICENSE`, `CHANGELOG.md`, distribution product doc.
+- `npm run pack:check` validates published tarball contents (bin, templates, migrations).
+- GitHub Actions CI workflow: install, typecheck, test, build, pack:check.
+- Package metadata for publish readiness (`engines`, `files`, keywords).
+
+## [0.3.0] - 2026-07-10
+
+### Added
+
+- Phase C quality commands: `story verify`, `story verify-all`, `decision verify`.
+- `trace`, `score-trace`, `audit`, `query traces`.
+- Schema migration `002-quality.sql` (story last_verified_*, trace friction).
+
+## [0.2.0] - 2026-07-10
+
+### Added
+
+- Phase B durable commands: `intake`, `story add|update`, `decision add`.
+- `backlog add|close`, `query matrix|stats|intakes|decisions|stories|backlog`.
+
+## [0.1.0] - 2026-07-10
+
+### Added
+
+- Initial npm package `npm-harness` with bin `harness`.
+- `harness init` Phase A payload + SQLite migrate via `node:sqlite`.
+- `harness migrate`, templates manifest, vitest suite.
+
+[0.4.0]: https://github.com/local/npm-harness/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/local/npm-harness/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/local/npm-harness/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/local/npm-harness/releases/tag/v0.1.0

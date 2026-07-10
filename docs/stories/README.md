@@ -10,6 +10,7 @@ and validation work.
 | [E01-npm-cli-foundation](./epics/E01-npm-cli-foundation/README.md) | Phase A: npm package + `harness init` | US-001 implemented |
 | [E02-durable-mvp](./epics/E02-durable-mvp/README.md) | Phase B: durable commands | US-002 implemented |
 | [E03-quality](./epics/E03-quality/README.md) | Phase C: verify / trace / audit | US-003 implemented |
+| [E04-release-hardening](./epics/E04-release-hardening/README.md) | Phase D: release hardening | US-004 implemented |
 
 ## Story Index
 
@@ -18,6 +19,7 @@ and validation work.
 | US-001 | Scaffold npm package and `harness init` | normal | implemented | [epics/E01-…/US-001-…](./epics/E01-npm-cli-foundation/US-001-scaffold-package-and-harness-init.md) |
 | US-002 | Durable commands on harness CLI | normal | implemented | [epics/E02-…/US-002-…](./epics/E02-durable-mvp/US-002-durable-commands.md) |
 | US-003 | Phase C quality commands | normal | implemented | [epics/E03-…/US-003-…](./epics/E03-quality/US-003-quality-commands.md) |
+| US-004 | Phase D release hardening | normal | implemented | [epics/E04-…/US-004-…](./epics/E04-release-hardening/US-004-release-hardening.md) |
 
 ## Normal Story
 

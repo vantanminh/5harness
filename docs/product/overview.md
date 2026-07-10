@@ -84,13 +84,13 @@ Upstream project: sibling directory `../repository-harness` (or the public
 | A — Foundation | **US-001 done** — package skeleton, `harness init` + migrate |
 | B — Durable MVP | **US-002 done** — intake, story, decision, backlog, query |
 | C — Quality | **US-003 done** — verify, trace, score-trace, audit |
-| D — Hardening | multi-platform publish, checksums if native, docs polish |
-| E — Optional | advanced parity, automation UI — only with explicit stories |
+| D — Hardening | **US-004 done** — LICENSE, CHANGELOG, pack:check, CI |
+| E — Optional | propose, tool registry, automation UI — only with explicit stories |
 
-Stories: US-001 (E01), US-002 (E02), US-003 (E03).
+Stories: US-001 … US-004.
 
 ## Open Questions
 
-- Final npm scope/name and registry for public publish.
-- When (if ever) to add a Rust engine behind the npm bin.
+- Final public registry scope/org name (currently `npm-harness`).
+- When (if ever) to add a Rust engine behind the npm bin (then add checksums).
 - Exact compatibility level with upstream CLI flags beyond semantic alignment.

@@ -1,6 +1,6 @@
 {
   "name": "npm-harness",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "npm-native agent-ready repository harness (init + durable SQLite)",
   "type": "module",
   "bin": {
@@ -12,12 +12,15 @@
     "templates",
     "migrations",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "clean": "node -e \"import('node:fs').then(fs=>fs.rmSync('dist',{recursive:true,force:true}))\"",
     "prepack": "npm run build",
+    "pack:check": "node scripts/pack-check.mjs",
+    "release:check": "npm run typecheck && npm test && npm run pack:check",
     "test": "vitest run",
     "test:watch": "vitest",
     "harness": "node --import tsx src/cli.ts",
@@ -30,9 +33,18 @@
     "harness",
     "agents",
     "cli",
-    "sqlite"
+    "sqlite",
+    "npm"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/local/npm-harness.git"
+  },
+  "bugs": {
+    "url": "https://github.com/local/npm-harness/issues"
+  },
+  "homepage": "https://github.com/local/npm-harness#readme",
   "dependencies": {
     "commander": "^14.0.0"
   },

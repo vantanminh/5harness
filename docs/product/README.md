@@ -10,11 +10,12 @@ domain-named docs over one monolithic SPEC.
 | `overview.md` | Product identity, goals, non-goals, roadmap, upstream relationship |
 | `cli-contract.md` | Target `harness` CLI surface (Phase A/B + deferred) |
 | `init-payload.md` | Files and DB behavior for `harness init` |
-| `durable-layer.md` | SQLite operational records and Phase B commands |
+| `durable-layer.md` | SQLite operational records and Phase B/C commands |
+| `distribution.md` | npm packaging, pack contents, release checklist |
 
 ## Planned (create when a story needs them)
 
-- `distribution.md` — npm packaging, optional native artifacts
+- Native distribution notes when/if a Rust engine ships
 
 ## Update Rule
 
