@@ -4,6 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  getEntityDetail,
+  getProjectDetail,
   handleDashboardRequest,
   listProjectSummaries,
   startDashboard,
@@ -114,5 +116,122 @@ describe("dashboard (US-014)", () => {
     } finally {
       await dash.close();
     }
+  });
+
+  it("project detail includes intakes, stories, backlog, and traces", () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dash-h3-"));
+    const project = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dash-p3-"));
+    tempDirs.push(home, project);
+
+    addStoryMd(
+      { projectRoot: project },
+      { id: "US-D3", title: "Full detail story", lane: "normal" },
+    );
+    linkProject(project, {
+      env: { ...process.env, HARNESS_HOME: home },
+    });
+
+    const opts = { env: { ...process.env, HARNESS_HOME: home } };
+    const detail = getProjectDetail(project, opts);
+    expect(detail).not.toBeNull();
+    expect(detail!.intakes).toBeDefined();
+    expect(detail!.stories).toBeDefined();
+    expect(detail!.backlog).toBeDefined();
+    expect(detail!.traces).toBeDefined();
+    expect(detail!.stories).toMatch(/US-D3/);
+
+    // project page HTML includes all tabs
+    const html = handleDashboardRequest(
+      "GET",
+      `/project?id=${encodeURIComponent(detail!.project.id)}`,
+      opts,
+    );
+    expect(html.status).toBe(200);
+    expect(html.body).toMatch(/section-tabs/);
+    expect(html.body).toMatch(/Stats/);
+    expect(html.body).toMatch(/Stories/);
+    expect(html.body).toMatch(/Decisions/);
+    expect(html.body).toMatch(/Intakes/);
+    expect(html.body).toMatch(/Backlog/);
+    expect(html.body).toMatch(/Traces/);
+  });
+
+  it("serves entity detail via handler and HTTP", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dash-h4-"));
+    const project = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dash-p4-"));
+    tempDirs.push(home, project);
+
+    addStoryMd(
+      { projectRoot: project },
+      { id: "US-D4", title: "Entity detail story", lane: "tiny" },
+    );
+    linkProject(project, {
+      env: { ...process.env, HARNESS_HOME: home },
+    });
+
+    const opts = { env: { ...process.env, HARNESS_HOME: home } };
+
+    // entity detail via handler
+    const entDetail = getEntityDetail(project, "US-D4", opts);
+    expect(entDetail).not.toBeNull();
+    expect(entDetail!.id).toBe("US-D4");
+    expect(entDetail!.type).toBe("story");
+    expect(entDetail!.title).toBe("Entity detail story");
+
+    // entity API
+    const apiEntity = handleDashboardRequest(
+      "GET",
+      `/api/entity?project=${encodeURIComponent(project)}&id=US-D4`,
+      opts,
+    );
+    expect(apiEntity.status).toBe(200);
+    expect(apiEntity.body).toMatch(/US-D4/);
+    expect(apiEntity.body).toMatch(/Entity detail story/);
+
+    // entity HTML page
+    const htmlEntity = handleDashboardRequest(
+      "GET",
+      `/entity?project=${encodeURIComponent(project)}&id=US-D4`,
+      opts,
+    );
+    expect(htmlEntity.status).toBe(200);
+    expect(htmlEntity.body).toMatch(/US-D4/);
+    expect(htmlEntity.body).toMatch(/Entity detail story/);
+    expect(htmlEntity.body).toMatch(/Frontmatter/);
+    expect(htmlEntity.body).toMatch(/Body/);
+
+    // entity via HTTP server
+    const dash = await startDashboard({
+      host: "127.0.0.1",
+      port: 0,
+      env: { ...process.env, HARNESS_HOME: home },
+    });
+    try {
+      const entRes = await get(
+        `${dash.url}api/entity?project=${encodeURIComponent(project)}&id=US-D4`,
+      );
+      expect(entRes.status).toBe(200);
+      expect(entRes.body).toMatch(/US-D4/);
+
+      // 404 for unknown entity
+      const notFound = await get(
+        `${dash.url}api/entity?project=${encodeURIComponent(project)}&id=NONEXISTENT`,
+      );
+      expect(notFound.status).toBe(404);
+    } finally {
+      await dash.close();
+    }
+  });
+
+  it("home page shows footer with version", () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dash-h5-"));
+    tempDirs.push(home);
+
+    const html = handleDashboardRequest("GET", "/", {
+      env: { ...process.env, HARNESS_HOME: home },
+    });
+    expect(html.status).toBe(200);
+    expect(html.body).toMatch(/Harness v\d+\.\d+\.\d+/);
+    expect(html.body).toMatch(/github.com\/vantanminh\/harness/);
   });
 });
