@@ -5,10 +5,8 @@ import {
   queryMatrixMd,
   queryStatsMd,
 } from "./md-query.js";
-import {
-  listLinkedProjects,
-  type ListedProject,
-} from "./registry.js";
+import type { ListedProject } from "../domain/registry.js";
+import { listLinkedProjects } from "./registry.js";
 
 export type DashboardOptions = {
   host?: string;
