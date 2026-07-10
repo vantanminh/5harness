@@ -78,6 +78,40 @@ Operational durable entities are written **only** through application services
 invoked by CLI (or future controlled API). Agents must not hand-edit entity
 markdown. Policy docs (`HARNESS.md`, etc.) remain human-editable.
 
+**Auto-reindex (US-015):** Every mutation command (intake, story add/update,
+decision add, backlog add/close) auto-reindexes after a successful write.
+Agents never need to call `harness reindex` manually. The shared helper
+`src/commands/_reindex-helper.ts` encapsulates this pattern.
+
+## Upgrade system (US-016)
+
+The harness version is tracked inside the `<!-- HARNESS:BEGIN/END -->` block
+of AGENTS.md via a `<!-- harness-version: X.Y.Z -->` marker. When a repo was
+initialized with an older CLI version, `harness upgrade` detects the mismatch
+and replaces only the harness-managed block with the current template content.
+
+```text
+CLI (v0.9.7)
+    |
+    +-- harness upgrade
+         |
+         +-- read AGENTS.md → extract version marker
+         +-- compare with VERSION
+         +-- if older: backup AGENTS.md
+         +-- replace HARNESS:BEGIN/END block from templates/AGENTS.md
+         +-- auto-reindex
+```
+
+Key properties:
+- Only the `<!-- HARNESS:BEGIN -->` ... `<!-- HARNESS:END -->` section is modified
+- User-customized content outside the block is preserved
+- Timestamped backup written to `.harness-backup/` before modification
+- Backward compatible: any old version can be upgraded to current
+- Pre-0.9.7 repos (no version marker) receive guidance to re-init
+
+See [decision 0013](../decisions/0013-harness-development-conventions.md) for
+development conventions.
+
 ## This repo vs target projects
 
 | | This product repo | Target repos after `init` |

@@ -105,4 +105,10 @@ manually after mutations.
 When a newer harness CLI version is installed, run `harness upgrade` in this
 repo to update the harness block. Only the `<!-- HARNESS:BEGIN/END -->`
 section is modified.
+
+### Development Conventions
+
+See [decision 0013](docs/decisions/0013-harness-development-conventions.md) for
+harness development conventions: auto-reindex invariance, version tracking,
+backward-compatible upgrade, harness block ownership, and testing discipline.
 <!-- HARNESS:END -->
