@@ -5,13 +5,13 @@ User-facing bin name: `harness`.
 Install (**preferred** — decision 0011):
 
 ```bash
-npm i -g npm-harness
+npm i -g @vantanminh/harness
 harness <command>
 ```
 
-Alternate: `npm i -D npm-harness` + `npx harness <command>`.
+Alternate: `npm i -D @vantanminh/harness` + `npx harness <command>`.
 
-Package name: **`npm-harness`**. Bin name: **`harness`**.
+Package name: **`@vantanminh/harness`**. Bin name: **`harness`**.
 
 ## Commands in scope for Phase A (US-001) — shipped MVP
 
@@ -92,8 +92,7 @@ hand-edit operational markdown.
 
 ## Commands deferred (later)
 
-Dashboard UI, custom tool registration, changesets, score-context, full upstream
-parity extras, cloud registry.
+Custom tool registration, changesets, score-context, cloud registry.
 
 ## Exit codes
 
@@ -107,10 +106,5 @@ parity extras, cloud registry.
 
 | Variable | Meaning |
 | --- | --- |
-| `HARNESS_HOME` | Override global harness dir (default `~/.harness`) — target 0011 |
-| `HARNESS_DB_PATH` | **Legacy MVP only** — path to SQLite DB |
-
-## Non-contract (bootstrap only)
-
-`scripts/bin/harness-cli[.exe]` in this product repo is temporary and must not
-appear in user-facing CLI docs for the npm package.
+| `HARNESS_HOME` | Override global harness dir (default `~/.harness`) |
+| `HARNESS_DB_PATH` | **Legacy only** — path to SQLite DB for `import-sqlite` / old DB ops |

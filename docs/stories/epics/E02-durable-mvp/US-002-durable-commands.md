@@ -12,7 +12,7 @@ normal
 
 After `harness init`, a user can record intakes, stories, decisions, and backlog
 items and query matrix/stats/intakes/decisions/backlog via `npx harness …`
-without the upstream bootstrap binary.
+without a separate platform binary install.
 
 ## Relevant Product Docs
 

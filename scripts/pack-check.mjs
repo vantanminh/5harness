@@ -167,7 +167,7 @@ if (missing.length > 0) {
   fail(`tarball missing: ${missing.join(", ")}`);
 }
 
-// Ensure no accidental native bootstrap binary shipped
+// Ensure no accidental native binary is shipped in the tarball
 const banned = [...packed].filter(
   (p) =>
     p.includes("harness-cli.exe") ||

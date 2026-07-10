@@ -38,7 +38,7 @@ project SoT are removed or marked legacy.
 ## Design Notes
 
 - Depends on: US-012
-- Keep bootstrap `scripts/bin/harness-cli` story separate; product path is npm CLI
+- Product path remains the npm CLI (`harness`)
 
 ## Validation
 

@@ -1,13 +1,13 @@
 # Documentation Map
 
-This directory is the operating harness **for the npm-harness product** itself
-and the product contracts we ship conceptually to target repos via `init`.
+This directory is the operating harness **for the @vantanminh/harness product**
+itself and the product contracts shipped to target repos via `init`.
 
 ## Start here
 
 | Doc | Role |
 | --- | --- |
-| [`product/roadmap.md`](./product/roadmap.md) | **Implementation tracking** (phases, deps, US-006+) |
+| [`product/roadmap.md`](./product/roadmap.md) | Implementation tracking |
 | [`product/overview.md`](./product/overview.md) | Product identity |
 | [`decisions/0011-global-tool-markdown-durable-index.md`](./decisions/0011-global-tool-markdown-durable-index.md) | Locked pivot |
 | [`stories/README.md`](./stories/README.md) | Epic/story index |
@@ -39,6 +39,5 @@ Payload templates shipped to **target** projects live in repo-root
 
 ## Current state
 
-- **Shipped:** Phases A–E (US-001–US-005), SQLite durable MVP, v0.5.0.
+- **Shipped:** Phases A–G (US-001–US-014), markdown SoT, registry, index, dashboard — **v0.9.0**.
 - **Locked direction:** decision 0011 (global tool, markdown SoT, index, dashboard).
-- **Next implement:** US-006 → … → US-014 per roadmap.

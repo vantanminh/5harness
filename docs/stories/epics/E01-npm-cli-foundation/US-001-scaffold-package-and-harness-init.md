@@ -22,7 +22,7 @@ durable database — without curl, PowerShell installers, or manual binary paths
 - `docs/product/init-payload.md`
 - `docs/ARCHITECTURE.md`
 - `docs/decisions/0008-independent-npm-native-rewrite.md`
-- `docs/decisions/0009-upstream-reference-only.md`
+- `docs/decisions/0009-standalone-product-repository.md` (standalone product repo)
 
 ## Acceptance Criteria
 
@@ -51,8 +51,6 @@ durable database — without curl, PowerShell installers, or manual binary paths
 - Non-interactive conflict on protected existing paths fails clearly without
   `--force` (Phase A does not require full `--merge` UX).
 - With `--force`, existing conflicting files are backed up before overwrite.
-- Does **not** install an upstream `scripts/bin/harness-cli` binary into the
-  target.
 - Does **not** scaffold application source, CI, or fake product domains.
 
 ### `harness migrate`
@@ -81,13 +79,8 @@ durable database — without curl, PowerShell installers, or manual binary paths
   - Protected paths: `AGENTS.md`, `docs/` tree policy as in init-payload
   - Payload comes from package-owned templates + single manifest
 - **UI surfaces:** terminal only
-- **Engine:** TypeScript-first for Phase A speed unless a short spike shows
-  blocking issues; Rust engine deferred (see decision 0008). Record a decision
-  if implementation locks TS tooling choices (e.g. tsup/tsx, commander/citty,
-  better-sqlite3).
-- **Upstream:** may read `../repository-harness` installer payload and schema
-  for ideas; re-implement; do not call or vendor their binary in the product
-  path.
+- **Engine:** TypeScript-first for Phase A (see decision 0008 / 0010). Record a
+  decision if implementation locks tooling choices.
 - **Layout suggestion:**
 
 ```text
@@ -106,7 +99,7 @@ tests/
 ## Validation
 
 When updating durable proof status, use numeric booleans:
-`scripts/bin/harness-cli story update --id <id> --unit 1 --integration 1 --e2e 0 --platform 0`.
+`harness story update --id <id> --unit 1 --integration 1 --e2e 0 --platform 0`.
 
 | Layer | Expected proof |
 | --- | --- |
@@ -120,9 +113,7 @@ When updating durable proof status, use numeric booleans:
 
 - Product docs: `cli-contract.md`, `init-payload.md` (this prep)
 - Epic `E01-npm-cli-foundation` story index
-- After implementation: update README status table; retire bootstrap-only
-  wording where product CLI replaces it for *users* (bootstrap may remain for
-  this repo until durable commands exist on product CLI)
+- After implementation: update README status table
 - Optional decision: TypeScript toolchain + SQLite driver choice
 
 ## Evidence

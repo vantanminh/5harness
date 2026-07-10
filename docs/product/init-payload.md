@@ -2,9 +2,7 @@
 
 Files and directories `harness init` installs into a **target project**.
 
-This product owns the payload shipped inside the npm package (templates), not
-the upstream installer manifest. Upstream
-`../repository-harness/scripts/harness-install-files.txt` is **reference only**.
+This product owns the payload shipped inside the npm package (`templates/`).
 
 ## Goals
 
@@ -46,7 +44,7 @@ for clones that already have committed harness files.
 
 ### Explicitly out of init payload
 
-- Full upstream phase docs (maturity, Symphony, …) unless a later story adds them.
+- Extra product maturity / phase docs unless a later story adds them.
 - Application `src/`, target-app CI, package scripts for the **target** app.
 - Shipping a project-local harness binary as the primary UX.
 - Committing derived index or trace dumps.

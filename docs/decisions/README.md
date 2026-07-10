@@ -23,8 +23,9 @@ count as the Harness decision log.
 | ID | Title | Status |
 | --- | --- | --- |
 | 0004 | SQLite durable layer | **Superseded** by 0011 for SoT |
-| 0008 | Independent npm-native rewrite | Accepted |
-| 0009 | Upstream reference only | Accepted |
+| 0005 | Prebuilt native engine | **Superseded** by 0010 / 0008 |
+| 0008 | npm-native product distribution | Accepted |
+| 0009 | Standalone product repository | Accepted |
 | 0010 | TypeScript CLI toolchain | Accepted |
 | **0011** | **Global tool, markdown durable, agent index** | **Accepted** (active pivot) |
 

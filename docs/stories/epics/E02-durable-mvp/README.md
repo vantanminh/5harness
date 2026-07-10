@@ -2,9 +2,8 @@
 
 ## Goal
 
-Expose durable operational commands on the product `harness` CLI so agents no
-longer need the bootstrap `scripts/bin/harness-cli` for core intake/story/
-decision/backlog/query workflows.
+Expose durable operational commands on the product `harness` CLI for core
+intake/story/decision/backlog/query workflows.
 
 ## Stories
 

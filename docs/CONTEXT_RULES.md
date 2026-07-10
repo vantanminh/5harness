@@ -24,7 +24,6 @@ Read to classify the request, find the affected surface, and choose a lane.
 | Relevant `docs/stories/*` | Skip if unrelated | Must if a story exists | Must |
 | `docs/decisions/*` | Skip | Should if architecture or durable rules are touched | Must |
 | `docs/HARNESS_COMPONENTS.md` | Skip | Should for Harness improvements | Must for observability or benchmark work |
-| `../repository-harness` (upstream reference) | Skip | Should when matching known harness semantics | Must when claiming parity or porting a durable behavior |
 
 ### Planning Phase
 
@@ -39,12 +38,10 @@ Read to decide the smallest safe approach and expected proof.
 | `docs/TEST_MATRIX.md` / roadmap / `harness query matrix` | Should | Must | Must |
 | Relevant decisions | Skip | Should | Must |
 | `docs/HARNESS_MATURITY.md` | Skip | Should for Harness improvements | Must for maturity or process changes |
-| `docs/HARNESS_BACKLOG.md` and `scripts/bin/harness-cli query backlog` | Skip | Should if friction repeats | Must if changing Harness behavior |
-| `../repository-harness` relevant docs or CLI/schema paths | Skip | Should for parity design | Must for high-risk ports |
+| `docs/HARNESS_BACKLOG.md` and `harness query backlog` | Skip | Should if friction repeats | Must if changing Harness behavior |
 
-Upstream is **read-only reference**. Never plan edits under
-`../repository-harness` unless the human explicitly requests them. This product's
-source of truth remains `AGENTS.md`, `docs/product/*`, and `docs/decisions/*`.
+This product's source of truth is `AGENTS.md`, `docs/product/*`, and
+`docs/decisions/*`.
 
 ### Implementation Phase
 
@@ -83,8 +80,8 @@ Read to leave useful evidence for the next agent and for benchmark scoring.
 | Document Or Source | Tiny | Normal | High-Risk |
 | --- | --- | --- | --- |
 | `docs/TRACE_SPEC.md` | Should | Must | Must |
-| `scripts/bin/harness-cli query matrix` | Should | Must | Must |
-| `scripts/bin/harness-cli query backlog` | Skip | Should if friction occurred | Must |
+| `harness query matrix` | Should | Must | Must |
+| `harness query backlog` | Skip | Should if friction occurred | Must |
 | Changed-file list from `git status --short` | Must | Must | Must |
 | Validation command output | Should | Must | Must |
 | Story packet or progress log | Skip if no story | Must | Must |
@@ -94,8 +91,8 @@ Read to leave useful evidence for the next agent and for benchmark scoring.
 
 | Trigger Condition | Action |
 | --- | --- |
-| Task touches database schema, durable records, or migrations | Read `docs/decisions/0004-sqlite-durable-layer.md`, `scripts/schema/`, and relevant CLI code before planning. |
-| Task touches CLI command behavior or installer distribution | Read `docs/decisions/0005-prebuilt-rust-harness-cli.md`, `scripts/README.md`, relevant `crates/harness-cli/*` code, CLI help output, and installer docs. |
+| Task touches durable records or legacy import | Read `docs/decisions/0004-sqlite-durable-layer.md`, `0011-…`, `migrations/`, and relevant CLI code before planning. |
+| Task touches CLI command behavior or packaging | Read `docs/decisions/0008-…`, `0010-…`, `docs/product/cli-contract.md`, `docs/product/distribution.md`, and CLI help. |
 | Task touches auth, authorization, audit/security, data loss, or external providers | Treat as high-risk, read `docs/templates/high-risk-story/*`, and check prior decisions before implementation. |
 | Task changes public API shape, product behavior, or user-visible workflow | Read relevant `docs/product/*`, story packets, and validation expectations before editing. |
 | Task changes Harness policy, source hierarchy, risk classification, or validation requirements | Read `docs/HARNESS.md`, `docs/FEATURE_INTAKE.md`, `docs/ARCHITECTURE.md`, and `docs/decisions/*`; pause if direction is ambiguous. |

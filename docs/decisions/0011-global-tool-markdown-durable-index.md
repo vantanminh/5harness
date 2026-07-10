@@ -8,13 +8,13 @@ Accepted
 
 ## Context
 
-v0.5 of this product followed upstream decision **0004**: operational records in
+v0.5 of this product followed decision **0004**: operational records in
 per-project SQLite (`harness.db`, gitignored), with markdown policy docs only.
 
-That model has two product mismatches for this rewrite:
+That model has two product mismatches:
 
-1. **Distribution** — the original harness installs tooling *into* each repo.
-   This product is an **npm global CLI**: one install on the machine, used
+1. **Distribution** — tooling embedded *into* each repo fights multi-project
+   use. This product is an **npm global CLI**: one install on the machine, used
    across many projects.
 2. **Portability / collaboration** — SQLite is hard to review and backup on
    GitHub. When another person clones a harnessed repo, they should regain
@@ -31,7 +31,7 @@ load entire vaults into context.
 
 | Choice | Detail |
 | --- | --- |
-| Preferred install | `npm i -g npm-harness` |
+| Preferred install | `npm i -g @vantanminh/harness` |
 | Project-local install | Allowed (`devDependency` + `npx`) but not the primary story |
 | Tool location | System-wide CLI; **not** vendored into each target as the long-term model |
 
@@ -50,7 +50,7 @@ harnessed project without re-scaffolding. Required for the clone workflow.
 
 ```text
 Person A: harness init in repo → commits durable markdown → pushes GitHub
-Person B: git clone → npm i -g npm-harness → harness link
+Person B: git clone → npm i -g @vantanminh/harness → harness link
           → reindex → local dashboard can list/query that project
 ```
 
@@ -150,7 +150,7 @@ Positive:
 
 Tradeoffs:
 
-- Rewrite of current SQLite-backed application layer (v0.5 semantics stay;
+- Replace SQLite-backed application layer (v0.5 semantics stay;
   storage changes).
 - Concurrent writers still need CLI-level care (file write discipline).
 - Traces not in Git by default — observability is machine-local unless we add

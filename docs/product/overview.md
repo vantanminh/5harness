@@ -2,9 +2,9 @@
 
 ## Name
 
-Working name: **Harness** (npm-native rewrite).  
-CLI bin name (target): `harness`.  
-npm package name: **`npm-harness`**.
+**Harness**  
+CLI bin: `harness`  
+npm package: **`@vantanminh/harness`**
 
 ## One-Liner
 
@@ -47,18 +47,16 @@ Agents **only** mutate durable state through CLI tools (mandatory).
 | Human maintainer | `npm i -g` once; `harness init` / `link` per repo; history on GitHub |
 | Collaborator | Clone repo → install CLI → `harness link` → same history + dashboard |
 | Coding agent | Stable tools: write via commands, read via get/search/links/query |
-| Contributor to this product | Clear rewrite scope; upstream as reference only |
+| Contributor to this product | Clear product docs, decisions, and story packets in this repo |
 
 ## Non-Goals (near-term)
 
-- Drop-in binary-compatible replacement of upstream `harness-cli` flags.
 - Cloud multi-user registry (GitHub + clone is the share path).
-- Shipping full dashboard UI in the first store rewrite (design is locked).
 - Vector RAG as the primary retrieval path.
 - Forcing every target project to be a Node app — Node is only required to
   run the harness tool.
 
-## Success Criteria (post-0011 direction)
+## Success Criteria
 
 1. Global install works; `harness init` scaffolds MD + registers the project.
 2. Durable story/decision/intake/backlog history is **reviewable in Git**.
@@ -74,30 +72,16 @@ Agents **only** mutate durable state through CLI tools (mandatory).
 | Markdown entities in target repos | **SoT**, committed |
 | Derived index (`.harness/index/`) | Local, rebuildable |
 | Global registry (`~/.harness/`) | Pointers for multi-project + dashboard |
-| Browser dashboard | Future; reads registry + project paths |
-| Project SQLite as SoT | **Retired** (decision 0011) |
+| Browser dashboard | Localhost; reads registry + project paths |
+| Project SQLite as SoT | **Retired** (decision 0011); optional `import-sqlite` |
 
-## Upstream Relationship
-
-Upstream project: sibling directory `../repository-harness`.
-
-- **Inspiration source**, not a runtime dependency.
-- Capability ideas and flows may be compared during design.
-- Implementation, packaging, and user docs are owned by this repo.
-- Do **not** inherit “SQLite SoT + install binary into each repo” as product law.
-
-## Roadmap Sketch
+## Roadmap sketch
 
 | Phase | Outcome |
 | --- | --- |
-| A–E (v0.1–0.5) | **Done** — SQLite MVP (semantics reference; store superseded) |
-| F — Pivot store | Markdown SoT + registry + link + reindex + get/search/links |
+| A–E (v0.1–0.5) | **Done** — early CLI + quality surface |
+| F — Store pivot | Markdown SoT + registry + link + reindex + get/search/links |
 | G — Dashboard | Local browser multi-project view |
 | Optional | Trace export, FTS upgrades, native engine |
 
-## Open Questions
-
-- Final public registry scope/org name (currently `npm-harness`).
-- Exact on-disk entity paths and frontmatter schema versioning.
-- Whether `TEST_MATRIX.md` remains a generated view or is removed in favor of
-  `query matrix` only.
+See [roadmap.md](./roadmap.md) for story tracking.

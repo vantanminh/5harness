@@ -17,7 +17,7 @@ adapt to what is installed without the core ever depending on it.
 ## Inbound Registry: Register A Tool
 
 ```bash
-scripts/bin/harness-cli tool register \
+harness tool register \
   --name deploy-check \
   --kind cli \
   --capability deploy-verification \
@@ -49,10 +49,10 @@ so they register without `--force`; their presence is resolved later by
 Registering an MCP server or a Claude skill (examples):
 
 ```bash
-scripts/bin/harness-cli tool register --name gitnexus --kind mcp \
+harness tool register --name gitnexus --kind mcp \
   --capability impact-analysis --scan ".gitnexus" --command "mcp:gitnexus" \
   --description "Code-graph blast radius" --responsibility Verification
-scripts/bin/harness-cli tool register --name c3 --kind skill \
+harness tool register --name c3 --kind skill \
   --capability impact-analysis --scan ".c3" --command "skill:c3" \
   --description "Component model and drift audit (Claude skill)" \
   --responsibility Verification
@@ -61,7 +61,7 @@ scripts/bin/harness-cli tool register --name c3 --kind skill \
 Remove a tool with:
 
 ```bash
-scripts/bin/harness-cli tool remove --name deploy-check
+harness tool remove --name deploy-check
 ```
 
 ## Inbound Registry: Check Presence
@@ -71,9 +71,9 @@ scanning each registered tool and persisting the verdict (`status` and
 `checked_at`). Run it at intake start so status reflects current reality.
 
 ```bash
-scripts/bin/harness-cli tool check            # scan all registered tools
-scripts/bin/harness-cli tool check --name c3  # scan one
-scripts/bin/harness-cli tool check --json     # machine-readable for agents
+harness tool check            # scan all registered tools
+harness tool check --name c3  # scan one
+harness tool check --json     # machine-readable for agents
 ```
 
 Probe per kind:
@@ -97,8 +97,8 @@ A workflow step asks "what is present for this purpose?" rather than naming a
 tool:
 
 ```bash
-scripts/bin/harness-cli query tools --capability impact-analysis
-scripts/bin/harness-cli query tools --capability impact-analysis --status present
+harness query tools --capability impact-analysis
+harness query tools --capability impact-analysis --status present
 ```
 
 The result is the set of providers. Multiple tools may provide one capability
@@ -134,9 +134,9 @@ performance-benchmark · documentation-lookup
 ## Inspecting The Registry
 
 ```bash
-scripts/bin/harness-cli query tools --summary
-scripts/bin/harness-cli query tools --json
-scripts/bin/harness-cli query tools --responsibility Verification
+harness query tools --summary
+harness query tools --json
+harness query tools --responsibility Verification
 ```
 
 JSON records carry `kind`, `capability`, `scan_target`, `status`, and

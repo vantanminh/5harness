@@ -89,7 +89,7 @@ Collaborator workflow:
 
 ```bash
 git clone <repo>
-npm i -g npm-harness
+npm i -g @vantanminh/harness
 harness link          # register path + reindex committed history
 harness query matrix
 ```
@@ -108,9 +108,7 @@ npm run harness -- --help
 # or global: harness …
 ```
 
-Bootstrap binary `scripts/bin/harness-cli[.exe]` is legacy for this repo only.
-
-Common product commands (v0.5):
+Common product commands:
 
 ```bash
 harness init
@@ -145,7 +143,7 @@ docs/product/*
 docs/stories/*
   story-sized work packets and historical evidence
 
-scripts/bin/harness-cli query matrix
+harness query matrix
   behavior-to-proof control panel backed by the durable layer
 
 docs/decisions/*
@@ -194,7 +192,7 @@ Large product areas should use scoped initiative notes instead of a second
 monolithic specification. An initiative should explain the goal, affected
 product docs, candidate stories, validation shape, open decisions, and exit
 criteria. If initiative work becomes a repeated pattern, add a template or
-record the proposal with `scripts/bin/harness-cli backlog add`.
+record the proposal with `harness backlog add`.
 
 ## Growth Rule
 
@@ -205,7 +203,7 @@ command, discovers a missing rule, or sees a recurring failure pattern, it must
 either improve the harness directly or record the friction:
 
 ```bash
-scripts/bin/harness-cli backlog add --title "<short name>" --pain "<what was hard>"
+harness backlog add --title "<short name>" --pain "<what was hard>"
 ```
 
 Use the backlog outcome loop for improvements that are expected to change agent
@@ -215,15 +213,15 @@ behavior or validation results:
    impact expected from the improvement.
 2. When closing the item, fill `--outcome` with the actual measured result or
    review evidence.
-3. Use `scripts/bin/harness-cli query backlog --open` to review proposed and accepted
-   items, and `scripts/bin/harness-cli query backlog --closed` to compare predictions
+3. Use `harness query backlog --open` to review proposed and accepted
+   items, and `harness query backlog --closed` to compare predictions
    with outcomes after implementation.
 
 The `harness_friction` field on traces also captures per-task friction so
 patterns can be queried later:
 
 ```bash
-scripts/bin/harness-cli query friction
+harness query friction
 ```
 
 Backlog risk uses the same lane vocabulary as intake and stories:
@@ -235,29 +233,29 @@ items; `low` is not a valid lane.
 For every task:
 
 1. Classify the request with `docs/FEATURE_INTAKE.md`.
-2. Record the classification with `scripts/bin/harness-cli intake`.
+2. Record the classification with `harness intake`.
 3. Locate the affected product docs and story files.
-4. Check proof status with `scripts/bin/harness-cli query matrix`.
+4. Check proof status with `harness query matrix`.
 5. Work only inside the selected lane: tiny, normal, or high-risk.
 6. Before finishing, ask whether product truth, validation expectations,
    architecture rules, repeated failure patterns, or next-agent instructions
    changed.
-7. Record a trace with `scripts/bin/harness-cli trace`, using
+7. Record a trace with `harness trace`, using
    `docs/TRACE_SPEC.md` for the expected trace tier and field depth.
-8. Review the trace score printed by `scripts/bin/harness-cli trace`; use
-   `scripts/bin/harness-cli score-trace --id <id>` only when re-checking a
+8. Review the trace score printed by `harness trace`; use
+   `harness score-trace --id <id>` only when re-checking a
    specific historical trace.
 9. If harness friction was found, either fix it directly or record it with
-   `scripts/bin/harness-cli backlog add`.
+   `harness backlog add`.
 
 ## Story Verification
 
 Stories may carry a mechanical proof command:
 
 ```bash
-scripts/bin/harness-cli story add --id US-012 --title "Story verification" --lane normal --verify "cargo test --workspace"
-scripts/bin/harness-cli story update --id US-012 --verify "cargo test --workspace"
-scripts/bin/harness-cli story verify US-012
+harness story add --id US-012 --title "Story verification" --lane normal --verify "cargo test --workspace"
+harness story update --id US-012 --verify "cargo test --workspace"
+harness story verify US-012
 ```
 
 `story verify` runs the command from the repository root, records
@@ -275,7 +273,7 @@ fails.
 `story update`, using numeric values: `1` means yes and `0` means no. The Rust
 CLI rejects text values such as `yes` and `no`.
 
-Use `scripts/bin/harness-cli query matrix --numeric` when copying proof values
+Use `harness query matrix --numeric` when copying proof values
 back into `story update`. The default matrix output is human-readable
 `yes`/`no`; the numeric output mirrors CLI input.
 
@@ -284,16 +282,16 @@ back into `story update`. The default matrix output is human-readable
 Tool discovery:
 
 ```bash
-scripts/bin/harness-cli query tools --summary
-scripts/bin/harness-cli query tools --json
-scripts/bin/harness-cli tool register --name <name> --command <cmd> --description <text> --responsibility Verification
+harness query tools --summary
+harness query tools --json
+harness tool register --name <name> --command <cmd> --description <text> --responsibility Verification
 ```
 
 Context and drift checks:
 
 ```bash
-scripts/bin/harness-cli score-context <trace-id>
-scripts/bin/harness-cli audit
+harness score-context <trace-id>
+harness audit
 ```
 
 `score-context` is advisory; it reports context-rule coverage without changing
@@ -303,8 +301,8 @@ the trace. `audit` reports drift categories and an entropy score documented in
 Interventions are separate from traces:
 
 ```bash
-scripts/bin/harness-cli intervention add --trace <id> --type correction --description <text> --source human
-scripts/bin/harness-cli query interventions --story US-024
+harness intervention add --trace <id> --type correction --description <text> --source human
+harness query interventions --story US-024
 ```
 
 Record an intervention when a human, reviewer, CI system, or another agent
@@ -313,8 +311,8 @@ corrects, overrides, escalates, or approves work.
 Improvement proposals:
 
 ```bash
-scripts/bin/harness-cli propose
-scripts/bin/harness-cli propose --commit
+harness propose
+harness propose --commit
 ```
 
 `propose` prints deterministic proposals from repeated friction, interventions,
@@ -332,7 +330,7 @@ validation changes, record the decision in both places:
 2. Add or refresh the durable record:
 
 ```bash
-scripts/bin/harness-cli decision add \
+harness decision add \
   --id 0008-auth-boundary \
   --title "Auth Boundary" \
   --doc docs/decisions/0008-auth-boundary.md \
@@ -347,13 +345,13 @@ record requirement.
 
 Agents may update directly:
 
-- Story status and evidence via `scripts/bin/harness-cli story update`.
-- Test matrix rows via `scripts/bin/harness-cli story add` and
-  `scripts/bin/harness-cli story update`.
+- Story status and evidence via `harness story update`.
+- Test matrix rows via `harness story add` and
+  `harness story update`.
 - Links from story packets to product docs.
 - Validation notes and reports.
 - Small clarifications tied to the current task.
-- Intake records, traces, and backlog items via `scripts/bin/harness-cli`.
+- Intake records, traces, and backlog items via `harness`.
 
 Agents should ask for human confirmation before:
 
@@ -370,9 +368,9 @@ A task is done only when:
 - The requested change is completed or the blocker is documented.
 - Relevant docs, stories, and test matrix entries remain current.
 - Validation commands were run when they exist.
-- A trace has been recorded with `scripts/bin/harness-cli trace`.
+- A trace has been recorded with `harness trace`.
 - Missing harness capabilities were recorded with
-  `scripts/bin/harness-cli backlog add`.
+  `harness backlog add`.
 - The final response says what changed and what was not attempted.
 
 ## Future Validation Ladder

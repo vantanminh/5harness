@@ -18,7 +18,7 @@ Rust behind the npm bin. We need a concrete Phase A stack without delaying
 2. CLI parsing: **commander**.
 3. SQLite: Node built-in **`node:sqlite`** (`DatabaseSync`) — no native addon.
 4. Tests: **vitest**; local run via **tsx**; build via **tsc** to `dist/`.
-5. Package name on npm: **`npm-harness`** with bin name **`harness`**.
+5. Package name on npm: **`@vantanminh/harness`** with bin name **`harness`**.
 6. Require **Node >= 22.5** (for `node:sqlite`).
 
 ## Alternatives Considered

@@ -77,7 +77,7 @@ describe("runInit", () => {
     const registry = fs.readFileSync(path.join(home, "registry.json"), "utf8");
     expect(registry).toMatch(/"projects"/);
 
-    // no upstream binary scaffold
+    // no platform binary scaffold
     expect(fs.existsSync(path.join(dir, "scripts", "bin", "harness-cli"))).toBe(
       false,
     );

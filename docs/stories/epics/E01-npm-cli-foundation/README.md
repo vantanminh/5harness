@@ -15,9 +15,8 @@ target project.
 ## Out of this epic
 
 - Full durable command surface (intake/story/query/…) — later epic
-- Native Rust engine packaging
-- Merge/refresh installer UX parity with upstream
-- Symphony / web UI
+- Native engine packaging
+- Dashboard UI
 
 ## References
 
@@ -25,4 +24,3 @@ target project.
 - `docs/product/cli-contract.md`
 - `docs/product/init-payload.md`
 - Decisions `0008`, `0009`
-- Upstream reference (read-only): `../repository-harness`

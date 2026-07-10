@@ -61,6 +61,6 @@ harness get US-001
 ## Collaborator path
 
 ```text
-git clone → npm i -g npm-harness → harness link → harness reindex
+git clone → npm i -g @vantanminh/harness → harness link → harness reindex
 → same markdown history; dashboard/list via registry
 ```

@@ -8,11 +8,11 @@ This file is the **implementation tracking map**. Story packets under
 ## North star
 
 ```text
-npm i -g npm-harness
+npm i -g @vantanminh/harness
 harness init | link          # project MD (git) + global registry (machine)
 harness story|decision|…     # tools-only writes → markdown entities
 harness search|get|links     # index, not whole-file dumps
-harness dashboard            # later: multi-project browser view
+harness dashboard            # multi-project browser view
 ```
 
 Collaborator path:
@@ -107,9 +107,9 @@ Exact versions may shift; keep `CHANGELOG.md` as release truth.
 
 - Cloud multi-user registry
 - Vector embeddings as primary search
-- Full Symphony/Electron parity with upstream
-- Native Rust engine (optional later; not blocking F/G)
-- Publishing to public npm (ops, not feature epic)
+- Desktop/Electron shell
+- Native engine behind npm bin (optional later)
+- Public npm publish ops (when ready)
 
 ## Related product docs
 

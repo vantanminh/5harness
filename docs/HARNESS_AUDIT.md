@@ -1,6 +1,6 @@
 # Harness Audit
 
-`scripts/bin/harness-cli audit` detects drift in durable Harness state and
+`harness audit` detects drift in durable Harness state and
 prints an entropy score. Lower is better.
 
 ## Checks
@@ -34,5 +34,5 @@ The score is capped at 100.
 | 26-50 | Attention needed: drift is accumulating. |
 | 51-100 | Action required: stale state undermines Harness value. |
 
-Audit findings feed `scripts/bin/harness-cli propose`, which can turn repeated
+Audit findings feed `harness propose`, which can turn repeated
 drift into proposed backlog items.

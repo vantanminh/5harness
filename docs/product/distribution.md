@@ -34,8 +34,6 @@ The npm tarball **must** include:
 - schema/templates needed for entity writes (as implemented)
 - `package.json`, `README.md`, `LICENSE`
 
-It must **not** require a local Rust toolchain for normal use.
-
 > Note: `migrations/**` remain only for legacy `harness import-sqlite`.
 > Operational SoT is markdown under `docs/`.
 
@@ -56,7 +54,7 @@ push/PR for `master` / `main`.
 
 ## Native engine (future)
 
-If a Rust (or other native) engine is added later:
+If a native engine is added later:
 
 - Keep the user-facing `harness` npm bin.
 - Ship platform packages or downloadable artifacts with checksums.

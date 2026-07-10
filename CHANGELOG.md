@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Package identity: npm `@vantanminh/harness`, repo
   [github.com/vantanminh/harness](https://github.com/vantanminh/harness).
   Scoped publish uses `publishConfig.access: public`. Bin remains `harness`.
+- Docs and agent guidance describe this product as standalone; removed bootstrap
+  binary paths and third-party layout coupling. README keeps a brief credit.
 
 ## [0.9.0] - 2026-07-10
 

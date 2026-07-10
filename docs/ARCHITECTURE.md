@@ -5,9 +5,9 @@
 | Concern | Direction |
 | --- | --- |
 | Product surface | CLI first (`harness` via npm `bin`); local dashboard later |
-| Preferred install | `npm i -g npm-harness` (project-local `npx` allowed) |
-| User runtime | Node.js + npm (no Rust required for end users) |
-| Implementation language | TypeScript today; Rust engine optional later |
+| Preferred install | `npm i -g @vantanminh/harness` (project-local `npx` allowed) |
+| User runtime | Node.js + npm |
+| Implementation language | TypeScript today; native engine optional later |
 | **Durable SoT** | **Markdown entities in each project** (Git-backed) — decision 0011 |
 | Derived index | `.harness/index/` rebuildable; may use SQLite FTS internally |
 | Global registry | `HARNESS_HOME` / `~/.harness` project pointers only |
@@ -80,11 +80,10 @@ markdown. Policy docs (`HARNESS.md`, etc.) remain human-editable.
 
 ## This repo vs target projects
 
-| | This product repo (`harness/`) | Target repos after `init` |
+| | This product repo | Target repos after `init` |
 | --- | --- | --- |
 | Purpose | Build the CLI | Consume the CLI |
 | Story packets | Yes — track product work | Yes — track their app work |
-| Upstream | `../repository-harness` reference only | N/A |
 
 ## Tracking
 

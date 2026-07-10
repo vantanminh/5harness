@@ -28,7 +28,7 @@ operational data, not prose documents.
 
 ## Decision
 
-Add a SQLite database (`harness.db`) and a thin CLI (`scripts/bin/harness-cli`) as the
+Add a SQLite database (`harness.db`) and a thin CLI (`harness`) as the
 durable layer for operational harness data.
 
 The database stores:
@@ -42,7 +42,7 @@ The database stores:
 - **Traces**: agent execution records including actions, files, errors, outcome,
   and harness friction.
 
-The schema is version-controlled under `scripts/schema/`. The database file is
+The schema was version-controlled as SQL migrations. The database file is
 `.gitignore`d because each project instance generates its own operational data.
 
 Policy docs (`HARNESS.md`, `FEATURE_INTAKE.md`, `ARCHITECTURE.md`) remain as
