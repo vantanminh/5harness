@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { executeDashboard } from "./commands/dashboard.js";
 import { executeAudit } from "./commands/audit.js";
 import { executeBacklogAdd, executeBacklogClose } from "./commands/backlog.js";
 import { executeDecisionAdd } from "./commands/decision.js";
@@ -132,6 +133,24 @@ function main(argv: string[] = process.argv): void {
     .description("List projects linked in the global registry")
     .action(() => {
       withErrors(() => executeProjects());
+    });
+
+  program
+    .command("dashboard")
+    .description(
+      "Start local read-only multi-project dashboard (localhost)",
+    )
+    .option("--port <n>", "port (default 3927)", "3927")
+    .option("--host <addr>", "bind address (default 127.0.0.1)", "127.0.0.1")
+    .action((opts) => {
+      withErrors(() => {
+        void executeDashboard(opts).catch((error: unknown) => {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          console.error(`error: ${message}`);
+          process.exit(1);
+        });
+      });
     });
 
   addDirOptions(

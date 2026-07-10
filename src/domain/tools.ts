@@ -59,6 +59,15 @@ export const BUILTIN_TOOLS: ToolEntry[] = [
     source: "compiled",
   },
   {
+    name: "dashboard",
+    kind: "builtin",
+    capability: "scaffold",
+    responsibility: "Local multi-project read-only dashboard",
+    status: "present",
+    source: "compiled",
+  },
+
+  {
     name: "intake",
     kind: "builtin",
     capability: "task-specification",

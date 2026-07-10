@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-10
+
+### Added
+
+- `harness dashboard` — localhost read-only multi-project browser UI + JSON API
+  (`/api/projects`, `/api/project?id=`) from global registry + markdown catalog (US-014).
+
 ## [0.8.0] - 2026-07-10
 
 ### Added

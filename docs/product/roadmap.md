@@ -45,7 +45,7 @@ git clone → npm i -g → harness link → reindex → same history + dashboard
 | F3 | E08 | Agent index (get/search/links) | **done** (v0.7.2) |
 | F4 | E09 | Init/link payload pivot | **done** (v0.8.0) |
 | F5 | E10 | Quality commands on new store | **done** (US-012/013 v0.8) |
-| G | E11 | Dashboard foundation | **planned** (after F) |
+| G | E11 | Dashboard foundation | **done** (v0.9.0) |
 
 ## Dependency graph
 
@@ -80,7 +80,7 @@ Rationale:
 | [US-011](../stories/epics/E09-init-link-pivot/US-011-target-templates-agent-policy.md) | E09 | Target templates + tools-only policy | US-010 | **done** |
 | [US-012](../stories/epics/E10-quality-on-md/US-012-quality-on-markdown-store.md) | E10 | verify/trace/audit/propose on new store | US-008, US-009 | **done** |
 | [US-013](../stories/epics/E10-quality-on-md/US-013-sqlite-retirement-and-import.md) | E10 | Retire project SQLite SoT + optional import | US-012 | **done** |
-| [US-014](../stories/epics/E11-dashboard/US-014-dashboard-foundation.md) | E11 | Local multi-project dashboard foundation | US-006, US-008 | planned |
+| [US-014](../stories/epics/E11-dashboard/US-014-dashboard-foundation.md) | E11 | Local multi-project dashboard foundation | US-006, US-008 | **done** |
 
 ## Versioning intent
 

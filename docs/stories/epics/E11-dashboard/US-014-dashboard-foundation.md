@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## Lane
 
@@ -56,4 +56,5 @@ index). No cloud dependency.
 
 ## Evidence
 
-_(fill when implemented)_
+- `harness dashboard` — localhost HTTP; `/`, `/api/projects`, `/api/project?id=`
+- Tests: `tests/dashboard.test.ts` (handlers + live HTTP smoke)
