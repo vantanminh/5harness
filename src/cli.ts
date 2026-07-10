@@ -8,6 +8,8 @@ import {
   executeDocsRead,
 } from "./commands/docs.js";
 
+import { executeDoctor } from "./commands/doctor.js";
+
 import { executeBacklogAdd, executeBacklogClose } from "./commands/backlog.js";
 import { executeDecisionAdd } from "./commands/decision.js";
 import {
@@ -519,6 +521,18 @@ async function main(argv: string[] = process.argv): Promise<void> {
         withErrors(() => executeScoreTrace(opts));
       }),
   );
+
+  // -- Doctor ---------------------------------------------------------------
+  addDirOptions(
+    program
+      .command("doctor")
+      .description("Run workspace health checks for human and agent users")
+      .option("--json", "machine-readable JSON output")
+      .action((opts) => {
+        withErrors(() => executeDoctor(opts));
+      }),
+  );
+
 
   addDirOptions(
     program
