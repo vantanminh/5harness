@@ -61,54 +61,59 @@ project-scoped; do not use a global copy as the source of truth.
 
 This repo uses **Harness** (`@vantanminh/harness`, bin `harness`).
 
-### CLI (agents)
-
-**Always** invoke the `harness` binary — do **not** use `npm run harness`,
-`npx harness`, or `node dist/cli.js` for day-to-day durable operations.
+### Install / day-to-day
 
 ```bash
+# preferred on a machine that works on many projects
+npm i -g @vantanminh/harness
 harness --help
-harness query matrix
-harness search "…"
-harness get <id>
-harness links <id>
-harness intake --type … --summary "…" --lane normal
-harness story add --id US-… --title "…" --lane normal
-harness decision add --id … --title "…" --doc docs/decisions/….md
-```
 
-If `harness` is missing: `npm i -g @vantanminh/harness` (or reinstall the
-published package). Do not fall back to `npm run harness` unless the user
-explicitly asks to run the **local source** CLI while developing this package.
+# after cloning a repo that already has harness markdown history:
+harness link
+```
 
 ### Before work — read
 
-- `README.md`
-- `docs/product/overview.md`
+- `README.md` (if present)
 - `docs/HARNESS.md`
 - `docs/FEATURE_INTAKE.md`
 - `docs/ARCHITECTURE.md`
 - `docs/CONTEXT_RULES.md`
-- `docs/TOOL_REGISTRY.md`
-- Active story under `docs/stories/` when implementing a story
+- Active story packet under `docs/stories/` when implementing a story
 
-### Mutation rule
+### Mutation rule (mandatory)
 
-**Do not** hand-edit operational durable markdown (stories / decisions /
-intakes / backlog entities). Use `harness` only.
+**Do not** create or edit operational durable markdown by hand
+(stories / decisions / intakes / backlog entities).
 
-All mutation commands auto-reindex after writing. Do NOT call `harness reindex`
-manually after mutations.
+Use the CLI only, for example:
+
+```bash
+harness intake --type … --summary "…" --lane normal
+harness story add --id US-… --title "…" --lane normal
+harness story update --id US-… --status implemented --unit 1 --integration 1 --e2e 0 --platform 0
+harness decision add --id … --title "…" --doc docs/decisions/….md
+harness query matrix
+```
+
+All mutation commands auto-reindex after writing. You do NOT need to call
+`harness reindex` manually after mutations.
+
+### Read with tools (prefer over dumping large trees)
+
+```bash
+harness search "…"
+harness get <id>
+harness links <id>
+harness query matrix
+harness query stats
+```
+
+Classify work with feature intake before large edits. Record durable decisions
+when architecture or product rules change.
 
 ### Upgrade
 
-When a newer harness CLI version is installed, run `harness upgrade` in this
-repo to update the harness block. Only the `<!-- HARNESS:BEGIN/END -->`
-section is modified.
-
-### Development Conventions
-
-See [decision 0013](docs/decisions/0013-harness-development-conventions.md) for
-harness development conventions: auto-reindex invariance, version tracking,
-backward-compatible upgrade, harness block ownership, and testing discipline.
-<!-- HARNESS:END -->
+When a newer harness CLI version is installed (`npm i -g @vantanminh/harness`),
+run `harness upgrade` to update the harness block in this AGENTS.md.
+Only the section between `<!-- HARNESS:BEGIN -->` and `<!-- HARNESS:END -->
