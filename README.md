@@ -71,7 +71,7 @@ node dist/cli.js init ./tmp-demo
 
 | Area | Status |
 | --- | --- |
-| npm package | **`@vantanminh/harness` v0.9.1** — bin `harness` |
+| npm package | **`@vantanminh/harness` v0.9.2** — bin `harness` |
 | `init` / `link` / registry | Shipped |
 | Markdown durable SoT | Shipped (stories, decisions, intakes, backlog) |
 | Query + agent index | Shipped (`query`, `search`, `get`, `links`, `reindex`) |
@@ -88,6 +88,12 @@ node dist/cli.js init ./tmp-demo
 5. `docs/ARCHITECTURE.md` — stack and layering  
 6. `docs/decisions/` — locked choices  
 7. `docs/product/roadmap.md` — implementation tracking  
+
+## Update notices
+
+The CLI may print a one-line notice on stderr when a newer npm version exists
+(cached at most once per day under `~/.harness/`). Disable with
+`HARNESS_NO_UPDATE_CHECK=1` (also auto-disabled when `CI=true`).
 
 ## Security
 

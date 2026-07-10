@@ -28,6 +28,7 @@ import {
   executeStoryVerify,
   executeStoryVerifyAll,
 } from "./commands/verify.js";
+import { maybeNotifyUpdateAvailable } from "./application/update-check.js";
 import { VERSION } from "./version.js";
 
 function fail(error: unknown): never {
@@ -50,7 +51,7 @@ function addDirOptions(cmd: Command): Command {
     .option("--directory <path>", "alias for --dir");
 }
 
-function main(argv: string[] = process.argv): void {
+async function main(argv: string[] = process.argv): Promise<void> {
   const program = new Command();
 
   program
@@ -59,6 +60,14 @@ function main(argv: string[] = process.argv): void {
       "npm-native agent-ready repository harness — init, durable records, and queries",
     )
     .version(VERSION, "-V, --version", "print CLI version");
+
+  // Cached, fail-open update notice (skipped in CI / when disabled). See docs/SECURITY.md style trust: advisory only.
+  program.hook("preAction", async () => {
+    await maybeNotifyUpdateAvailable({
+      currentVersion: VERSION,
+      argv,
+    });
+  });
 
   addDirOptions(
     program
@@ -478,7 +487,11 @@ function main(argv: string[] = process.argv): void {
       }),
   );
 
-  program.parse(argv);
+  await program.parseAsync(argv);
 }
 
-main();
+void main().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`error: ${message}`);
+  process.exit(1);
+});

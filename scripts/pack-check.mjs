@@ -42,8 +42,11 @@ if (!versionMatch || versionMatch[1] !== pkg.version) {
   );
 }
 
-if (pkg.bin?.harness !== "./dist/cli.js") {
-  fail(`bin.harness must be ./dist/cli.js (got ${JSON.stringify(pkg.bin)})`);
+const binHarness = pkg.bin?.harness?.replace(/^\.\//, "");
+if (binHarness !== "dist/cli.js") {
+  fail(
+    `bin.harness must be dist/cli.js (got ${JSON.stringify(pkg.bin)})`,
+  );
 }
 
 if (!pkg.files?.includes("LICENSE")) {

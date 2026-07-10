@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-07-10
+
+### Added
+
+- Optional npm update notice: at most one registry check per 24h (cache under
+  `~/.harness/update-check.json`), fail-open, stderr-only, disabled in CI or via
+  `HARNESS_NO_UPDATE_CHECK=1`. No auto-upgrade.
+
 ## [0.9.1] - 2026-07-10
 
 ### Security

@@ -22,3 +22,18 @@ attacker can change committed story files, they can already change app source
 and CI scripts.
 
 Implementation: `src/infrastructure/verify.ts`.
+
+## Update check (npm)
+
+On most commands (not bare `--help` / `--version`), the CLI may check the public
+npm registry for a newer `@vantanminh/harness` version.
+
+| Behavior | Detail |
+| --- | --- |
+| Frequency | At most one registry fetch per 24h (cache: `~/.harness/update-check.json`) |
+| Effect | One-line **stderr** notice only; never blocks or changes exit codes |
+| Fail-open | Network/errors are silent |
+| Disable | `HARNESS_NO_UPDATE_CHECK=1`, or when `CI=true` / `CONTINUOUS_INTEGRATION` |
+| Interval override | `HARNESS_UPDATE_CHECK_INTERVAL_MS` (milliseconds; tests/debug) |
+
+No auto-upgrade is performed.
