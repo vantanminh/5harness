@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- CI/CD auto-bumps semver on every push to `main` (after tests pass), commits
+  `chore(release): X.Y.Z`, tags, and publishes to npm. Bump kind is inferred
+  from commits since the last tag (`feat` → minor, breaking → major, else
+  patch); override with `[release: major|minor|patch]` or skip with
+  `[skip release]`. Manual release via Actions workflow_dispatch remains
+  available. Version sync now includes `templates/AGENTS.md` harness-version
+  marker (`scripts/bump-version.mjs`, `pack:check`).
+
 ## [0.9.4] - 2026-07-10
 
 ### Added

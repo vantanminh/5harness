@@ -39,22 +39,45 @@ The npm tarball **must** include:
 
 ## Release checklist
 
-1. `npm run release:check` (typecheck + test + pack:check)
-2. Bump `package.json` + `src/version.ts` together; update `CHANGELOG.md`
-3. Commit and push to `main`
-4. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`
-5. **CD:** GitHub Actions `Release` workflow publishes to npm when secret
-   `NPM_TOKEN` is set (Automation/granular token with publish on
-   `@vantanminh/harness`). Without it the Release job fails early with
-   `ENEEDAUTH` / missing secret — use local publish instead:
-   `npm publish --access public` (OTP if 2FA).
+### Default (automatic)
+
+1. Merge / push to `main` (do **not** hand-bump the version).
+2. CI runs `release:check` on Node 22 + 24.
+3. On success, **Auto-release**:
+   - Detects bump kind from commits since last `v*` tag
+     (`feat:` → minor, `BREAKING CHANGE` / `type!:` → major, else patch).
+   - Override with commit markers: `[release: major]`, `[release: minor]`,
+     `[release: patch]`.
+   - Skip with `[skip release]` in the commit message.
+   - Runs `npm run bump`, keeps `package.json`, `package-lock.json`,
+     `src/version.ts`, and `<!-- harness-version -->` markers in sync.
+   - Commits `chore(release): X.Y.Z`, tags `vX.Y.Z`, publishes to npm.
+
+Requires repo secret **`NPM_TOKEN`** (npm Automation / granular publish token
+for `@vantanminh/harness`).
+
+### Manual
+
+- **GitHub UI:** Actions → **Release** → Run workflow → choose patch/minor/major.
+- **Local tag (no auto-bump):** ensure version files already match, then
+  `git tag vX.Y.Z && git push origin vX.Y.Z` (tag must equal `package.json`).
+- **Local publish fallback:** `npm run release:check && npm publish --access public`.
+
+### Local version bump (optional)
+
+```bash
+npm run bump          # patch
+npm run bump -- minor
+npm run bump -- major
+npm run bump -- 1.0.0
+```
 
 ## CI / CD
 
 | Workflow | Trigger | What it does |
 | --- | --- | --- |
-| [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) | push/PR → `main` | `npm ci` + `release:check` on **Node 22.x and 24.x** |
-| [`.github/workflows/release.yml`](../../.github/workflows/release.yml) | tag `v*` | `release:check` then `npm publish` (secret `NPM_TOKEN`) |
+| [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) | push/PR → `main` | `release:check` on **Node 22.x + 24.x**; on push to `main`, auto-bump + tag + **npm publish** |
+| [`.github/workflows/release.yml`](../../.github/workflows/release.yml) | tag `v*` **or** workflow_dispatch | Manual bump+publish, or publish when a human/PAT pushes a version tag |
 
 Actions are pinned to Node-24-ready major versions (`actions/checkout@v6`,
 `actions/setup-node@v6`) and set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` per

@@ -1,15 +1,17 @@
-# Publish @vantanminh/harness to npm when a version tag is pushed.
+# Publish @vantanminh/harness to npm.
 #
-# Triggered by:
-#   - Manual:   git tag vX.Y.Z && git push origin vX.Y.Z
-#   - Auto:     ci.yml auto-tag job creates + pushes vX.Y.Z on push to main
-#               when package.json version was bumped (no existing tag).
+# Triggers:
+#   1. Tag push vX.Y.Z  (manual: git tag vX.Y.Z && git push origin vX.Y.Z)
+#      — only runs when the tag is pushed by a user/PAT (GITHUB_TOKEN tag
+#      pushes from CI do not re-trigger workflows; CI auto-release publishes
+#      inline instead).
+#   2. workflow_dispatch — bump version (patch|minor|major), commit, tag, publish
 #
 # Prerequisites (repo Settings → Secrets and variables → Actions):
 #   NPM_TOKEN — Automation or granular access token with publish rights
 #               for @vantanminh/harness (and package create if first publish).
 #
-# Tag convention: vX.Y.Z must match package.json version (e.g. v0.9.3).
+# Tag convention: vX.Y.Z must match package.json version (e.g. v0.9.11).
 #
 # Node 24 Actions runtime: same migration notes as ci.yml.
 
@@ -19,21 +21,101 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Semver bump kind"
+        required: true
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   HARNESS_NO_UPDATE_CHECK: "1"
 
 jobs:
+  # Manual release from Actions UI: bump → commit + tag → publish.
+  manual-release:
+    name: Manual release
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Require NPM_TOKEN secret
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NPM_TOKEN:-}" ]; then
+            echo "::error title=Missing NPM_TOKEN::Add repo secret NPM_TOKEN, then re-run."
+            exit 1
+          fi
+          echo "NPM_TOKEN is present (value not printed)."
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24.x"
+          cache: npm
+          registry-url: https://registry.npmjs.org
+          scope: "@vantanminh"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Bump version
+        id: version
+        run: |
+          set -euo pipefail
+          NEW="$(node scripts/bump-version.mjs "${{ inputs.bump }}" | tail -n1)"
+          echo "version=$NEW" >> "$GITHUB_OUTPUT"
+          echo "New version: $NEW"
+
+      - name: Release check
+        run: npm run release:check
+
+      - name: Commit and tag
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="v${VERSION}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add package.json package-lock.json src/version.ts templates/AGENTS.md AGENTS.md
+          git commit -m "chore(release): ${VERSION}"
+          git tag -a "$TAG" -m "Release ${TAG}"
+          git push origin HEAD:main
+          git push origin "$TAG"
+          echo "Pushed commit + tag $TAG"
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Tag-triggered publish (manual git tag from a developer machine / PAT).
   publish:
     name: Publish to npm
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

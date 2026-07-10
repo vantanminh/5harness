@@ -42,6 +42,20 @@ if (!versionMatch || versionMatch[1] !== pkg.version) {
   );
 }
 
+const agentsTpl = path.join(root, "templates", "AGENTS.md");
+if (fs.existsSync(agentsTpl)) {
+  const agentsText = fs.readFileSync(agentsTpl, "utf8");
+  const marker = agentsText.match(/<!--\s*harness-version:\s*([^\s-]+)\s*-->/);
+  if (!marker) {
+    fail("templates/AGENTS.md missing <!-- harness-version: X.Y.Z --> marker");
+  }
+  if (marker[1] !== pkg.version) {
+    fail(
+      `version mismatch: package.json=${pkg.version} templates/AGENTS.md harness-version=${marker[1]}`,
+    );
+  }
+}
+
 const binHarness = pkg.bin?.harness?.replace(/^\.\//, "");
 if (binHarness !== "dist/cli.js") {
   fail(

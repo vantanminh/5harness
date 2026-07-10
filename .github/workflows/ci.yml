@@ -5,10 +5,15 @@
 # target Node 24 and set FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 for clarity.
 # See: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
 #
-# Auto-release flow:
-#   1. Push to main → CI runs build-test + auto-tag
-#   2. If package.json version changed (no existing tag), auto-tag creates + pushes vX.Y.Z
-#   3. Tag push triggers release.yml → npm publish
+# Auto-release flow (push to main only):
+#   1. build-test (Node 22 + 24)
+#   2. auto-release: bump version → commit + tag → npm publish
+#
+# Note: GITHUB_TOKEN pushes do not re-trigger workflows, so publish runs in this
+# job (not via a separate tag-triggered workflow).
+#
+# Skip auto-release by including [skip release] in the commit message.
+# Manual control: Actions → Release → Run workflow (patch|minor|major).
 
 name: CI
 
@@ -58,17 +63,32 @@ jobs:
       - name: Release check
         run: npm run release:check
 
-  # Auto-tag on push to main when package.json version was bumped.
-  # Pushing the tag triggers release.yml → npm publish.
-  auto-tag:
-    name: Auto-tag
+  # Auto-bump version, tag, and publish on push to main.
+  auto-release:
+    name: Auto-release
     needs: build-test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: >
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'push' &&
+      !contains(github.event.head_commit.message, 'chore(release):') &&
+      !contains(github.event.head_commit.message, '[skip release]')
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     permissions:
-      contents: write # needed to push the version tag
+      contents: write
     steps:
+      - name: Require NPM_TOKEN secret
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NPM_TOKEN:-}" ]; then
+            echo "::error title=Missing NPM_TOKEN::Add repo secret NPM_TOKEN (npm Automation or granular publish token)."
+            echo "GitHub → Settings → Secrets and variables → Actions → New repository secret → Name: NPM_TOKEN"
+            exit 1
+          fi
+          echo "NPM_TOKEN is present (value not printed)."
+
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -78,32 +98,81 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "24.x"
+          cache: npm
+          registry-url: https://registry.npmjs.org
+          scope: "@vantanminh"
 
-      - name: Read package version
-        id: pkg
-        run: |
-          VERSION="$(node -p "require('./package.json').version")"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Package version: $VERSION"
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Check if tag already exists
-        id: tag
+      - name: Detect bump kind from commits since last tag
+        id: bump
         run: |
-          TAG="v${{ steps.pkg.outputs.version }}"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Tag $TAG already exists — skipping."
+          set -euo pipefail
+          LAST_TAG="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
+          if [ -n "$LAST_TAG" ]; then
+            RANGE="${LAST_TAG}..HEAD"
+            echo "Commits since $LAST_TAG:"
+            git log --oneline "$RANGE" || true
+            SUBJECTS="$(git log --pretty=%s "$RANGE" || true)"
+            BODIES="$(git log --pretty=%b "$RANGE" || true)"
           else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Tag $TAG does not exist — will create."
+            echo "No previous v* tag — defaulting to patch."
+            SUBJECTS=""
+            BODIES=""
           fi
 
-      - name: Create and push tag
-        if: steps.tag.outputs.exists == 'false'
+          # Conventional-commit style detection (best-effort).
+          # BREAKING / type!: → major; feat: → minor; else → patch.
+          KIND="patch"
+          if echo "$SUBJECTS" | grep -Eiq '^[a-z]+(\([^)]+\))?!:' \
+            || echo "$BODIES" | grep -Eiq '^BREAKING CHANGE:'; then
+            KIND="major"
+          elif echo "$SUBJECTS" | grep -Eiq '^feat(\([^)]+\))?:'; then
+            KIND="minor"
+          fi
+
+          # Allow override via marker in head commit message.
+          HEAD_MSG="${{ github.event.head_commit.message }}"
+          if echo "$HEAD_MSG" | grep -Eiq '\[release:[[:space:]]*major\]'; then
+            KIND="major"
+          elif echo "$HEAD_MSG" | grep -Eiq '\[release:[[:space:]]*minor\]'; then
+            KIND="minor"
+          elif echo "$HEAD_MSG" | grep -Eiq '\[release:[[:space:]]*patch\]'; then
+            KIND="patch"
+          fi
+
+          echo "kind=$KIND" >> "$GITHUB_OUTPUT"
+          echo "Detected bump kind: $KIND"
+
+      - name: Bump version
+        id: version
         run: |
+          set -euo pipefail
+          NEW="$(node scripts/bump-version.mjs "${{ steps.bump.outputs.kind }}" | tail -n1)"
+          echo "version=$NEW" >> "$GITHUB_OUTPUT"
+          echo "New version: $NEW"
+
+      - name: Release check (post-bump)
+        run: npm run release:check
+
+      - name: Commit and tag
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="v${VERSION}"
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          TAG="v${{ steps.pkg.outputs.version }}"
-          git tag -a "$TAG" -m "Release v${{ steps.pkg.outputs.version }}"
+
+          git add package.json package-lock.json src/version.ts templates/AGENTS.md AGENTS.md
+          git commit -m "chore(release): ${VERSION}"
+          git tag -a "$TAG" -m "Release ${TAG}"
+          git push origin HEAD:main
           git push origin "$TAG"
-          echo "Pushed tag $TAG — release workflow will publish to npm."
+          echo "Pushed commit + tag $TAG"
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

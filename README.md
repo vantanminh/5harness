@@ -70,8 +70,10 @@ node dist/cli.js init ./tmp-demo
 ## CI / CD
 
 - **CI** (push/PR): typecheck, tests, pack check on Node **22** and **24**
-- **Release** (optional): push tag `vX.Y.Z` → publish to npm if `NPM_TOKEN` is set
-  in repo secrets (see `docs/product/distribution.md`)
+- **Auto-release** (push to `main`): bumps version, tags `vX.Y.Z`, publishes to
+  npm when secret `NPM_TOKEN` is set (skip with `[skip release]` in the commit)
+- **Manual release:** Actions → Release → Run workflow (patch/minor/major), or
+  push a matching tag — see `docs/product/distribution.md`
 
 ## Current status
 
