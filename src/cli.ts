@@ -36,6 +36,7 @@ import { executeIntakeRun } from "./commands/intake-run.js";
 import { executeExportChangelog } from "./commands/export-cmd.js";
 import { executeWatch } from "./commands/watch.js";
 import { executeHandoff } from "./commands/handoff.js";
+import { executeMcp } from "./commands/mcp.js";
 
 
 import {
@@ -818,6 +819,18 @@ async function main(argv: string[] = process.argv): Promise<void> {
       .option("--json", "machine-readable JSON output")
       .action((opts) => {
         withErrors(() => executeHandoff(opts));
+      }),
+  );
+
+  // -- MCP ------------------------------------------------------------------
+  addDirOptions(
+    program
+      .command("mcp")
+      .description(
+        "Start MCP (Model Context Protocol) server over stdio for Cursor/Claude integration",
+      )
+      .action((opts) => {
+        withErrors(() => executeMcp(opts));
       }),
   );
 
