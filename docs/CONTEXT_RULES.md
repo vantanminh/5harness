@@ -24,6 +24,7 @@ Read to classify the request, find the affected surface, and choose a lane.
 | Relevant `docs/stories/*` | Skip if unrelated | Must if a story exists | Must |
 | `docs/decisions/*` | Skip | Should if architecture or durable rules are touched | Must |
 | `docs/HARNESS_COMPONENTS.md` | Skip | Should for Harness improvements | Must for observability or benchmark work |
+| `../repository-harness` (upstream reference) | Skip | Should when matching known harness semantics | Must when claiming parity or porting a durable behavior |
 
 ### Planning Phase
 
@@ -39,6 +40,11 @@ Read to decide the smallest safe approach and expected proof.
 | Relevant decisions | Skip | Should | Must |
 | `docs/HARNESS_MATURITY.md` | Skip | Should for Harness improvements | Must for maturity or process changes |
 | `docs/HARNESS_BACKLOG.md` and `scripts/bin/harness-cli query backlog` | Skip | Should if friction repeats | Must if changing Harness behavior |
+| `../repository-harness` relevant docs or CLI/schema paths | Skip | Should for parity design | Must for high-risk ports |
+
+Upstream is **read-only reference**. Never plan edits under
+`../repository-harness` unless the human explicitly requests them. This product's
+source of truth remains `AGENTS.md`, `docs/product/*`, and `docs/decisions/*`.
 
 ### Implementation Phase
 

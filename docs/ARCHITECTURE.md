@@ -1,24 +1,49 @@
 # Architecture
 
-No application stack is selected yet.
+## Stack Direction (this product)
 
-No application code exists yet. This document defines generic architecture
-questions and boundary rules that future implementation should adapt after a
-user-provided spec and stack decision exist.
+| Concern | Direction |
+| --- | --- |
+| Product surface | CLI first (`harness` via npm `bin`) |
+| User runtime to *use* the product | Node.js + npm (no Rust required for end users) |
+| Implementation language | Open: TypeScript and/or Rust; see decisions |
+| Durable storage | SQLite file per target project (`harness.db`) |
+| Packaging | npm package(s); optional platform-specific native packages |
+| Web/desktop | Out of v0 architecture |
+
+Record locking choices under `docs/decisions/` when they constrain future work.
+
+## System Context
+
+```text
+Human / Agent
+    |
+    v
+npm / npx  →  harness CLI (bin)
+    |
+    +--→ Target project filesystem
+    |      AGENTS.md, docs/, templates, schema
+    |
+    +--→ Target project SQLite
+           harness.db (gitignored)
+```
+
+This **product repo** is developed under `harness/`. Upstream reference code may
+be read from `../repository-harness` but is not linked as a library dependency.
 
 ## Discovery Before Shape
 
-Before proposing implementation shape, identify:
+Before proposing implementation shape for a story, identify:
 
-- Product surfaces: browser, mobile, desktop, CLI, API, worker, or service.
-- Runtime stack: language, framework, database, queues, providers, and hosting.
-- Core domains: the product concepts that deserve stable names and contracts.
-- Boundary inputs: user input, API requests, webhooks, jobs, files, credentials,
-  provider payloads, and environment configuration.
-- Validation ladder: the smallest checks that can prove the selected stack.
-
-Record stack choices in `docs/decisions/` when they meaningfully constrain
-future work.
+- Product surfaces: CLI only for v0; later maybe API/UI.
+- Runtime stack: Node packaging always; native engine optional.
+- Core domains: init/scaffold, intake, story lifecycle, decisions, backlog,
+  traces, query, migrate.
+- Boundary inputs: CLI args, env (`HARNESS_DB_PATH`, etc.), filesystem paths,
+  migration SQL, optional native binary resolution.
+- Validation ladder: unit tests for domain rules; integration for DB/CLI;
+  e2e smoke for `init` + one durable round-trip; platform only if native bins
+  ship.
 
 ## Default Layering
 
@@ -26,108 +51,76 @@ future work.
 domain
   <- application
       <- infrastructure
-          <- interface
-              <- app surfaces
+          <- interface (CLI)
 ```
-
-## Candidate Structure
-
-```text
-app/
-  domain/
-    entities/
-    value-objects/
-    repositories/
-    services/
-
-  application/
-    commands/
-    queries/
-    handlers/
-
-  infrastructure/
-    database/
-    logging/
-    notifications/
-
-  interface/
-    controllers/
-    dto/
-    presenters/
-    routes/
-    middlewares/
-
-surfaces/
-  browser/
-  mobile/
-  desktop/
-  cli/
-```
-
-This is a thinking template, not a scaffold. Create real folders only when a
-story enters implementation and the selected stack needs them.
-
-## Dependency Rule
-
-Inner layers must not depend on outer layers.
 
 | Layer | May depend on | Must not depend on |
 | --- | --- | --- |
-| domain | nothing project-external except tiny pure utilities | framework, database, UI, provider, process/env |
-| application | domain | framework, UI, provider, database concrete clients |
-| infrastructure | domain, application | interface controllers or UI |
-| interface | all backend layers | UI state or platform shell assumptions |
-| app surfaces | API contracts and app-facing clients | domain internals directly |
+| domain | pure utilities only | filesystem, npm, process env, SQLite drivers |
+| application | domain | CLI parsing frameworks, concrete DB drivers |
+| infrastructure | domain, application | CLI presentation details |
+| interface (CLI) | all inner layers | — |
+
+## Candidate Repo Shape (product implementation)
+
+Create folders only when a story implements them. Likely shape:
+
+```text
+packages/cli/                 # or repo root package
+  package.json                # "bin": { "harness": "..." }
+  src/
+    domain/
+    application/
+    infrastructure/
+      db/
+      scaffold/
+    interface/cli/
+  templates/                  # files copied by `harness init`
+  migrations/                 # SQL migrations
+
+# optional if Rust engine is chosen later
+crates/harness-core/
+```
 
 ## Parse-First Boundary Rule
 
-Unknown data must be parsed at boundaries before it enters inner code.
+Unknown data must be parsed at boundaries before it enters inner code:
 
-Boundaries include:
-
-- HTTP request bodies, params, and query strings.
-- Session payloads and identity claims.
-- Environment variables.
-- Database rows returned from external clients.
-- Platform shell payloads.
-- Deep links, tokens, and signed URLs.
-- Provider webhooks, events, and async payloads.
-
-Target flow:
+- CLI flags and positional args
+- Environment variables
+- SQLite rows
+- Filesystem paths and template manifests
+- Platform/binary resolution results
 
 ```text
 unknown input
-  -> parser
-  -> typed DTO or command
-  -> application use case
-  -> domain object/value object
+  -> parser / validator
+  -> domain types
+  -> use case
 ```
 
-Inner layers should work with meaningful product types such as `UserId`,
-`AccountId`, `WorkspaceId`, `Role`, `DateRange`, or domain-specific IDs,
-rather than repeatedly validating raw strings.
+## Dependency Rule for Upstream
 
-## Command/Query Boundary
+- **Do not** import or submodule upstream as a runtime dependency for the
+  shipped CLI.
+- **Do** read upstream docs/source when designing parity behavior.
+- **Do not** edit `../repository-harness` during normal product work.
 
-If the product has both reads and writes, keep command/query separation clear at
-the code level even when the storage layer is simple:
+## Validation Ladder (expected)
 
-- Commands mutate state and own audit side effects.
-- Queries read state and format for consumers.
-- Shared domain rules live in domain/application, not controllers.
+```text
+validate:quick     format, lint, typecheck, unit
+test:integration   CLI + SQLite contracts
+test:e2e           init + intake/story/query smoke in temp dir
+test:platform      native binary resolution (only if applicable)
+test:release       pack npm tarball / publish dry-run
+```
 
-## Observability Contract
+Exact commands land when the package scaffold story is implemented.
 
-The future server should emit one canonical JSON log line per request with:
+## Bootstrap Architecture (temporary)
 
-- timestamp
-- level
-- request_id
-- user_id when known
-- action
-- duration_ms
-- status_code
-- message
-
-Audit logs are product records. Application logs are operational records. Do not
-use one as a substitute for the other.
+Until the product CLI exists, this repository uses an upstream-built
+`scripts/bin/harness-cli` binary solely to manage **this repo's** durable
+records. That binary is **not** part of the long-term architecture of the
+product we ship.
