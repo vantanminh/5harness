@@ -90,6 +90,42 @@ Write commands (`intake`, `story`, `decision`, `backlog`) keep the same *intent*
 but persist to markdown entities. Agents **must** use these tools; they must not
 hand-edit operational markdown.
 
+## Commands in scope for Phase H (E12–E14, post-G agent loop)
+
+### E12 — Agent Loop Tier 1
+
+| Command | Behavior |
+| --- | --- |
+| `harness doctor [--fix] [--json]` | Workspace health checks (harness install, store, reindex, git, node) |
+| `harness status [--json]` | Project snapshot: stories, intakes, backlog, version, index age |
+| `harness next [--json]` | Recommend next work item (in_progress → planned → intake → backlog) |
+| `harness context <id> [--depth 0\|1] [--max-chars N] [--json]` | Budgeted entity context pack |
+| `harness tool register [--name] [--command] ...` | Register external project tool |
+| `harness tool check [--name] [--json]` | Scan registered tools |
+| `harness tool remove [--name] [--json]` | Remove a registered tool |
+
+### E13 — Agent Loop Tier 2
+
+| Command | Behavior |
+| --- | --- |
+| `harness story start --id <id>` | Mark story as in_progress |
+| `harness story done --id <id>` | Mark story as implemented |
+| `harness story block --id <id> [--reason]` | Mark story as blocked |
+| `harness worklog add --story <id> --summary <text> [--pr] [--commit]` | Add worklog entry |
+| `harness worklog list [--json]` | List worklog entries |
+| `harness worklog from-git --story <id> [--since]` | Link recent git commits to a story |
+| `harness intake-run [--prompt]` | Analyze prompt and suggest intake classification |
+| `harness dashboard` | Start local dashboard (supports mutations via same CLI code paths) |
+
+### E14 — Agent Loop Tier 3
+
+| Command | Behavior |
+| --- | --- |
+| `harness mcp` | Start MCP (Model Context Protocol) server over stdio for Cursor/Claude integration. Exposes 8 tools: get, search, links, context, status, query matrix, query stats, handoff |
+| `harness export changelog [--since <tag\|date>] [--json]` | Derive changelog notes from implemented stories/decisions (assist only) |
+| `harness watch` | Watch entity directories and auto-reindex on markdown changes (debounced 500ms) |
+| `harness handoff [--story <id>] [--json]` | Emit concise session summary: recent traces, worklog, status, next steps |
+
 ## Commands deferred (later)
 
 Custom tool registration, changesets, score-context, cloud registry.

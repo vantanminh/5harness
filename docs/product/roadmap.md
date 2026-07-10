@@ -46,9 +46,9 @@ git clone → npm i -g → harness link → reindex → same history + dashboard
 | F4 | E09 | Init/link payload pivot | **done** (v0.8.0) |
 | F5 | E10 | Quality commands on new store | **done** (US-012/013 v0.8) |
 | G | E11 | Dashboard foundation | **done** (v0.9.0) |
-| H1 | E12 | Agent loop Tier 1 (doctor/status/next/context + inbound tools) | **planned** (decision 0014, US-018–022) |
-| H2 | E13 | Agent loop Tier 2 (lifecycle, worklog, intake run, dashboard mutations) | **planned** (US-023–026) |
-| H3 | E14 | Agent loop Tier 3 (MCP, export, watch, handoff) | **planned** (US-027–030) |
+| H1 | E12 | Agent loop Tier 1 (doctor/status/next/context + inbound tools) | **done** (v0.10) |
+| H2 | E13 | Agent loop Tier 2 (lifecycle, worklog, intake run, dashboard mutations) | **done** (v0.10) |
+| H3 | E14 | Agent loop Tier 3 (MCP, export, watch, handoff) | **done** (v0.10.1) |
 
 ## Dependency graph
 
@@ -102,19 +102,19 @@ Declared via harness CLI (decision **0014**, intake **IN-003**). Packets live un
 
 | ID | Epic | Title | Depends on | Status |
 | --- | --- | --- | --- | --- |
-| [US-018](../stories/US-018.md) | E12 | `harness doctor` | E11 done | **planned** |
-| [US-019](../stories/US-019.md) | E12 | `harness status` | US-018 optional | **planned** |
-| [US-020](../stories/US-020.md) | E12 | `harness next` | US-019 | **planned** |
-| [US-021](../stories/US-021.md) | E12 | `harness context` | US-009 | **planned** |
-| [US-022](../stories/US-022.md) | E12 | Inbound tool registry | US-005, TOOL_REGISTRY.md | **planned** |
-| [US-023](../stories/US-023.md) | E13 | Story start/done/block | US-002 | **planned** |
-| [US-024](../stories/US-024.md) | E13 | Worklog + PR/commit link | — | **planned** |
-| [US-025](../stories/US-025.md) | E13 | `harness intake run` | FEATURE_INTAKE.md | **planned** |
-| [US-026](../stories/US-026.md) | E13 | Dashboard mutations (CLI paths) | US-014 | **planned** |
-| [US-027](../stories/US-027.md) | E14 | `harness mcp` | US-021 | **planned** |
-| [US-028](../stories/US-028.md) | E14 | Export changelog | — | **planned** |
-| [US-029](../stories/US-029.md) | E14 | `harness watch` reindex | US-009 | **planned** |
-| [US-030](../stories/US-030.md) | E14 | `harness handoff` | US-019, US-024 | **planned** |
+| [US-018](../stories/US-018.md) | E12 | `harness doctor` | E11 done | **done** |
+| [US-019](../stories/US-019.md) | E12 | `harness status` | US-018 optional | **done** |
+| [US-020](../stories/US-020.md) | E12 | `harness next` | US-019 | **done** |
+| [US-021](../stories/US-021.md) | E12 | `harness context` | US-009 | **done** |
+| [US-022](../stories/US-022.md) | E12 | Inbound tool registry | US-005, TOOL_REGISTRY.md | **done** |
+| [US-023](../stories/US-023.md) | E13 | Story start/done/block | US-002 | **done** |
+| [US-024](../stories/US-024.md) | E13 | Worklog + PR/commit link | — | **done** |
+| [US-025](../stories/US-025.md) | E13 | `harness intake run` | FEATURE_INTAKE.md | **done** |
+| [US-026](../stories/US-026.md) | E13 | Dashboard mutations (CLI paths) | US-014 | **done** |
+| [US-027](../stories/US-027.md) | E14 | `harness mcp` | US-021 | **done** |
+| [US-028](../stories/US-028.md) | E14 | Export changelog | — | **done** |
+| [US-029](../stories/US-029.md) | E14 | `harness watch` reindex | US-009 | **done** |
+| [US-030](../stories/US-030.md) | E14 | `harness handoff` | US-019, US-024 | **done** |
 
 ## Versioning intent
 

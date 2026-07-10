@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `harness mcp` — Start MCP (Model Context Protocol) server over stdio.
+  Exposes 8 tools: `harness_get`, `harness_search`, `harness_links`,
+  `harness_context`, `harness_status`, `harness_query_matrix`,
+  `harness_query_stats`, `harness_handoff`. Auth: local only. (US-027/E14)
+- `harness export changelog [--since] [--json]` — Derive changelog notes
+  from implemented stories/decisions (assist only). (US-028/E14)
+- `harness watch` — Watch entity directories and auto-reindex on markdown
+  changes (debounced 500ms). Fail-open, no durable mutation. (US-029/E14)
+- `harness handoff [--story <id>] [--json]` — Emit concise session summary
+  (recent traces, worklog, status, next steps) for the next agent. (US-030/E14)
+
 ### Changed
 
 - CI/CD auto-bumps semver on every push to `main` (after tests pass), commits
@@ -16,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `[skip release]`. Manual release via Actions workflow_dispatch remains
   available. Version sync now includes `templates/AGENTS.md` harness-version
   marker (`scripts/bump-version.mjs`, `pack:check`).
+
+### Fixed
+
+- Frontmatter parser now strips `\r` to handle `\r\n` line endings,
+  fixing "Invalid frontmatter line" errors on Windows.
 
 ## [0.9.4] - 2026-07-10
 
