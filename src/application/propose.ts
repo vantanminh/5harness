@@ -1,5 +1,6 @@
-import type { DatabaseSync } from "node:sqlite";
 import type { AuditFinding, AuditResult } from "../domain/audit.js";
+import { asString } from "../domain/frontmatter.js";
+import { listEntityFiles } from "../infrastructure/entities.js";
 import { addBacklogMd } from "./md-durable.js";
 import { runAudit } from "./quality.js";
 
@@ -90,31 +91,27 @@ export function formatProposals(proposals: Proposal[]): string {
   );
 }
 
-export function proposeFromDb(
-  db: DatabaseSync,
-  options: { commit?: boolean; projectRoot?: string } = {},
+export function proposeFromProject(
+  projectRoot: string,
+  options: { commit?: boolean } = {},
 ): { proposals: Proposal[]; committed: number } {
-  const audit = runAudit(db);
+  const audit = runAudit(projectRoot);
   const proposals = generateProposals(audit);
   let committed = 0;
 
   if (options.commit) {
+    const openTitles = new Set(
+      listEntityFiles(projectRoot, "backlog")
+        .filter((f) => {
+          const s = asString(f.data, "status");
+          return s === "proposed" || s === "accepted";
+        })
+        .map((f) => asString(f.data, "title") ?? ""),
+    );
     for (const p of proposals) {
-      const existing = db
-        .prepare(
-          `SELECT id FROM backlog
-           WHERE title = ?
-             AND status IN ('proposed', 'accepted')
-           LIMIT 1`,
-        )
-        .get(p.title) as { id: number } | undefined;
-      if (existing) continue;
-      const projectRoot = options.projectRoot;
-      if (!projectRoot) {
-        throw new Error("propose --commit requires project root for markdown store");
-      }
+      if (openTitles.has(p.title)) continue;
       addBacklogMd(
-        { projectRoot, db },
+        { projectRoot },
         {
           title: p.title,
           while: "harness propose --commit",
@@ -125,9 +122,21 @@ export function proposeFromDb(
           notes: `component=${p.component}`,
         },
       );
+      openTitles.add(p.title);
       committed += 1;
     }
   }
 
   return { proposals, committed };
+}
+
+/** @deprecated use proposeFromProject */
+export function proposeFromDb(
+  _db: unknown,
+  options: { commit?: boolean; projectRoot?: string } = {},
+): { proposals: Proposal[]; committed: number } {
+  if (!options.projectRoot) {
+    throw new Error("propose requires project root for markdown store");
+  }
+  return proposeFromProject(options.projectRoot, { commit: options.commit });
 }

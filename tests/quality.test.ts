@@ -1,22 +1,19 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { addStory, updateStory } from "../src/application/durable.js";
+import {
+  addStoryMd,
+  updateStoryMd,
+} from "../src/application/md-durable.js";
 import {
   addTrace,
   runAudit,
   scoreTraceById,
   verifyStory,
 } from "../src/application/quality.js";
-import { openExistingHarnessDb } from "../src/infrastructure/context.js";
-import { runInit } from "../src/infrastructure/scaffold.js";
-
-const packageRoot = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-);
+import { parseFrontmatter } from "../src/domain/frontmatter.js";
+import { listLocalTraces } from "../src/application/local-traces.js";
 
 const tempDirs: string[] = [];
 
@@ -29,81 +26,92 @@ afterEach(() => {
 function tempProject(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-quality-"));
   tempDirs.push(dir);
-  runInit({ directory: dir, packageRoot });
   return dir;
 }
 
-describe("quality application layer", () => {
-  it("verifies story pass and fail", () => {
+describe("quality on markdown store (US-012)", () => {
+  it("verifies story pass/fail and writes frontmatter", () => {
     const dir = tempProject();
-    const { db } = openExistingHarnessDb({ directory: dir, packageRoot });
-    try {
-      addStory(db, {
+    addStoryMd(
+      { projectRoot: dir },
+      {
         id: "US-V1",
         title: "Verify pass",
         lane: "tiny",
-        verify: "node -e \"process.exit(0)\"",
-      });
-      addStory(db, {
+        verify: 'node -e "process.exit(0)"',
+      },
+    );
+    addStoryMd(
+      { projectRoot: dir },
+      {
         id: "US-V2",
         title: "Verify fail",
         lane: "tiny",
-        verify: "node -e \"process.exit(2)\"",
-      });
+        verify: 'node -e "process.exit(2)"',
+      },
+    );
 
-      const pass = verifyStory(db, "US-V1", dir);
-      expect(pass.pass).toBe(true);
-      expect(pass.skipped).toBe(false);
+    const pass = verifyStory(dir, "US-V1");
+    expect(pass.pass).toBe(true);
+    expect(pass.skipped).toBe(false);
 
-      const fail = verifyStory(db, "US-V2", dir);
-      expect(fail.pass).toBe(false);
+    const fail = verifyStory(dir, "US-V2");
+    expect(fail.pass).toBe(false);
 
-      const row = db
-        .prepare(
-          "SELECT last_verified_result FROM story WHERE id = ?",
-        )
-        .get("US-V1") as { last_verified_result: string };
-      expect(row.last_verified_result).toBe("pass");
-    } finally {
-      db.close();
-    }
+    const content = fs.readFileSync(
+      path.join(dir, "docs", "stories", "US-V1.md"),
+      "utf8",
+    );
+    const { data } = parseFrontmatter(content);
+    expect(data.last_verified_result).toBe("pass");
+    expect(data.last_verified_at).toBeTruthy();
   });
 
-  it("records trace, scores, and audits", () => {
+  it("records local traces, scores, and audits without harness.db", () => {
     const dir = tempProject();
-    const { db } = openExistingHarnessDb({ directory: dir, packageRoot });
-    try {
-      addStory(db, {
+    addStoryMd(
+      { projectRoot: dir },
+      {
         id: "US-A1",
         title: "Orphan planned",
         lane: "normal",
-        verify: "node -e \"process.exit(0)\"",
-      });
-      // leave planned, no trace, never verified -> audit hits
+        verify: 'node -e "process.exit(0)"',
+      },
+    );
 
-      const { id } = addTrace(db, {
-        summary: "did work",
-        outcome: "completed",
-        changed: "src/x.ts",
-        story: "US-A1",
-        agent: "test",
-        actions: "code",
-        read: "README.md",
-        friction: "none",
-      });
+    const { id } = addTrace(dir, {
+      summary: "did work",
+      outcome: "completed",
+      changed: "src/x.ts",
+      story: "US-A1",
+      agent: "test",
+      actions: "code",
+      read: "README.md",
+      friction: "none",
+    });
 
-      // after trace, story no longer orphaned but still unverified until verify
-      updateStory(db, { id: "US-A1", status: "in_progress" });
+    expect(fs.existsSync(path.join(dir, "harness.db"))).toBe(false);
+    expect(listLocalTraces(dir)).toHaveLength(1);
+    expect(
+      fs.existsSync(path.join(dir, ".harness", "local", "traces.jsonl")),
+    ).toBe(true);
 
-      const score = scoreTraceById(db, id);
-      expect(score.achieved).toBe("standard");
+    updateStoryMd(
+      { projectRoot: dir },
+      { id: "US-A1", status: "in_progress" },
+    );
 
-      verifyStory(db, "US-A1", dir);
-      const audit = runAudit(db);
-      expect(audit.unverifiedStories.find((s) => s.id === "US-A1")).toBeUndefined();
-      expect(audit.entropyScore).toBeGreaterThanOrEqual(0);
-    } finally {
-      db.close();
-    }
+    const score = scoreTraceById(dir, id);
+    expect(score.achieved).toBe("standard");
+
+    // still unverified until verify
+    let audit = runAudit(dir);
+    expect(audit.unverifiedStories.some((s) => s.id === "US-A1")).toBe(true);
+    // has trace so not orphaned
+    expect(audit.orphanedStories.some((s) => s.id === "US-A1")).toBe(false);
+
+    verifyStory(dir, "US-A1");
+    audit = runAudit(dir);
+    expect(audit.unverifiedStories.some((s) => s.id === "US-A1")).toBe(false);
   });
 });

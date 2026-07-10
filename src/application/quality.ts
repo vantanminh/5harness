@@ -1,17 +1,30 @@
-import type { DatabaseSync } from "node:sqlite";
 import {
   computeEntropy,
   formatAudit,
   type AuditFinding,
   type AuditResult,
 } from "../domain/audit.js";
+import { asString } from "../domain/frontmatter.js";
 import {
   formatScoreResult,
   scoreTrace,
   type TraceScoreResult,
 } from "../domain/trace-score.js";
-import { formatTable } from "../infrastructure/table.js";
+import {
+  listEntityFiles,
+  readEntityById,
+  writeEntityFile,
+} from "../infrastructure/entities.js";
 import { runVerifyCommand } from "../infrastructure/verify.js";
+import { buildCatalog } from "./catalog.js";
+import {
+  appendLocalTrace,
+  getLocalTrace,
+  listLocalTraces,
+  queryTracesMd,
+  type LocalTrace,
+} from "./local-traces.js";
+import { buildProjectIndex, linksFor } from "./index-store.js";
 
 const OUTCOMES = new Set(["completed", "blocked", "partial", "failed"]);
 
@@ -36,66 +49,57 @@ export type StoryVerifyResult = {
 };
 
 export function verifyStory(
-  db: DatabaseSync,
+  projectRoot: string,
   storyId: string,
-  cwd: string,
 ): StoryVerifyResult {
-  const row = db
-    .prepare(
-      `SELECT id, title, verify_command FROM story WHERE id = ?`,
-    )
-    .get(storyId) as
-    | { id: string; title: string; verify_command: string | null }
-    | undefined;
-
-  if (!row) {
+  const file = readEntityById(projectRoot, "story", storyId);
+  if (!file) {
     throw new Error(`Story ${storyId} not found`);
   }
-  if (!row.verify_command?.trim()) {
+  const title = asString(file.data, "title") ?? storyId;
+  const verify = asString(file.data, "verify");
+  if (!verify?.trim()) {
     return {
-      id: row.id,
-      title: row.title,
+      id: storyId,
+      title,
       pass: true,
       skipped: true,
       reason: "no verify_command configured",
     };
   }
 
-  const run = runVerifyCommand(row.verify_command, cwd);
+  const run = runVerifyCommand(verify, projectRoot);
   const result = run.pass ? "pass" : "fail";
-  db.prepare(
-    `UPDATE story
-     SET last_verified_at = datetime('now'),
-         last_verified_result = ?
-     WHERE id = ?`,
-  ).run(result, storyId);
+  const data = {
+    ...file.data,
+    last_verified_at: new Date().toISOString(),
+    last_verified_result: result,
+    updated_at: new Date().toISOString(),
+  };
+  writeEntityFile(projectRoot, file.relativePath, data, file.body);
 
   if (run.stdout.trim()) process.stdout.write(run.stdout);
   if (run.stderr.trim()) process.stderr.write(run.stderr);
 
   return {
-    id: row.id,
-    title: row.title,
+    id: storyId,
+    title,
     pass: run.pass,
     skipped: false,
-    command: row.verify_command,
+    command: verify,
     exitCode: run.exitCode,
   };
 }
 
-export function verifyAllStories(
-  db: DatabaseSync,
-  cwd: string,
-): StoryVerifyResult[] {
-  const rows = db
-    .prepare(
-      `SELECT id FROM story
-       WHERE verify_command IS NOT NULL AND trim(verify_command) != ''
-       ORDER BY id`,
-    )
-    .all() as Array<{ id: string }>;
-
-  return rows.map((r) => verifyStory(db, r.id, cwd));
+export function verifyAllStories(projectRoot: string): StoryVerifyResult[] {
+  const files = listEntityFiles(projectRoot, "story");
+  const withCmd = files.filter((f) => {
+    const v = asString(f.data, "verify");
+    return Boolean(v?.trim());
+  });
+  return withCmd.map((f) =>
+    verifyStory(projectRoot, asString(f.data, "id") ?? f.relativePath),
+  );
 }
 
 export type DecisionVerifyResult = {
@@ -107,46 +111,41 @@ export type DecisionVerifyResult = {
 };
 
 export function verifyDecision(
-  db: DatabaseSync,
+  projectRoot: string,
   decisionId: string,
-  cwd: string,
 ): DecisionVerifyResult {
-  const row = db
-    .prepare(
-      `SELECT id, title, verify_command FROM decision WHERE id = ?`,
-    )
-    .get(decisionId) as
-    | { id: string; title: string; verify_command: string | null }
-    | undefined;
-
-  if (!row) {
+  const file = readEntityById(projectRoot, "decision", decisionId);
+  if (!file) {
     throw new Error(`Decision ${decisionId} not found`);
   }
-  if (!row.verify_command?.trim()) {
+  const title = asString(file.data, "title") ?? decisionId;
+  const verify = asString(file.data, "verify");
+  if (!verify?.trim()) {
     return {
-      id: row.id,
-      title: row.title,
+      id: decisionId,
+      title,
       pass: true,
       skipped: true,
       reason: "no verify_command configured",
     };
   }
 
-  const run = runVerifyCommand(row.verify_command, cwd);
+  const run = runVerifyCommand(verify, projectRoot);
   const result = run.pass ? "pass" : "fail";
-  db.prepare(
-    `UPDATE decision
-     SET last_verified_at = datetime('now'),
-         last_verified_result = ?
-     WHERE id = ?`,
-  ).run(result, decisionId);
+  const data = {
+    ...file.data,
+    last_verified_at: new Date().toISOString(),
+    last_verified_result: result,
+    updated_at: new Date().toISOString(),
+  };
+  writeEntityFile(projectRoot, file.relativePath, data, file.body);
 
   if (run.stdout.trim()) process.stdout.write(run.stdout);
   if (run.stderr.trim()) process.stderr.write(run.stderr);
 
   return {
-    id: row.id,
-    title: row.title,
+    id: decisionId,
+    title,
     pass: run.pass,
     skipped: false,
   };
@@ -169,20 +168,13 @@ export type TraceInput = {
 };
 
 export function addTrace(
-  db: DatabaseSync,
+  projectRoot: string,
   input: TraceInput,
-): { id: number } {
+): { id: number; trace: LocalTrace } {
   if (!input.summary?.trim()) {
     throw new Error("trace requires --summary");
   }
   const outcome = input.outcome ? parseOutcome(input.outcome) : null;
-  let intakeId: number | null = null;
-  if (input.intake) {
-    intakeId = Number(input.intake);
-    if (!Number.isFinite(intakeId)) {
-      throw new Error(`Invalid --intake "${input.intake}"`);
-    }
-  }
   let durationMs: number | null = null;
   if (input.duration) {
     durationMs = Number(input.duration);
@@ -191,69 +183,44 @@ export function addTrace(
     }
   }
 
-  const result = db
-    .prepare(
-      `INSERT INTO trace (
-         task_summary, intake_id, story_id, agent, actions_taken,
-         files_read, files_changed, decisions_made, errors, outcome,
-         duration_ms, notes, harness_friction
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
-      input.summary,
-      intakeId,
-      input.story ?? null,
-      input.agent ?? null,
-      input.actions ?? null,
-      input.read ?? null,
-      input.changed ?? null,
-      input.decisions ?? null,
-      input.errors ?? null,
-      outcome,
-      durationMs,
-      input.notes ?? null,
-      input.friction ?? null,
-    );
+  let risk_lane: string | null = null;
+  if (input.story) {
+    const story = readEntityById(projectRoot, "story", input.story);
+    risk_lane = story ? (asString(story.data, "lane") ?? null) : null;
+  }
 
-  return { id: Number(result.lastInsertRowid) };
+  const trace = appendLocalTrace(projectRoot, {
+    task_summary: input.summary,
+    outcome,
+    intake_id: input.intake ?? null,
+    story_id: input.story ?? null,
+    agent: input.agent ?? null,
+    actions_taken: input.actions ?? null,
+    files_read: input.read ?? null,
+    files_changed: input.changed ?? null,
+    decisions_made: input.decisions ?? null,
+    errors: input.errors ?? null,
+    duration_ms: durationMs,
+    notes: input.notes ?? null,
+    harness_friction: input.friction ?? null,
+    risk_lane,
+  });
+  return { id: trace.id, trace };
 }
 
 function loadTraceScoreSource(
-  db: DatabaseSync,
+  projectRoot: string,
   id: number,
 ): Parameters<typeof scoreTrace>[0] {
-  const row = db
-    .prepare(
-      `SELECT t.id, t.task_summary, t.agent, t.actions_taken, t.files_read,
-              t.files_changed, t.decisions_made, t.errors, t.outcome,
-              t.duration_ms, t.harness_friction, t.notes, t.story_id,
-              s.risk_lane
-       FROM trace t
-       LEFT JOIN story s ON s.id = t.story_id
-       WHERE t.id = ?`,
-    )
-    .get(id) as
-    | {
-        id: number;
-        task_summary: string;
-        agent: string | null;
-        actions_taken: string | null;
-        files_read: string | null;
-        files_changed: string | null;
-        decisions_made: string | null;
-        errors: string | null;
-        outcome: string | null;
-        duration_ms: number | null;
-        harness_friction: string | null;
-        notes: string | null;
-        risk_lane: string | null;
-      }
-    | undefined;
-
+  const row = getLocalTrace(projectRoot, id);
   if (!row) {
     throw new Error(`Trace #${id} not found`);
   }
-
+  let risk_lane = row.risk_lane ?? null;
+  if (!risk_lane && row.story_id) {
+    const story = readEntityById(projectRoot, "story", row.story_id);
+    risk_lane = story ? (asString(story.data, "lane") ?? null) : null;
+  }
   return {
     id: row.id,
     task_summary: row.task_summary,
@@ -267,110 +234,101 @@ function loadTraceScoreSource(
     duration_ms: row.duration_ms,
     harness_friction: row.harness_friction,
     notes: row.notes,
-    risk_lane: row.risk_lane,
+    risk_lane,
   };
 }
 
 export function scoreTraceById(
-  db: DatabaseSync,
+  projectRoot: string,
   id?: number,
 ): TraceScoreResult {
   let traceId = id;
   if (traceId === undefined) {
-    const latest = db
-      .prepare(`SELECT id FROM trace ORDER BY id DESC LIMIT 1`)
-      .get() as { id: number } | undefined;
-    if (!latest) {
+    const traces = listLocalTraces(projectRoot);
+    if (traces.length === 0) {
       throw new Error("No traces recorded yet");
     }
-    traceId = latest.id;
+    traceId = Math.max(...traces.map((t) => t.id));
   }
-  return scoreTrace(loadTraceScoreSource(db, traceId));
+  return scoreTrace(loadTraceScoreSource(projectRoot, traceId));
 }
 
 export function formatTraceScore(result: TraceScoreResult): string {
   return formatScoreResult(result);
 }
 
-export function queryTraces(db: DatabaseSync): string {
-  const rows = db
-    .prepare(
-      `SELECT id, created_at, outcome, task_summary, harness_friction, story_id
-       FROM trace ORDER BY id DESC LIMIT 50`,
-    )
-    .all() as Array<{
-    id: number;
-    created_at: string;
-    outcome: string | null;
-    task_summary: string;
-    harness_friction: string | null;
-    story_id: string | null;
-  }>;
-
-  return formatTable(
-    rows.map((r) => ({
-      id: r.id,
-      created_at: r.created_at,
-      outcome: r.outcome ?? "",
-      story: r.story_id ?? "",
-      summary: r.task_summary,
-      friction: r.harness_friction ?? "",
-    })),
-    ["id", "created_at", "outcome", "story", "summary", "friction"],
-  );
+export function queryTraces(projectRoot: string): string {
+  return queryTracesMd(projectRoot);
 }
 
-export function runAudit(db: DatabaseSync): AuditResult {
-  const orphanedStories = db
-    .prepare(
-      `SELECT s.id, s.title
-       FROM story s
-       WHERE s.status IN ('planned', 'in_progress')
-         AND NOT EXISTS (SELECT 1 FROM trace t WHERE t.story_id = s.id)
-       ORDER BY s.id`,
-    )
-    .all() as Array<{ id: string; title: string }>;
+export function runAudit(projectRoot: string): AuditResult {
+  const catalog = buildCatalog(projectRoot);
+  const traces = listLocalTraces(projectRoot);
+  const storyIdsWithTrace = new Set(
+    traces.map((t) => t.story_id).filter(Boolean) as string[],
+  );
 
-  const unverifiedStories = db
-    .prepare(
-      `SELECT id, title FROM story
-       WHERE verify_command IS NOT NULL AND trim(verify_command) != ''
-         AND (last_verified_result IS NULL OR last_verified_result != 'pass')
-       ORDER BY id`,
+  const orphanedStories = catalog.byType.story
+    .filter(
+      (s) =>
+        (s.status === "planned" || s.status === "in_progress") &&
+        !storyIdsWithTrace.has(s.id),
     )
-    .all() as Array<{ id: string; title: string }>;
+    .map((s): AuditFinding => ({ id: s.id, title: s.title }));
 
-  const unverifiedDecisions = db
-    .prepare(
-      `SELECT id, title FROM decision
-       WHERE verify_command IS NOT NULL AND trim(verify_command) != ''
-         AND (last_verified_result IS NULL OR last_verified_result != 'pass')
-       ORDER BY id`,
-    )
-    .all() as Array<{ id: string; title: string }>;
+  const unverifiedStories = catalog.byType.story
+    .filter((s) => {
+      const cmd = asString(s.data, "verify");
+      if (!cmd?.trim()) return false;
+      return asString(s.data, "last_verified_result") !== "pass";
+    })
+    .map((s): AuditFinding => ({ id: s.id, title: s.title }));
 
-  const backlogWithoutOutcomes = db
-    .prepare(
-      `SELECT id, title FROM backlog
-       WHERE status IN ('proposed', 'accepted')
-         AND (actual_outcome IS NULL OR trim(actual_outcome) = '')
-       ORDER BY id`,
-    )
-    .all() as Array<{ id: number; title: string }>;
+  const unverifiedDecisions = catalog.byType.decision
+    .filter((d) => {
+      const cmd = asString(d.data, "verify");
+      if (!cmd?.trim()) return false;
+      return asString(d.data, "last_verified_result") !== "pass";
+    })
+    .map((d): AuditFinding => ({ id: d.id, title: d.title }));
+
+  const backlogWithoutOutcomes = catalog.byType.backlog
+    .filter((b) => {
+      if (b.status !== "proposed" && b.status !== "accepted") return false;
+      const outcome = asString(b.data, "outcome");
+      return !outcome?.trim();
+    })
+    .map((b): AuditFinding => ({ id: b.id, title: b.title }));
+
+  // broken links (best-effort)
+  let brokenLinkFindings: AuditFinding[] = [];
+  try {
+    const index = buildProjectIndex(projectRoot);
+    for (const row of index.catalog) {
+      const view = linksFor(index, row.id);
+      if (view.broken.length > 0) {
+        brokenLinkFindings.push({
+          id: row.id,
+          title: `broken links: ${view.broken.join(", ")}`,
+        });
+      }
+    }
+  } catch {
+    brokenLinkFindings = [];
+  }
+
+  // fold broken links into orphaned-ish noise via unverified stories? keep separate
+  // by attaching to backlogWithoutOutcomes weight is wrong — add to orphaned for entropy
+  // Prefer listing in orphanedStories extra lines is confusing. Add as audit section via
+  // existing fields: put high-signal broken as unverifiedDecisions? No.
+  // Extend format later; for entropy, count broken as unverifiedStories weight 5.
+  const brokenAsUnverified = brokenLinkFindings;
 
   const base = {
-    orphanedStories: orphanedStories.map(
-      (r): AuditFinding => ({ id: r.id, title: r.title }),
-    ),
-    unverifiedStories: unverifiedStories.map(
-      (r): AuditFinding => ({ id: r.id, title: r.title }),
-    ),
-    unverifiedDecisions: unverifiedDecisions.map(
-      (r): AuditFinding => ({ id: r.id, title: r.title }),
-    ),
-    backlogWithoutOutcomes: backlogWithoutOutcomes.map(
-      (r): AuditFinding => ({ id: String(r.id), title: r.title }),
-    ),
+    orphanedStories,
+    unverifiedStories: [...unverifiedStories, ...brokenAsUnverified],
+    unverifiedDecisions,
+    backlogWithoutOutcomes,
   };
 
   return {

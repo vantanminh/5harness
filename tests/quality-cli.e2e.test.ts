@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { parseFrontmatter } from "../src/domain/frontmatter.js";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -31,12 +32,10 @@ function runHarness(args: string[]) {
   );
 }
 
-describe("quality CLI e2e", () => {
-  it("verify, trace, score-trace, audit, query traces", () => {
+describe("quality CLI e2e (MD store)", () => {
+  it("verify, trace, score-trace, audit, query traces, propose without db", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-q-cli-"));
     tempDirs.push(dir);
-
-    expect(runHarness(["init", dir]).status).toBe(0);
 
     const add = runHarness([
       "story",
@@ -57,6 +56,11 @@ describe("quality CLI e2e", () => {
     const verify = runHarness(["story", "verify", "US-Q1", "--dir", dir]);
     expect(verify.status, verify.stderr + verify.stdout).toBe(0);
     expect(verify.stdout).toMatch(/pass/i);
+
+    const fm = parseFrontmatter(
+      fs.readFileSync(path.join(dir, "docs", "stories", "US-Q1.md"), "utf8"),
+    );
+    expect(fm.data.last_verified_result).toBe("pass");
 
     const trace = runHarness([
       "trace",
@@ -82,6 +86,10 @@ describe("quality CLI e2e", () => {
     expect(trace.status, trace.stderr + trace.stdout).toBe(0);
     expect(trace.stdout).toMatch(/Trace #1/);
     expect(trace.stdout).toMatch(/Tier achieved/);
+    expect(
+      fs.existsSync(path.join(dir, ".harness", "local", "traces.jsonl")),
+    ).toBe(true);
+    expect(fs.existsSync(path.join(dir, "harness.db"))).toBe(false);
 
     const score = runHarness(["score-trace", "--dir", dir]);
     expect(score.status, score.stderr + score.stdout).toBe(0);
@@ -93,5 +101,8 @@ describe("quality CLI e2e", () => {
     const audit = runHarness(["audit", "--dir", dir]);
     expect(audit.status, audit.stderr + audit.stdout).toBe(0);
     expect(audit.stdout).toMatch(/Entropy score/);
+
+    const propose = runHarness(["propose", "--commit", "--dir", dir]);
+    expect(propose.status, propose.stderr + propose.stdout).toBe(0);
   });
 });

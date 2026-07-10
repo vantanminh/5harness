@@ -1,23 +1,17 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { addStory } from "../src/application/durable.js";
+import { addStoryMd } from "../src/application/md-durable.js";
 import {
   formatProposals,
   generateProposals,
-  proposeFromDb,
+  proposeFromProject,
 } from "../src/application/propose.js";
 import { listTools } from "../src/domain/tools.js";
-import { openExistingHarnessDb } from "../src/infrastructure/context.js";
-import { runInit } from "../src/infrastructure/scaffold.js";
 import { runAudit } from "../src/application/quality.js";
-
-const packageRoot = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-);
+import { asString } from "../src/domain/frontmatter.js";
+import { listEntityFiles } from "../src/infrastructure/entities.js";
 
 const tempDirs: string[] = [];
 
@@ -39,40 +33,34 @@ describe("listTools", () => {
 });
 
 describe("propose", () => {
-  it("generates proposals from audit and can commit to backlog", () => {
+  it("generates proposals from audit and can commit to backlog MD", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-propose-"));
     tempDirs.push(dir);
-    runInit({ directory: dir, packageRoot });
-    const { db } = openExistingHarnessDb({ directory: dir, packageRoot });
-    try {
-      addStory(db, {
+    addStoryMd(
+      { projectRoot: dir },
+      {
         id: "US-ORPHAN",
         title: "Needs a trace",
         lane: "normal",
-        verify: "node -e \"process.exit(0)\"",
-      });
-      // planned + verify never passed + no trace => proposals
+        verify: 'node -e "process.exit(0)"',
+      },
+    );
 
-      const audit = runAudit(db);
-      expect(audit.orphanedStories.length).toBeGreaterThan(0);
-      const proposals = generateProposals(audit);
-      expect(proposals.length).toBeGreaterThan(0);
-      expect(formatProposals(proposals)).toContain("Proposal");
+    const audit = runAudit(dir);
+    expect(audit.orphanedStories.length).toBeGreaterThan(0);
+    const proposals = generateProposals(audit);
+    expect(proposals.length).toBeGreaterThan(0);
+    expect(formatProposals(proposals)).toContain("Proposal");
 
-      const first = proposeFromDb(db, { commit: true, projectRoot: dir });
-      expect(first.committed).toBeGreaterThan(0);
-      const title = first.proposals[0]!.title;
-      const second = proposeFromDb(db, { commit: true, projectRoot: dir });
-      // same titles are not duplicated; new findings (e.g. open backlog
-      // without outcomes created by the first commit) may still add rows
-      const count = db
-        .prepare(`SELECT COUNT(*) AS n FROM backlog WHERE title = ?`)
-        .get(title) as { n: number };
-      expect(count.n).toBe(1);
-      expect(second.proposals.length).toBeGreaterThan(0);
-    } finally {
-      db.close();
-    }
+    const first = proposeFromProject(dir, { commit: true });
+    expect(first.committed).toBeGreaterThan(0);
+    const title = first.proposals[0]!.title;
+    const second = proposeFromProject(dir, { commit: true });
+    const count = listEntityFiles(dir, "backlog").filter(
+      (f) => asString(f.data, "title") === title,
+    ).length;
+    expect(count).toBe(1);
+    expect(second.proposals.length).toBeGreaterThan(0);
   });
 
   it("reports clean audit as no proposals", () => {

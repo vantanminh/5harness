@@ -1,20 +1,21 @@
 import {
   formatProposals,
-  proposeFromDb,
+  proposeFromProject,
 } from "../application/propose.js";
-import { withHarnessDb, type TargetOptions } from "../infrastructure/context.js";
+import {
+  resolveTargetFromOptions,
+  type TargetOptions,
+} from "../infrastructure/context.js";
 
 export type ProposeCliOptions = TargetOptions & {
   commit?: boolean;
 };
 
 export function executePropose(options: ProposeCliOptions): void {
-  const { proposals, committed } = withHarnessDb(options, (db, { targetDir }) =>
-    proposeFromDb(db, {
-      commit: Boolean(options.commit),
-      projectRoot: targetDir,
-    }),
-  );
+  const { targetDir } = resolveTargetFromOptions(options);
+  const { proposals, committed } = proposeFromProject(targetDir, {
+    commit: Boolean(options.commit),
+  });
   console.log(formatProposals(proposals));
   if (options.commit) {
     console.log("");

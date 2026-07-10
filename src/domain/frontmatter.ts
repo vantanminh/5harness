@@ -126,10 +126,14 @@ function parseScalar(raw: string): string | number | boolean | null {
 }
 
 function unquote(raw: string): string {
-  if (
-    (raw.startsWith('"') && raw.endsWith('"')) ||
-    (raw.startsWith("'") && raw.endsWith("'"))
-  ) {
+  if (raw.startsWith('"') && raw.endsWith('"')) {
+    try {
+      return JSON.parse(raw) as string;
+    } catch {
+      return raw.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+    }
+  }
+  if (raw.startsWith("'") && raw.endsWith("'")) {
     return raw.slice(1, -1);
   }
   return raw;

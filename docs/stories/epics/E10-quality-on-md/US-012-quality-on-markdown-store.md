@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## Lane
 
@@ -53,4 +53,5 @@ work with markdown entities and **local** (non-git) trace storage.
 
 ## Evidence
 
-_(fill when implemented)_
+- verify/trace/audit/propose use MD entities + `.harness/local/traces.jsonl`
+- Tests: quality.test.ts, quality-cli.e2e.test.ts, propose-tools.test.ts

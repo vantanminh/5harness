@@ -4,7 +4,10 @@ import {
   verifyStory,
   type StoryVerifyResult,
 } from "../application/quality.js";
-import { withHarnessDb, type TargetOptions } from "../infrastructure/context.js";
+import {
+  resolveTargetFromOptions,
+  type TargetOptions,
+} from "../infrastructure/context.js";
 
 function printStoryResult(result: StoryVerifyResult): void {
   if (result.skipped) {
@@ -25,9 +28,8 @@ export function executeStoryVerify(
   if (!id?.trim()) {
     throw new Error("story verify requires a story id");
   }
-  const result = withHarnessDb(options, (db, meta) =>
-    verifyStory(db, id, meta.targetDir),
-  );
+  const { targetDir } = resolveTargetFromOptions(options);
+  const result = verifyStory(targetDir, id);
   printStoryResult(result);
   if (!result.skipped && !result.pass) {
     process.exitCode = 1;
@@ -35,9 +37,8 @@ export function executeStoryVerify(
 }
 
 export function executeStoryVerifyAll(options: TargetOptions): void {
-  const results = withHarnessDb(options, (db, meta) =>
-    verifyAllStories(db, meta.targetDir),
-  );
+  const { targetDir } = resolveTargetFromOptions(options);
+  const results = verifyAllStories(targetDir);
   if (results.length === 0) {
     console.log("No stories with verify_command configured.");
     return;
@@ -60,9 +61,8 @@ export function executeDecisionVerify(
   if (!id?.trim()) {
     throw new Error("decision verify requires a decision id");
   }
-  const result = withHarnessDb(options, (db, meta) =>
-    verifyDecision(db, id, meta.targetDir),
-  );
+  const { targetDir } = resolveTargetFromOptions(options);
+  const result = verifyDecision(targetDir, id);
   if (result.skipped) {
     console.log(`Decision ${result.id}: skipped (${result.reason})`);
     return;
