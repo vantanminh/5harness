@@ -4,6 +4,11 @@
 # mid-2026; Node 20 removed later in fall 2026). We pin official actions that
 # target Node 24 and set FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 for clarity.
 # See: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+#
+# Auto-release flow:
+#   1. Push to main → CI runs build-test + auto-tag
+#   2. If package.json version changed (no existing tag), auto-tag creates + pushes vX.Y.Z
+#   3. Tag push triggers release.yml → npm publish
 
 name: CI
 
@@ -52,3 +57,53 @@ jobs:
 
       - name: Release check
         run: npm run release:check
+
+  # Auto-tag on push to main when package.json version was bumped.
+  # Pushing the tag triggers release.yml → npm publish.
+  auto-tag:
+    name: Auto-tag
+    needs: build-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # needed to push the version tag
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24.x"
+
+      - name: Read package version
+        id: pkg
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Package version: $VERSION"
+
+      - name: Check if tag already exists
+        id: tag
+        run: |
+          TAG="v${{ steps.pkg.outputs.version }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag $TAG already exists — skipping."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Tag $TAG does not exist — will create."
+          fi
+
+      - name: Create and push tag
+        if: steps.tag.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          TAG="v${{ steps.pkg.outputs.version }}"
+          git tag -a "$TAG" -m "Release v${{ steps.pkg.outputs.version }}"
+          git push origin "$TAG"
+          echo "Pushed tag $TAG — release workflow will publish to npm."

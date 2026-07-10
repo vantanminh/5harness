@@ -1,10 +1,15 @@
 # Publish @vantanminh/harness to npm when a version tag is pushed.
 #
+# Triggered by:
+#   - Manual:   git tag vX.Y.Z && git push origin vX.Y.Z
+#   - Auto:     ci.yml auto-tag job creates + pushes vX.Y.Z on push to main
+#               when package.json version was bumped (no existing tag).
+#
 # Prerequisites (repo Settings → Secrets and variables → Actions):
 #   NPM_TOKEN — Automation or granular access token with publish rights
 #               for @vantanminh/harness (and package create if first publish).
 #
-# Tag convention: vX.Y.Z must match package.json version (e.g. v0.9.2).
+# Tag convention: vX.Y.Z must match package.json version (e.g. v0.9.3).
 #
 # Node 24 Actions runtime: same migration notes as ci.yml.
 
