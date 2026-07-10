@@ -4,17 +4,18 @@
 
 | Field | Value |
 | --- | --- |
-| npm name | `npm-harness` |
+| npm name | `@vantanminh/harness` |
 | bin | `harness` → `dist/cli.js` |
-| **Preferred install** | `npm i -g npm-harness` |
-| Alternate install | `npm i -D npm-harness` + `npx harness …` |
-| Node | `>=22.5.0` (may relax if `node:sqlite` is no longer required for SoT) |
+| GitHub | [vantanminh/harness](https://github.com/vantanminh/harness) |
+| **Preferred install** | `npm i -g @vantanminh/harness` |
+| Alternate install | `npm i -D @vantanminh/harness` + `npx harness …` |
+| Node | `>=22.5.0` |
 | License | MIT |
 
 ## Install story (product)
 
 ```bash
-npm i -g npm-harness
+npm i -g @vantanminh/harness
 cd /path/to/project
 harness init          # new project: scaffold + register
 # or after git clone of an already-harnessed repo:
@@ -35,9 +36,8 @@ The npm tarball **must** include:
 
 It must **not** require a local Rust toolchain for normal use.
 
-> Note: v0.5 still ships `migrations/**` for the SQLite MVP. After the
-> markdown-store rewrite, published SQL migrations for project SoT go away;
-> optional index engines stay internal to the package.
+> Note: `migrations/**` remain only for legacy `harness import-sqlite`.
+> Operational SoT is markdown under `docs/`.
 
 ## Release checklist
 

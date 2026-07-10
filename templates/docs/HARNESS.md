@@ -24,11 +24,11 @@ Every task may produce:
 
 ```bash
 # preferred: global CLI for multi-project work
-npm i -g npm-harness
+npm i -g @vantanminh/harness
 harness --help
 
 # or one-shot
-npx npm-harness --help
+npx @vantanminh/harness --help
 ```
 
 ## Durable layer (markdown SoT)

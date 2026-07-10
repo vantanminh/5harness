@@ -41,8 +41,8 @@ Product pivot: [decision 0011](docs/decisions/0011-global-tool-markdown-durable-
 ### Intended CLI (target contract)
 
 ```bash
-# preferred: global install (package name: npm-harness)
-npm i -g npm-harness
+# preferred: global install (npm: @vantanminh/harness → bin: harness)
+npm i -g @vantanminh/harness
 harness init                 # scaffold markdown + register project
 # after git clone of a harnessed repo on another machine:
 harness link
@@ -56,6 +56,7 @@ harness query matrix
 harness search "verify"
 harness get US-001
 harness links US-001
+harness dashboard
 
 harness story verify US-001
 harness trace --summary "..." --outcome completed --changed "src/a.ts" --agent me
@@ -63,9 +64,7 @@ harness audit
 harness propose --commit
 ```
 
-> **v0.5 shipped note:** the current binary still uses a per-project SQLite MVP
-> for durable records. Decision 0011 locks the **next** store (markdown SoT +
-> registry + index). Command *names* stay; persistence changes in the pivot.
+**Source:** [github.com/vantanminh/harness](https://github.com/vantanminh/harness)
 
 ### Local development (this repo)
 

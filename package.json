@@ -1,7 +1,7 @@
 {
-  "name": "npm-harness",
+  "name": "@vantanminh/harness",
   "version": "0.9.0",
-  "description": "npm-native agent-ready repository harness (global CLI; markdown durable SoT direction)",
+  "description": "npm-native agent-ready repository harness (global CLI; markdown durable SoT)",
   "type": "module",
   "bin": {
     "harness": "./dist/cli.js"
@@ -33,18 +33,22 @@
     "harness",
     "agents",
     "cli",
-    "sqlite",
+    "markdown",
     "npm"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/local/npm-harness.git"
+    "url": "git+https://github.com/vantanminh/harness.git"
   },
   "bugs": {
-    "url": "https://github.com/local/npm-harness/issues"
+    "url": "https://github.com/vantanminh/harness/issues"
   },
-  "homepage": "https://github.com/local/npm-harness#readme",
+  "homepage": "https://github.com/vantanminh/harness#readme",
+  "author": "vantanminh",
   "dependencies": {
     "commander": "^14.0.0"
   },

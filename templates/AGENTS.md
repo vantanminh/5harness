@@ -3,18 +3,18 @@
 <!-- HARNESS:BEGIN -->
 ## Harness
 
-This repo uses **Harness** (`npm-harness`, bin `harness`).
+This repo uses **Harness** (`@vantanminh/harness`, bin `harness`).
 
 ### Install / day-to-day
 
 ```bash
 # preferred on a machine that works on many projects
-npm i -g npm-harness
+npm i -g @vantanminh/harness
 harness --help
 
 # after cloning a repo that already has harness markdown history:
 harness link
-harness reindex   # when available; link may do this
+harness reindex   # link may do this automatically
 ```
 
 ### Before work — read
