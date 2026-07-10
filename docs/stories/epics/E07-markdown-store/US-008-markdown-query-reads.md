@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## Lane
 
@@ -56,4 +56,7 @@ SQLite as SoT.
 
 ## Evidence
 
-_(fill when implemented)_
+- `src/application/catalog.ts` — shared entity catalog scanner
+- `src/application/md-query.ts` — matrix/stats/intakes/decisions/stories/backlog from MD
+- `src/commands/query.ts` — no longer requires `harness.db`
+- Tests: `tests/md-query.test.ts`, `tests/md-query-cli.e2e.test.ts`
