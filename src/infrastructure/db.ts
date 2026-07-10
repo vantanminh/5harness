@@ -1,6 +1,7 @@
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync } from "node:sqlite";
 
 export type MigrationFile = {
   version: number;
@@ -56,10 +57,14 @@ export type MigrateResult = {
   alreadyLatest: boolean;
 };
 
+let _require: NodeRequire | undefined;
+
 export function openDatabase(dbPath: string): DatabaseSync {
+  if (!_require) _require = createRequire(import.meta.url);
+  const { DatabaseSync: DBSync } = _require("node:sqlite") as typeof import("node:sqlite");
   const dir = path.dirname(dbPath);
   fs.mkdirSync(dir, { recursive: true });
-  const db = new DatabaseSync(dbPath);
+  const db = new DBSync(dbPath);
   db.exec("PRAGMA foreign_keys = ON;");
   return db;
 }
