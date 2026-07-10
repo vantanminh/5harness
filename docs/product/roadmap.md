@@ -46,6 +46,9 @@ git clone → npm i -g → harness link → reindex → same history + dashboard
 | F4 | E09 | Init/link payload pivot | **done** (v0.8.0) |
 | F5 | E10 | Quality commands on new store | **done** (US-012/013 v0.8) |
 | G | E11 | Dashboard foundation | **done** (v0.9.0) |
+| H1 | E12 | Agent loop Tier 1 (doctor/status/next/context + inbound tools) | **planned** (decision 0014, US-018–022) |
+| H2 | E13 | Agent loop Tier 2 (lifecycle, worklog, intake run, dashboard mutations) | **planned** (US-023–026) |
+| H3 | E14 | Agent loop Tier 3 (MCP, export, watch, handoff) | **planned** (US-027–030) |
 
 ## Dependency graph
 
@@ -55,9 +58,18 @@ E06 registry/link ────────────────────�
 E07 markdown store ──► E08 agent index ──────────┘         │
                                                            ▼
                                                         E11 dashboard
+                                                           │
+                          ┌────────────────────────────────┤
+                          ▼                                ▼
+                   E12 Tier 1 loop                   (optional E13/E14)
+                   doctor/status/next/context
+                   inbound tool registry
+                          │
+                          ├──► E13 Tier 2 lifecycle / worklog / intake run / dash mutations
+                          └──► E14 Tier 3 MCP / export / watch / handoff
 ```
 
-**Recommended implement order:** E06 → E07 → E08 → E09 → E10 → E11.
+**Recommended implement order:** E06 → E07 → E08 → E09 → E10 → E11 → **E12 → E13 → E14**.
 
 Rationale:
 
@@ -67,6 +79,7 @@ Rationale:
 4. Init payload changes last among F* so mid-migration still works.
 5. Quality (verify/trace/audit) rewired once store+index stable.
 6. Dashboard only needs registry + readable project state.
+7. Post-G work is agent-loop tools (decision **0014** / intake **IN-003**), not more entity types.
 
 ## Story checklist (Phase F–G)
 
@@ -82,6 +95,27 @@ Rationale:
 | [US-013](../stories/epics/E10-quality-on-md/US-013-sqlite-retirement-and-import.md) | E10 | Retire project SQLite SoT + optional import | US-012 | **done** |
 | [US-014](../stories/epics/E11-dashboard/US-014-dashboard-foundation.md) | E11 | Local multi-project dashboard foundation | US-006, US-008 | **done** |
 
+## Story checklist (Phase H — post-G agent loop)
+
+Declared via harness CLI (decision **0014**, intake **IN-003**). Packets live under
+`docs/stories/US-0xx.md` (tools-only writes). No implementation yet.
+
+| ID | Epic | Title | Depends on | Status |
+| --- | --- | --- | --- | --- |
+| [US-018](../stories/US-018.md) | E12 | `harness doctor` | E11 done | **planned** |
+| [US-019](../stories/US-019.md) | E12 | `harness status` | US-018 optional | **planned** |
+| [US-020](../stories/US-020.md) | E12 | `harness next` | US-019 | **planned** |
+| [US-021](../stories/US-021.md) | E12 | `harness context` | US-009 | **planned** |
+| [US-022](../stories/US-022.md) | E12 | Inbound tool registry | US-005, TOOL_REGISTRY.md | **planned** |
+| [US-023](../stories/US-023.md) | E13 | Story start/done/block | US-002 | **planned** |
+| [US-024](../stories/US-024.md) | E13 | Worklog + PR/commit link | — | **planned** |
+| [US-025](../stories/US-025.md) | E13 | `harness intake run` | FEATURE_INTAKE.md | **planned** |
+| [US-026](../stories/US-026.md) | E13 | Dashboard mutations (CLI paths) | US-014 | **planned** |
+| [US-027](../stories/US-027.md) | E14 | `harness mcp` | US-021 | **planned** |
+| [US-028](../stories/US-028.md) | E14 | Export changelog | — | **planned** |
+| [US-029](../stories/US-029.md) | E14 | `harness watch` reindex | US-009 | **planned** |
+| [US-030](../stories/US-030.md) | E14 | `harness handoff` | US-019, US-024 | **planned** |
+
 ## Versioning intent
 
 | Version bump | When |
@@ -90,6 +124,7 @@ Rationale:
 | 0.7.x | E07–E08 markdown + index (dual-run or flag OK) |
 | 0.8.x | E09–E10 init pivot + SQLite SoT retired |
 | 0.9.x | E11 dashboard MVP |
+| 0.10.x+ | E12+ agent-loop tools (incremental) |
 | 1.0.0 | Public contract stable; publish confidence |
 
 Exact versions may shift; keep `CHANGELOG.md` as release truth.
@@ -105,11 +140,11 @@ Exact versions may shift; keep `CHANGELOG.md` as release truth.
 
 ## Out of roadmap (explicitly deferred)
 
-- Cloud multi-user registry
-- Vector embeddings as primary search
+- Cloud multi-user registry → backlog **BL-003**
+- Vector embeddings as primary search → backlog **BL-002**
 - Desktop/Electron shell
 - Native engine behind npm bin (optional later)
-- Public npm publish ops (when ready)
+- Public npm publish ops (shipped via GitHub Actions; not a product epic)
 
 ## Related product docs
 

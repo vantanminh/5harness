@@ -2,37 +2,39 @@
 
 ## Product initiative (active)
 
-**Markdown durable store + global registry + agent index + dashboard**  
-Locked by decision **0011**. Tracking: `docs/product/roadmap.md`.
+**Post-G agent-loop tools (3 tiers)**  
+Locked by decision **0014** / intake **IN-003**. Tracking: `docs/product/roadmap.md`.
 
-| Epic | Description | Status |
-| --- | --- | --- |
-| E06 | Global registry + `link` | **done** (US-006 / v0.6) |
-| E07 | Markdown entity SoT | US-007 **done**; US-008 planned |
-| E08 | Agent index tools | planned (US-009) |
-| E09 | Init/template pivot | planned (US-010–011) |
-| E10 | Quality rewire + SQLite retire | planned (US-012–013) |
-| E11 | Local dashboard | planned (US-014) |
+| Epic | Description | Stories | Status |
+| --- | --- | --- | --- |
+| E12 | Tier 1 — doctor, status, next, context, inbound tools | US-018–022 | **planned** |
+| E13 | Tier 2 — story lifecycle, worklog, intake run, dash mutations | US-023–026 | **planned** |
+| E14 | Tier 3 — MCP, export changelog, watch, handoff | US-027–030 | **planned** |
 
-## Completed initiative
+Implement order: **E12 → E13 → E14**. No code until a story is picked `in_progress`.
+
+## Completed initiatives
 
 | Epic | Description | Status |
 | --- | --- | --- |
 | E01–E05 | npm CLI MVP (SQLite SoT) | done v0.1–0.5 |
+| E06 | Global registry + `link` | done |
+| E07 | Markdown entity SoT | done |
+| E08 | Agent index tools | done |
+| E09 | Init/template pivot | done |
+| E10 | Quality rewire + SQLite retire | done |
+| E11 | Local dashboard | done |
 
-## Future candidates (not sliced)
+## Deferred / rejected (backlog entities)
 
-| Idea | Notes | Status |
+| ID | Idea | Status |
 | --- | --- | --- |
-| Public npm publish automation | Ops once package name/org fixed | unsliced |
-| Native Rust engine | Optional; decision 0008/0010 allow later | unsliced |
-| Vector / embedding search | Only if FTS insufficient | unsliced |
-| Cloud multi-user registry | Explicitly deferred (0011) | rejected near-term |
-| Dashboard mutations | Read-only first (US-014) | unsliced |
-| Trace export to Git | Optional summaries only | unsliced |
+| BL-002 | Vector embeddings as primary search | deferred (0011/0014) |
+| BL-003 | Cloud multi-user registry | deferred (0011/0014) |
 
 ## Rules
 
 - Do not create every possible story packet up front beyond the active roadmap.
+- Durable entities: **CLI only** (`harness story|decision|intake|backlog`).
 - When picking work: open the next **planned** story in implement order, set
   `in_progress`, implement, then mark `implemented` + matrix evidence.
