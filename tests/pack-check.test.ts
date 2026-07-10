@@ -7,7 +7,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 describe("pack:check", () => {
   it("passes for the current package", () => {
-    const result = spawnSync("npm", ["run", "pack:check"], {
+    // On Windows, npm.cmd needs a shell. When shell:true, pass a single string
+    // (no separate args array) to avoid DEP0190 deprecation warning.
+    const result = spawnSync("npm run pack:check", [], {
       cwd: root,
       encoding: "utf8",
       shell: true,

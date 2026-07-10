@@ -80,10 +80,19 @@ export function executeUpdate(): void {
   console.log(`Running: ${cmd} ${args.join(" ")}`);
   console.log("");
 
-  const result = spawnSync(cmd, args, {
-    stdio: "inherit",
-    shell: process.platform === "win32",
-  });
+  // On Windows, shell: true is needed for .cmd/.bat wrappers (npm.cmd etc.).
+  // With shell:true, passing a separate args array is deprecated (DEP0190)
+  // because args are concatenated without proper escaping.
+  // Instead, build a single command string when shell is active.
+  const useShell = process.platform === "win32";
+  const result = useShell
+    ? spawnSync(`${cmd} ${args.join(" ")}`, [], {
+        stdio: "inherit",
+        shell: true,
+      })
+    : spawnSync(cmd, args, {
+        stdio: "inherit",
+      });
 
   if (result.error) {
     throw new Error(
