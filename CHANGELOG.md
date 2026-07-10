@@ -7,18 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- Product direction locked in decision **0011**: global-first install, markdown
-  durable SoT (Git-backed), machine-local project registry (`link` after clone),
-  derived agent index (get/search/links), agents mutate only via CLI tools.
-  SQLite project SoT (decision 0004) is superseded; v0.5 implementation remains
-  until the store rewrite ships.
+## [0.6.0] - 2026-07-10
 
 ### Added
 
-- Full Phase F–G tracking: `docs/product/roadmap.md`, epics E06–E11, stories
-  US-006–US-014, matrix rows, architecture/HARNESS/docs map updates.
+- `harness link [path]` — register a project in the machine-local global registry.
+- `harness unlink [path]` — remove registry entry (does not delete project files).
+- `harness projects` — list linked projects; warns when paths are missing.
+- `HARNESS_HOME` env (default `~/.harness`) stores `registry.json`.
+- Unit + CLI e2e tests with isolated `HARNESS_HOME`.
+
+### Changed
+
+- Product direction locked in decision **0011** (docs/roadmap in prior commit):
+  global-first install, markdown durable SoT next, registry for multi-project
+  discovery and clone→link workflow.
 
 ## [0.5.0] - 2026-07-10
 

@@ -29,13 +29,15 @@ installers, curl pipelines, or manual `.exe` paths.
 **only** through harness CLI tools — never by hand-editing story/decision/intake
 /backlog markdown.
 
-**Implemented on product CLI (v0.5 MVP, SQLite store):** `init`, `migrate`,
+**Implemented on product CLI:** `init`, `migrate`, `link`, `unlink`, `projects`,
 `intake`, `story add|update|verify|verify-all`, `decision add|verify`,
 `backlog add|close`, `trace`, `score-trace`, `audit`, `propose`,
 `query matrix|stats|intakes|decisions|stories|backlog|traces|tools`.
 
-**Target next (0011):** markdown SoT, global registry, `link`/`unlink`/
-`projects`/`reindex`/`get`/`search`/`links`.
+Durable store is still SQLite MVP (v0.5); global registry is v0.6 (`HARNESS_HOME`).
+
+**Target next (0011):** markdown SoT, `reindex`/`get`/`search`/`links`, init
+auto-register, dashboard.
 
 **Tracking:** implement order and story status live in
 `docs/product/roadmap.md` and `docs/stories/README.md` (US-006 → US-014).

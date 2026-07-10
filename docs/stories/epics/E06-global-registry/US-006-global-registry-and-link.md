@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+implemented
 
 ## Lane
 
@@ -60,4 +60,11 @@ the clone collaborator workflow without cloud sync.
 
 ## Evidence
 
-_(fill when implemented)_
+```text
+npm test
+npm run typecheck
+npm run pack:check
+# CLI: HARNESS_HOME=<tmp> harness link <dir> && harness projects && harness unlink <dir>
+```
+
+Version: 0.6.0

@@ -30,7 +30,7 @@ Roadmap: `docs/product/roadmap.md`.
 
 | Story | Contract | Unit | Integration | E2E | Platform | Status | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| US-006 | Global registry; link / unlink / projects; HARNESS_HOME | | | | | planned | |
+| US-006 | Global registry; link / unlink / projects; HARNESS_HOME | yes | yes | yes | yes | implemented | `npm test` registry + registry-cli e2e; Windows paths |
 | US-007 | Markdown entity writes for intake/story/decision/backlog | | | | | planned | |
 | US-008 | query matrix/stats/… from markdown SoT | | | | | planned | |
 | US-009 | reindex, get, search, links (derived index) | | | | | planned | |

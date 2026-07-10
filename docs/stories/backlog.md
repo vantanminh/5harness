@@ -7,7 +7,7 @@ Locked by decision **0011**. Tracking: `docs/product/roadmap.md`.
 
 | Epic | Description | Status |
 | --- | --- | --- |
-| E06 | Global registry + `link` | planned (US-006) |
+| E06 | Global registry + `link` | **done** (US-006 / v0.6) |
 | E07 | Markdown entity SoT | planned (US-007–008) |
 | E08 | Agent index tools | planned (US-009) |
 | E09 | Init/template pivot | planned (US-010–011) |

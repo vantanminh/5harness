@@ -1,3 +1,4 @@
+import os from "node:os";
 import path from "node:path";
 
 export function resolveTargetDir(
@@ -11,6 +12,30 @@ export function resolveTargetDir(
     return path.resolve(home, rest);
   }
   return path.resolve(cwd, raw);
+}
+
+/**
+ * Machine-local harness home (registry, caches). Override with HARNESS_HOME.
+ * Default: `~/.harness` (USERPROFILE on Windows).
+ */
+export function resolveHarnessHome(
+  env: NodeJS.ProcessEnv = process.env,
+  homedir: () => string = () => os.homedir(),
+): string {
+  const override = env.HARNESS_HOME?.trim();
+  if (override) {
+    if (override.startsWith("~")) {
+      const home = env.HOME || env.USERPROFILE || homedir();
+      const rest = override.slice(1).replace(/^[\\/]/, "");
+      return path.resolve(home, rest);
+    }
+    return path.resolve(override);
+  }
+  return path.join(homedir(), ".harness");
+}
+
+export function registryFilePath(harnessHome: string): string {
+  return path.join(harnessHome, "registry.json");
 }
 
 export function resolveDbPath(

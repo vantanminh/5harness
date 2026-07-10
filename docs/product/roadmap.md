@@ -40,7 +40,7 @@ git clone → npm i -g → harness link → reindex → same history + dashboard
 | C | E03 | verify / trace / audit | **done** (v0.3) |
 | D | E04 | release hardening | **done** (v0.4) |
 | E | E05 | propose + tools | **done** (v0.5) |
-| F1 | E06 | Global registry + link | **planned** |
+| F1 | E06 | Global registry + link | **done** (v0.6) |
 | F2 | E07 | Markdown entity store | **planned** |
 | F3 | E08 | Agent index (get/search/links) | **planned** |
 | F4 | E09 | Init/link payload pivot | **planned** |
@@ -72,7 +72,7 @@ Rationale:
 
 | ID | Epic | Title | Depends on | Status |
 | --- | --- | --- | --- | --- |
-| [US-006](../stories/epics/E06-global-registry/US-006-global-registry-and-link.md) | E06 | Global registry + link/unlink/projects | — | planned |
+| [US-006](../stories/epics/E06-global-registry/US-006-global-registry-and-link.md) | E06 | Global registry + link/unlink/projects | — | **done** |
 | [US-007](../stories/epics/E07-markdown-store/US-007-markdown-entity-writes.md) | E07 | Markdown entity writes | US-006 optional | planned |
 | [US-008](../stories/epics/E07-markdown-store/US-008-markdown-query-reads.md) | E07 | Query/matrix from markdown | US-007 | planned |
 | [US-009](../stories/epics/E08-agent-index/US-009-reindex-get-search-links.md) | E08 | reindex / get / search / links | US-007 | planned |

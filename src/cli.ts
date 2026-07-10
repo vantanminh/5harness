@@ -5,6 +5,11 @@ import { executeBacklogAdd, executeBacklogClose } from "./commands/backlog.js";
 import { executeDecisionAdd } from "./commands/decision.js";
 import { executeInit } from "./commands/init.js";
 import { executeIntake } from "./commands/intake.js";
+import {
+  executeLink,
+  executeProjects,
+  executeUnlink,
+} from "./commands/link.js";
 import { executeMigrate } from "./commands/migrate.js";
 import { executePropose } from "./commands/propose.js";
 import { executeQuery } from "./commands/query.js";
@@ -74,6 +79,37 @@ function main(argv: string[] = process.argv): void {
         withErrors(() => executeMigrate(directory, opts));
       }),
   );
+
+  addDirOptions(
+    program
+      .command("link")
+      .description(
+        "Register a project path in the machine-local global registry",
+      )
+      .argument("[directory]", "project root (default: cwd)")
+      .action((directory: string | undefined, opts) => {
+        withErrors(() => executeLink(directory, opts));
+      }),
+  );
+
+  addDirOptions(
+    program
+      .command("unlink")
+      .description(
+        "Remove a project from the global registry (does not delete files)",
+      )
+      .argument("[directory]", "project root (default: cwd)")
+      .action((directory: string | undefined, opts) => {
+        withErrors(() => executeUnlink(directory, opts));
+      }),
+  );
+
+  program
+    .command("projects")
+    .description("List projects linked in the global registry")
+    .action(() => {
+      withErrors(() => executeProjects());
+    });
 
   addDirOptions(
     program

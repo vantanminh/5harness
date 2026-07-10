@@ -2,7 +2,9 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   isProtectedRelative,
+  registryFilePath,
   resolveDbPath,
+  resolveHarnessHome,
   resolveTargetDir,
 } from "../src/domain/paths.js";
 
@@ -31,7 +33,20 @@ describe("resolveDbPath", () => {
   });
 });
 
+describe("resolveHarnessHome", () => {
+  it("joins .harness under home when HARNESS_HOME unset", () => {
+    expect(resolveHarnessHome({}, () => "/Users/me")).toBe(
+      path.join("/Users/me", ".harness"),
+    );
+  });
+
+  it("registry file lives under home", () => {
+    expect(registryFilePath("/tmp/h")).toBe(path.join("/tmp/h", "registry.json"));
+  });
+});
+
 describe("isProtectedRelative", () => {
+
   it("protects AGENTS.md and docs tree", () => {
     expect(isProtectedRelative("AGENTS.md")).toBe(true);
     expect(isProtectedRelative("docs/HARNESS.md")).toBe(true);

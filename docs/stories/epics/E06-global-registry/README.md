@@ -16,7 +16,7 @@ workflow: **clone → link → use history**.
 
 | ID | Title | Status |
 | --- | --- | --- |
-| US-006 | Global registry + link/unlink/projects | planned |
+| US-006 | Global registry + link/unlink/projects | implemented |
 
 ## Exit criteria
 
