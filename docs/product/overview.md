@@ -81,11 +81,13 @@ Upstream project: sibling directory `../repository-harness` (or the public
 
 | Phase | Outcome |
 | --- | --- |
-| A — Foundation | Product docs, decisions, package skeleton, `harness init` + migrate |
+| A — Foundation | Product docs, decisions; **US-001** package skeleton, `harness init` + migrate |
 | B — Durable MVP | intake, story, decision, backlog, query matrix/stats |
 | C — Quality | verify commands, traces, audit baseline |
 | D — Hardening | multi-platform publish, checksums if native, docs polish |
 | E — Optional | advanced parity, automation UI — only with explicit stories |
+
+Active story for Phase A: `docs/stories/epics/E01-npm-cli-foundation/US-001-scaffold-package-and-harness-init.md`.
 
 ## Open Questions
 

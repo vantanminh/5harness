@@ -3,7 +3,17 @@
 Stories are work packets. They turn product intent into bounded implementation
 and validation work.
 
-No story packets are active yet.
+## Active Epics
+
+| Epic | Focus | Stories |
+| --- | --- | --- |
+| [E01-npm-cli-foundation](./epics/E01-npm-cli-foundation/README.md) | Phase A: npm package + `harness init` | US-001 planned |
+
+## Story Index
+
+| ID | Title | Lane | Status | Path |
+| --- | --- | --- | --- | --- |
+| US-001 | Scaffold npm package and `harness init` | normal | planned | [epics/E01-…/US-001-…](./epics/E01-npm-cli-foundation/US-001-scaffold-package-and-harness-init.md) |
 
 ## Normal Story
 

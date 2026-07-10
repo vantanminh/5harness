@@ -19,7 +19,7 @@ implemented until tests or validation evidence exist.
 
 | Story | Contract | Unit | Integration | E2E | Platform | Status | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| TBD | Add rows when story packets are created | no | no | no | no | planned | none |
+| US-001 | npm package exposes `harness`; `init` scaffolds Phase A payload + SQLite; `migrate` applies schema | no | no | no | no | planned | none |
 
 ## Evidence Rules
 
