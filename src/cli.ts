@@ -51,21 +51,30 @@ function addDirOptions(cmd: Command): Command {
     .option("--directory <path>", "alias for --dir");
 }
 
+/**
+ * Commander allows only one short flag on `.version()`. Prefer `-v, --version`
+ * (common CLI convention) and treat `-V` as an equivalent alias.
+ */
+function normalizeArgv(argv: string[]): string[] {
+  return argv.map((arg) => (arg === "-V" ? "--version" : arg));
+}
+
 async function main(argv: string[] = process.argv): Promise<void> {
   const program = new Command();
+  const args = normalizeArgv(argv);
 
   program
     .name("harness")
     .description(
       "npm-native agent-ready repository harness — init, durable records, and queries",
     )
-    .version(VERSION, "-V, --version", "print CLI version");
+    .version(VERSION, "-v, --version", "print CLI version (also -V)");
 
   // Cached, fail-open update notice (skipped in CI / when disabled). See docs/SECURITY.md style trust: advisory only.
   program.hook("preAction", async () => {
     await maybeNotifyUpdateAvailable({
       currentVersion: VERSION,
-      argv,
+      argv: args,
     });
   });
 
@@ -487,7 +496,7 @@ async function main(argv: string[] = process.argv): Promise<void> {
       }),
   );
 
-  await program.parseAsync(argv);
+  await program.parseAsync(args);
 }
 
 void main().catch((error: unknown) => {

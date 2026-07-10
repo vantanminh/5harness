@@ -29,10 +29,12 @@ function runHarness(args: string[], cwd?: string) {
 }
 
 describe("CLI e2e", () => {
-  it("prints version", () => {
-    const result = runHarness(["--version"]);
-    expect(result.status).toBe(0);
-    expect(result.stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+  it("prints version via --version, -V, and -v", () => {
+    for (const flag of ["--version", "-V", "-v"] as const) {
+      const result = runHarness([flag]);
+      expect(result.status, `${flag}: ${result.stderr}`).toBe(0);
+      expect(result.stdout.trim(), flag).toMatch(/^\d+\.\d+\.\d+$/);
+    }
   });
 
   it("help lists init and migrate", () => {

@@ -41,6 +41,7 @@ export function shouldSkipUpdateCheckForArgv(argv: string[]): boolean {
 
   const first = args[0]!;
   if (
+    first === "-v" ||
     first === "-V" ||
     first === "--version" ||
     first === "-h" ||

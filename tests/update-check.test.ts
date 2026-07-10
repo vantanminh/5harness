@@ -47,6 +47,8 @@ describe("domain update-check", () => {
     expect(shouldSkipUpdateCheckForArgv(["node", "cli.js", "--version"])).toBe(
       true,
     );
+    expect(shouldSkipUpdateCheckForArgv(["node", "cli.js", "-v"])).toBe(true);
+    expect(shouldSkipUpdateCheckForArgv(["node", "cli.js", "-V"])).toBe(true);
     expect(shouldSkipUpdateCheckForArgv(["node", "cli.js", "-h"])).toBe(true);
     expect(shouldSkipUpdateCheckForArgv(["node", "cli.js", "init"])).toBe(
       false,
