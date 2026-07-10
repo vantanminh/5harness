@@ -1,6 +1,6 @@
 {
   "name": "@vantanminh/harness",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "description": "Agent-ready repository harness — global CLI with markdown durable SoT",
   "type": "module",
   "bin": {

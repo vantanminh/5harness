@@ -23,6 +23,7 @@ import { executePropose } from "./commands/propose.js";
 import { executeQuery } from "./commands/query.js";
 import { executeStoryAdd, executeStoryUpdate } from "./commands/story.js";
 import { executeScoreTrace, executeTrace } from "./commands/trace.js";
+import { executeUpdate } from "./commands/update.js";
 import {
   executeDecisionVerify,
   executeStoryVerify,
@@ -170,6 +171,16 @@ async function main(argv: string[] = process.argv): Promise<void> {
         });
       });
     });
+
+  program
+    .command("update")
+    .description(
+      "Update @vantanminh/harness globally using the detected package manager",
+    )
+    .action(() => {
+      withErrors(() => executeUpdate());
+    });
+
 
   addDirOptions(
     program
