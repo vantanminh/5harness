@@ -85,9 +85,9 @@ Upstream project: sibling directory `../repository-harness` (or the public
 | B — Durable MVP | **US-002 done** — intake, story, decision, backlog, query |
 | C — Quality | **US-003 done** — verify, trace, score-trace, audit |
 | D — Hardening | **US-004 done** — LICENSE, CHANGELOG, pack:check, CI |
-| E — Optional | propose, tool registry, automation UI — only with explicit stories |
+| E — Evolution | **US-005 done** — propose, query tools (built-in registry) |
 
-Stories: US-001 … US-004.
+Stories: US-001 … US-005. Further optional work: automation UI, native engine, custom tool registration.
 
 ## Open Questions
 

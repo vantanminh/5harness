@@ -11,6 +11,7 @@ and validation work.
 | [E02-durable-mvp](./epics/E02-durable-mvp/README.md) | Phase B: durable commands | US-002 implemented |
 | [E03-quality](./epics/E03-quality/README.md) | Phase C: verify / trace / audit | US-003 implemented |
 | [E04-release-hardening](./epics/E04-release-hardening/README.md) | Phase D: release hardening | US-004 implemented |
+| [E05-evolution](./epics/E05-evolution/README.md) | Phase E: propose + tools | US-005 implemented |
 
 ## Story Index
 
@@ -20,6 +21,7 @@ and validation work.
 | US-002 | Durable commands on harness CLI | normal | implemented | [epics/E02-…/US-002-…](./epics/E02-durable-mvp/US-002-durable-commands.md) |
 | US-003 | Phase C quality commands | normal | implemented | [epics/E03-…/US-003-…](./epics/E03-quality/US-003-quality-commands.md) |
 | US-004 | Phase D release hardening | normal | implemented | [epics/E04-…/US-004-…](./epics/E04-release-hardening/US-004-release-hardening.md) |
+| US-005 | Propose + tool registry | normal | implemented | [epics/E05-…/US-005-…](./epics/E05-evolution/US-005-propose-and-tools.md) |
 
 ## Normal Story
 

@@ -54,6 +54,9 @@ npx harness trace --summary "..." --outcome completed --changed "src/a.ts" --age
 npx harness score-trace
 npx harness audit
 npx harness query traces
+npx harness query tools --capability verification
+npx harness propose
+npx harness propose --commit
 ```
 
 ### Local development (this repo)
@@ -105,11 +108,12 @@ Primary reference docs (outside this tree):
 | Product direction | Documented (`docs/product/overview.md`) |
 | Operating harness for *this* repo | Installed (docs, AGENTS, bootstrap CLI for durable records) |
 | Durable DB for *this* repo | Initialized (`harness.db`, gitignored) |
-| Product npm package | **`npm-harness` v0.4.0** — bin `harness` |
+| Product npm package | **`npm-harness` v0.5.0** — bin `harness` |
 | `harness init` / `harness migrate` | **Implemented** (US-001) |
 | Durable commands (intake/story/decision/backlog/query) | **Implemented** (US-002) |
 | `story verify`, trace, score-trace, audit | **Implemented** (US-003) |
 | Release hardening (LICENSE, CHANGELOG, pack:check, CI) | **Implemented** (US-004) |
+| `propose`, `query tools` | **Implemented** (US-005) |
 
 User-facing install and durable ops use the product CLI (`npx harness …`).
 Bootstrap `scripts/bin/harness-cli[.exe]` is legacy for this workspace only.

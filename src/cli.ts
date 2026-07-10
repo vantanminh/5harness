@@ -6,6 +6,7 @@ import { executeDecisionAdd } from "./commands/decision.js";
 import { executeInit } from "./commands/init.js";
 import { executeIntake } from "./commands/intake.js";
 import { executeMigrate } from "./commands/migrate.js";
+import { executePropose } from "./commands/propose.js";
 import { executeQuery } from "./commands/query.js";
 import { executeStoryAdd, executeStoryUpdate } from "./commands/story.js";
 import { executeScoreTrace, executeTrace } from "./commands/trace.js";
@@ -324,6 +325,32 @@ function main(argv: string[] = process.argv): void {
       .description("Run drift audit and entropy score")
       .action((opts) => {
         withErrors(() => executeAudit(opts));
+      }),
+  );
+
+  addDirOptions(
+    program
+      .command("propose")
+      .description(
+        "Generate improvement proposals from audit findings (optional --commit to backlog)",
+      )
+      .option(
+        "--commit",
+        "write new proposals into the backlog (skips existing open titles)",
+      )
+      .action((opts) => {
+        withErrors(() => executePropose(opts));
+      }),
+  );
+
+  addDirOptions(
+    query
+      .command("tools")
+      .description("List built-in harness tools (compiled registry)")
+      .option("--capability <name>", "filter by capability")
+      .option("--status <status>", "filter by status (e.g. present)")
+      .action((opts) => {
+        withErrors(() => executeQuery("tools", opts));
       }),
   );
 

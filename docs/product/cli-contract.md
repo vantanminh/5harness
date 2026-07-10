@@ -63,9 +63,17 @@ They auto-migrate an existing DB; if the DB is missing, run `harness init` first
 | `harness query traces` | List recent traces |
 | `harness audit` | Drift findings + entropy score 0–100 |
 
+## Commands in scope for Phase E (US-005)
+
+| Command | Behavior |
+| --- | --- |
+| `harness propose` | Print improvement proposals from audit findings |
+| `harness propose --commit` | Also insert new proposals into backlog (dedupe open titles) |
+| `harness query tools` | Built-in tool registry (`--capability`, `--status`) |
+
 ## Commands deferred (later)
 
-`propose`, tool registry, changesets, score-context, full upstream parity extras.
+Custom tool registration, changesets, score-context, automation UI, full upstream parity extras.
 
 ## Exit codes
 

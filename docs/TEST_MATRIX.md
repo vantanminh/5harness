@@ -23,6 +23,7 @@ implemented until tests or validation evidence exist.
 | US-002 | Durable commands: intake, story, decision, backlog, query matrix/stats | yes | yes | yes | yes | implemented | `npm test`; durable CLI e2e; `npm run build` |
 | US-003 | story verify, trace, score-trace, audit, query traces | yes | yes | yes | yes | implemented | `npm test`; quality CLI e2e; schema v2 |
 | US-004 | LICENSE, CHANGELOG, pack:check, CI, distribution docs | yes | yes | yes | yes | implemented | `npm run pack:check`; `npm test`; CI workflow |
+| US-005 | propose, propose --commit, query tools | yes | yes | yes | yes | implemented | `npm test`; propose/tools CLI e2e |
 
 ## Evidence Rules
 
