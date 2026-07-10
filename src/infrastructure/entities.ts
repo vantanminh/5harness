@@ -83,7 +83,11 @@ export function listEntityFiles(
   for (const name of names) {
     const relativePath = path.posix.join(ENTITY_DIRS[type], name);
     const file = readEntityFile(projectRoot, relativePath);
-    if (file) out.push(file);
+    if (!file) continue;
+    // Skip non-entity docs that share the directory (e.g. backlog.md index).
+    if (file.data.type !== undefined && file.data.type !== type) continue;
+    if (file.data.type === undefined && !file.data.id) continue;
+    out.push(file);
   }
   return out;
 }

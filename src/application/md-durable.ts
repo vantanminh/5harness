@@ -120,7 +120,58 @@ export function updateStoryMd(
   ensureEntityDirs(meta.projectRoot);
 
   let file = readEntityById(meta.projectRoot, "story", id);
-  // bootstrap from dual-write era: allow update if only DB had it — create minimal from update
+  // Transition: story may exist only in SQLite (pre-US-007). Materialize MD then update.
+  if (!file && meta.db) {
+    const row = meta.db
+      .prepare(
+        `SELECT id, title, status, risk_lane, unit_proof, integration_proof,
+                e2e_proof, platform_proof, contract_doc, verify_command,
+                evidence, notes
+         FROM story WHERE id = ?`,
+      )
+      .get(id) as
+      | {
+          id: string;
+          title: string;
+          status: string;
+          risk_lane: string;
+          unit_proof: number;
+          integration_proof: number;
+          e2e_proof: number;
+          platform_proof: number;
+          contract_doc: string | null;
+          verify_command: string | null;
+          evidence: string | null;
+          notes: string | null;
+        }
+      | undefined;
+    if (row) {
+      const relativePath = entityRelativePath("story", id);
+      const seed: FrontmatterData = {
+        id,
+        type: "story",
+        title: row.title,
+        status: row.status,
+        lane: row.risk_lane,
+        unit: row.unit_proof ? 1 : 0,
+        integration: row.integration_proof ? 1 : 0,
+        e2e: row.e2e_proof ? 1 : 0,
+        platform: row.platform_proof ? 1 : 0,
+        contract: row.contract_doc,
+        verify: row.verify_command,
+        evidence: row.evidence,
+        notes: row.notes,
+        created_at: nowIso(),
+        updated_at: nowIso(),
+      };
+      file = writeEntityFile(
+        meta.projectRoot,
+        relativePath,
+        seed,
+        `# ${row.title}\n\n`,
+      );
+    }
+  }
   if (!file) {
     throw new Error(`Story ${id} not found`);
   }
