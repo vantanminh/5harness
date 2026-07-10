@@ -4,6 +4,10 @@ import {
   listLinkedProjects,
   unlinkProject,
 } from "../application/registry.js";
+import {
+  hasMarkdownStore,
+  writeProjectIndex,
+} from "../application/index-store.js";
 import { formatTable } from "../infrastructure/table.js";
 
 export type LinkCliOptions = {
@@ -26,6 +30,19 @@ export function executeLink(
     console.log(`  remote: ${result.entry.remote}`);
   }
   console.log(`  registry: ${result.registryPath}`);
+
+  // US-009: reindex when markdown store is present
+  if (hasMarkdownStore(result.entry.path)) {
+    try {
+      const idx = writeProjectIndex(result.entry.path);
+      console.log(
+        `  reindex: ${idx.entities} entities, ${idx.edges} edges → ${idx.path}`,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.log(`  reindex: skipped (${msg})`);
+    }
+  }
 }
 
 export function executeUnlink(

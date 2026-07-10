@@ -217,6 +217,38 @@ export const BUILTIN_TOOLS: ToolEntry[] = [
     status: "present",
     source: "compiled",
   },
+  {
+    name: "reindex",
+    kind: "builtin",
+    capability: "tool-access",
+    responsibility: "Rebuild derived markdown index",
+    status: "present",
+    source: "compiled",
+  },
+  {
+    name: "get",
+    kind: "builtin",
+    capability: "tool-access",
+    responsibility: "Load one entity by id/path",
+    status: "present",
+    source: "compiled",
+  },
+  {
+    name: "search",
+    kind: "builtin",
+    capability: "tool-access",
+    responsibility: "Search entities (snippet results)",
+    status: "present",
+    source: "compiled",
+  },
+  {
+    name: "links",
+    kind: "builtin",
+    capability: "tool-access",
+    responsibility: "Show outbound/backlinks for an entity",
+    status: "present",
+    source: "compiled",
+  },
 ];
 
 export function listTools(filter?: {

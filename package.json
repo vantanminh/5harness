@@ -1,6 +1,6 @@
 {
   "name": "npm-harness",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "npm-native agent-ready repository harness (global CLI; markdown durable SoT direction)",
   "type": "module",
   "bin": {

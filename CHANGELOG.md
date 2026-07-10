@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-07-10
+
+### Added
+
+- Agent index tools (US-009): `harness reindex`, `get`, `search`, `links`.
+- Derived index at `.harness/index/index.json` (catalog + edges + search text).
+- `harness link` auto-reindexes when a markdown entity store is present.
+- Wikilink parsing (`[[id]]`) for link graph.
+
+## [0.7.1] - 2026-07-10
+
+### Added
+
+- Markdown-backed query views (US-008): matrix/stats/entity lists from catalog.
+- Shared `buildCatalog()` scanner; queries no longer require `harness.db`.
+
 ## [0.7.0] - 2026-07-10
 
 ### Added

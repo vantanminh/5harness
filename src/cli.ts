@@ -3,6 +3,12 @@ import { Command } from "commander";
 import { executeAudit } from "./commands/audit.js";
 import { executeBacklogAdd, executeBacklogClose } from "./commands/backlog.js";
 import { executeDecisionAdd } from "./commands/decision.js";
+import {
+  executeGet,
+  executeLinks,
+  executeReindex,
+  executeSearch,
+} from "./commands/index-tools.js";
 import { executeInit } from "./commands/init.js";
 import { executeIntake } from "./commands/intake.js";
 import {
@@ -110,6 +116,47 @@ function main(argv: string[] = process.argv): void {
     .action(() => {
       withErrors(() => executeProjects());
     });
+
+  addDirOptions(
+    program
+      .command("reindex")
+      .description("Rebuild derived agent index from markdown entities")
+      .action((opts) => {
+        withErrors(() => executeReindex(opts));
+      }),
+  );
+
+  addDirOptions(
+    program
+      .command("get")
+      .description("Print one durable entity by id or path")
+      .argument("<idOrPath>", "entity id (e.g. US-001) or relative path")
+      .option("--summary", "frontmatter only (no body)")
+      .action((idOrPath: string, opts) => {
+        withErrors(() => executeGet(idOrPath, opts));
+      }),
+  );
+
+  addDirOptions(
+    program
+      .command("search")
+      .description("Search entity catalog (path + snippet, not full dump)")
+      .argument("<query>", "search query")
+      .option("--limit <n>", "max hits", "20")
+      .action((query: string, opts) => {
+        withErrors(() => executeSearch(query, opts));
+      }),
+  );
+
+  addDirOptions(
+    program
+      .command("links")
+      .description("Show outbound links and backlinks for an entity")
+      .argument("<id>", "entity id")
+      .action((id: string, opts) => {
+        withErrors(() => executeLinks(id, opts));
+      }),
+  );
 
   addDirOptions(
     program

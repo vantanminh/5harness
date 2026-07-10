@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## Lane
 
@@ -60,4 +60,6 @@ not the source of truth.
 
 ## Evidence
 
-_(fill when implemented)_
+- `src/application/index-store.ts`, `src/domain/wikilinks.ts`, `src/commands/index-tools.ts`
+- CLI: `reindex`, `get`, `search`, `links`; `link` triggers reindex when MD present
+- Tests: `tests/index-tools.test.ts`, `tests/index-tools-cli.e2e.test.ts`
