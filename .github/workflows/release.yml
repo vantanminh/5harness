@@ -32,6 +32,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Require NPM_TOKEN secret
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NPM_TOKEN:-}" ]; then
+            echo "::error title=Missing NPM_TOKEN::Add repo secret NPM_TOKEN (npm Automation or granular publish token), then re-run this workflow or push the tag again."
+            echo "GitHub → Settings → Secrets and variables → Actions → New repository secret"
+            echo "Name: NPM_TOKEN"
+            echo "Or publish locally: npm publish --access public"
+            exit 1
+          fi
+          echo "NPM_TOKEN is present (value not printed)."
+
       - name: Checkout
         uses: actions/checkout@v6
 

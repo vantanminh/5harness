@@ -43,8 +43,11 @@ The npm tarball **must** include:
 2. Bump `package.json` + `src/version.ts` together; update `CHANGELOG.md`
 3. Commit and push to `main`
 4. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`
-5. **CD:** GitHub Actions `Release` workflow publishes to npm (needs `NPM_TOKEN`
-   secret), **or** publish locally: `npm publish --access public` (OTP if 2FA)
+5. **CD:** GitHub Actions `Release` workflow publishes to npm when secret
+   `NPM_TOKEN` is set (Automation/granular token with publish on
+   `@vantanminh/harness`). Without it the Release job fails early with
+   `ENEEDAUTH` / missing secret — use local publish instead:
+   `npm publish --access public` (OTP if 2FA).
 
 ## CI / CD
 
