@@ -30,6 +30,8 @@ import {
   executeStoryVerifyAll,
 } from "./commands/verify.js";
 import { maybeNotifyUpdateAvailable } from "./application/update-check.js";
+import { maybeNotifyRepoUpgrade } from "./application/upgrade-notify.js";
+
 import { VERSION } from "./version.js";
 
 function fail(error: unknown): never {
@@ -77,6 +79,8 @@ async function main(argv: string[] = process.argv): Promise<void> {
       currentVersion: VERSION,
       argv: args,
     });
+    maybeNotifyRepoUpgrade(process.cwd(), VERSION);
+
   });
 
   addDirOptions(
