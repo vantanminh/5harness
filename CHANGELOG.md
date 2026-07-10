@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Harden `runVerifyCommand`: validate command (length, no null/newlines) and
+  cwd; add timeout, maxBuffer, `windowsHide`. Document trust model in
+  `docs/SECURITY.md` (verify strings are project-authored proof commands).
+
 ### Changed
 
 - Package identity: npm `@vantanminh/harness`, repo

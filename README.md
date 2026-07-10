@@ -89,6 +89,12 @@ node dist/cli.js init ./tmp-demo
 6. `docs/decisions/` — locked choices  
 7. `docs/product/roadmap.md` — implementation tracking  
 
+## Security
+
+`harness story verify` runs the **project-authored** `verify` command from story
+markdown (intentional local proof, like CI scripts). See
+[docs/SECURITY.md](docs/SECURITY.md).
+
 ## License
 
 MIT — see `LICENSE`.
