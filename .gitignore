@@ -18,3 +18,8 @@ coverage/
 .harness/*
 !.harness/changesets/
 !.harness/changesets/*.changeset.jsonl
+
+# Runtime logs
+*.log
+mcp-stderr.log
+mcp-stdout.log
