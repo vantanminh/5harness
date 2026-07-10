@@ -10,6 +10,8 @@
     "docs/product/README.md",
     "docs/stories/README.md",
     "docs/decisions/README.md",
+    "docs/intakes/README.md",
+    "docs/backlog/README.md",
     "docs/templates/story.md",
     "docs/templates/decision.md",
     "docs/templates/validation-report.md",

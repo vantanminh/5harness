@@ -43,7 +43,7 @@ git clone → npm i -g → harness link → reindex → same history + dashboard
 | F1 | E06 | Global registry + link | **done** (v0.6) |
 | F2 | E07 | Markdown entity store | **done** (US-007/008 v0.7.x) |
 | F3 | E08 | Agent index (get/search/links) | **done** (v0.7.2) |
-| F4 | E09 | Init/link payload pivot | **planned** |
+| F4 | E09 | Init/link payload pivot | **done** (v0.8.0) |
 | F5 | E10 | Quality commands on new store | **planned** |
 | G | E11 | Dashboard foundation | **planned** (after F) |
 
@@ -76,8 +76,8 @@ Rationale:
 | [US-007](../stories/epics/E07-markdown-store/US-007-markdown-entity-writes.md) | E07 | Markdown entity writes | US-006 optional | **done** |
 | [US-008](../stories/epics/E07-markdown-store/US-008-markdown-query-reads.md) | E07 | Query/matrix from markdown | US-007 | **done** |
 | [US-009](../stories/epics/E08-agent-index/US-009-reindex-get-search-links.md) | E08 | reindex / get / search / links | US-007 | **done** |
-| [US-010](../stories/epics/E09-init-link-pivot/US-010-init-payload-and-registration.md) | E09 | Init scaffold MD + auto-register | US-006, US-007 | planned |
-| [US-011](../stories/epics/E09-init-link-pivot/US-011-target-templates-agent-policy.md) | E09 | Target templates + tools-only policy | US-010 | planned |
+| [US-010](../stories/epics/E09-init-link-pivot/US-010-init-payload-and-registration.md) | E09 | Init scaffold MD + auto-register | US-006, US-007 | **done** |
+| [US-011](../stories/epics/E09-init-link-pivot/US-011-target-templates-agent-policy.md) | E09 | Target templates + tools-only policy | US-010 | **done** |
 | [US-012](../stories/epics/E10-quality-on-md/US-012-quality-on-markdown-store.md) | E10 | verify/trace/audit/propose on new store | US-008, US-009 | planned |
 | [US-013](../stories/epics/E10-quality-on-md/US-013-sqlite-retirement-and-import.md) | E10 | Retire project SQLite SoT + optional import | US-012 | planned |
 | [US-014](../stories/epics/E11-dashboard/US-014-dashboard-foundation.md) | E11 | Local multi-project dashboard foundation | US-006, US-008 | planned |

@@ -44,11 +44,12 @@ harness query matrix
 ### Read with tools (prefer over dumping large trees)
 
 ```bash
-harness search "…"      # when available
-harness get <id>        # when available
-harness links <id>      # when available
+harness search "…"
+harness get <id>
+harness links <id>
 harness query matrix
 harness query stats
+harness reindex
 ```
 
 Classify work with feature intake before large edits. Record durable decisions

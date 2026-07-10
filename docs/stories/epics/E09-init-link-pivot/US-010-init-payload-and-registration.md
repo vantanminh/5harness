@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## Lane
 
@@ -57,4 +57,5 @@ durable SoT.
 
 ## Evidence
 
-_(fill when implemented)_
+- Init ensures entity dirs, gitignore for `.harness/index|local`, auto-registers registry
+- Templates: intakes/backlog README; HARNESS.md markdown SoT

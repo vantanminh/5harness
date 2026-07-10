@@ -28,9 +28,17 @@ export function executeInit(
     console.log(`Dry run complete for ${result.targetDir}`);
   } else {
     console.log(`Harness initialized in ${result.targetDir}`);
-    console.log(`Database: ${result.dbPath} (schema v${result.schemaVersion})`);
+    if (result.schemaVersion > 0) {
+      console.log(
+        `Database: ${result.dbPath} (schema v${result.schemaVersion}, legacy/transition)`,
+      );
+    }
     console.log(
       `Files created: ${result.created.length}, overwritten: ${result.overwritten.length}, skipped: ${result.skipped.length}`,
     );
+    if (result.registered) {
+      console.log(`Registered in global registry: ${result.registryPath}`);
+    }
+    console.log("Entity dirs: docs/stories|decisions|intakes|backlog");
   }
 }

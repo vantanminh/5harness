@@ -33,6 +33,7 @@ describe("runInit", () => {
       directory: dir,
       dryRun: true,
       packageRoot,
+      skipRegister: true,
     });
     expect(result.dryRun).toBe(true);
     expect(result.created.length).toBe(manifest.files.length);
@@ -40,23 +41,44 @@ describe("runInit", () => {
     expect(fs.existsSync(path.join(dir, "harness.db"))).toBe(false);
   });
 
-  it("inits empty target with payload files and readable db", () => {
+  it("inits empty target with payload files, entity dirs, gitignore, registry", () => {
     const dir = tempDir();
+    const home = tempDir();
     const result = runInit({
       directory: dir,
       packageRoot,
+      env: { ...process.env, HARNESS_HOME: home },
     });
 
     expect(result.dryRun).toBe(false);
     expect(result.schemaVersion).toBe(2);
+    expect(result.registered).toBe(true);
     for (const relative of manifest.files) {
       expect(fs.existsSync(path.join(dir, relative)), relative).toBe(true);
     }
+    expect(fs.existsSync(path.join(dir, "docs", "intakes"))).toBe(true);
+    expect(fs.existsSync(path.join(dir, "docs", "backlog"))).toBe(true);
     expect(fs.existsSync(path.join(dir, "harness.db"))).toBe(true);
     expect(schemaIsReadable(path.join(dir, "harness.db"))).toBe(true);
 
     const gitignore = fs.readFileSync(path.join(dir, ".gitignore"), "utf8");
     expect(gitignore).toContain("harness.db");
+    expect(gitignore).toContain(".harness/index/");
+    expect(gitignore).toContain(".harness/local/");
+
+    const agents = fs.readFileSync(path.join(dir, "AGENTS.md"), "utf8");
+    expect(agents).toMatch(/Do not[\s\S]*by hand/i);
+    expect(agents).toMatch(/harness search/);
+    expect(agents).toMatch(/npm i -g/);
+
+    const harnessDoc = fs.readFileSync(path.join(dir, "docs", "HARNESS.md"), "utf8");
+    expect(harnessDoc).toMatch(/markdown/i);
+    expect(harnessDoc).not.toMatch(/Rust binary/i);
+
+    const registry = fs.readFileSync(path.join(home, "registry.json"), "utf8");
+    expect(registry).toContain(dir.replace(/\\/g, "\\\\") === dir ? path.basename(dir) : path.basename(dir));
+    // registry has projects array with path
+    expect(registry).toMatch(/"projects"/);
 
     // no upstream binary scaffold
     expect(fs.existsSync(path.join(dir, "scripts", "bin", "harness-cli"))).toBe(
@@ -74,6 +96,7 @@ describe("runInit", () => {
       runInit({
         directory: dir,
         packageRoot,
+        skipRegister: true,
       }),
     ).toThrow(/--force/);
     expect(fs.readFileSync(path.join(dir, "AGENTS.md"), "utf8")).toBe("mine");
@@ -86,6 +109,7 @@ describe("runInit", () => {
       directory: dir,
       force: true,
       packageRoot,
+      skipRegister: true,
     });
     const agents = fs.readFileSync(path.join(dir, "AGENTS.md"), "utf8");
     expect(agents).toContain("HARNESS:BEGIN");
@@ -96,7 +120,7 @@ describe("runInit", () => {
 
   it("migrate is idempotent after init", () => {
     const dir = tempDir();
-    runInit({ directory: dir, packageRoot });
+    runInit({ directory: dir, packageRoot, skipRegister: true });
     const dbPath = path.join(dir, "harness.db");
     const first = migrateDatabase(
       dbPath,
@@ -111,3 +135,4 @@ describe("runInit", () => {
     expect(second.currentVersion).toBe(2);
   });
 });
+

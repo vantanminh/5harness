@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## Lane
 
@@ -52,4 +52,4 @@ tools-only mutation of durable entities, and retrieval via get/search/links.
 
 ## Evidence
 
-_(fill when implemented)_
+- AGENTS.md tools-only + get/search/links/reindex; HARNESS.md MD SoT (no Rust binary SoT)

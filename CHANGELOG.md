@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-10
+
+### Added
+
+- Init registers project in global registry; ensures entity dirs (stories/decisions/intakes/backlog).
+- `.gitignore` rules for `.harness/index/` and `.harness/local/`.
+- Target templates: markdown SoT + tools-only agent policy (US-010/011).
+
 ## [0.7.2] - 2026-07-10
 
 ### Added

@@ -5,7 +5,10 @@ import {
   hasBlockingConflicts,
   type PlannedWrite,
 } from "../domain/conflicts.js";
+import { ENTITY_DIRS } from "../domain/entities.js";
 import { resolveDbPath, resolveTargetDir } from "../domain/paths.js";
+import { linkProject } from "../application/registry.js";
+import { ensureEntityDirs } from "./entities.js";
 import { migrateDatabase } from "./db.js";
 
 export type Manifest = {
@@ -13,7 +16,10 @@ export type Manifest = {
 };
 
 export const GITIGNORE_RULES = [
-  "# Harness durable layer",
+  "# Harness local / derived (not SoT)",
+  ".harness/index/",
+  ".harness/local/",
+  "# Legacy project SQLite (if present)",
   "harness.db",
   "harness.db-wal",
   "harness.db-shm",
@@ -28,6 +34,10 @@ export type InitOptions = {
   env?: NodeJS.ProcessEnv;
   packageRoot: string;
   log?: (message: string) => void;
+  /** Skip global registry registration (tests). */
+  skipRegister?: boolean;
+  /** Skip creating legacy harness.db (US-013 default path). */
+  skipDb?: boolean;
 };
 
 export type InitResult = {
@@ -39,6 +49,8 @@ export type InitResult = {
   skipped: string[];
   dryRun: boolean;
   schemaVersion: number;
+  registered: boolean;
+  registryPath?: string;
 };
 
 function loadManifest(packageRoot: string): Manifest {
@@ -111,12 +123,34 @@ function applyGitignore(targetDir: string, plan: PlannedWrite): void {
   );
 }
 
+function writeEntityDirReadmes(targetDir: string): void {
+  const readmes: Record<string, string> = {
+    [ENTITY_DIRS.story]:
+      "# Stories\n\nOperational story entities (`US-*.md`) are managed via `harness story`.\n",
+    [ENTITY_DIRS.decision]:
+      "# Decisions\n\nDecision entities are managed via `harness decision`.\n",
+    [ENTITY_DIRS.intake]:
+      "# Intakes\n\nIntake entities (`IN-*.md`) are managed via `harness intake`.\n",
+    [ENTITY_DIRS.backlog]:
+      "# Backlog\n\nBacklog entities (`BL-*.md`) are managed via `harness backlog`.\n",
+  };
+  for (const [rel, content] of Object.entries(readmes)) {
+    const dir = path.join(targetDir, rel);
+    fs.mkdirSync(dir, { recursive: true });
+    const readme = path.join(dir, "README.md");
+    if (!fs.existsSync(readme)) {
+      fs.writeFileSync(readme, content, "utf8");
+    }
+  }
+}
+
 export function runInit(options: InitOptions): InitResult {
   const log = options.log ?? (() => undefined);
   const cwd = options.cwd ?? process.cwd();
   const env = options.env ?? process.env;
   const force = Boolean(options.force);
   const dryRun = Boolean(options.dryRun);
+  const skipDb = Boolean(options.skipDb);
   const targetDir = resolveTargetDir(options.directory, cwd);
   const dbPath = resolveDbPath(targetDir, env);
   const migrationsDir = path.join(options.packageRoot, "migrations");
@@ -127,11 +161,13 @@ export function runInit(options: InitOptions): InitResult {
     plans.push(classifyFilePlan(targetDir, relative, force));
   }
   plans.push(planGitignore(targetDir));
-  plans.push({
-    kind: "db",
-    action: fs.existsSync(dbPath) ? "migrate" : "create",
-    path: dbPath,
-  });
+  if (!skipDb) {
+    plans.push({
+      kind: "db",
+      action: fs.existsSync(dbPath) ? "migrate" : "create",
+      path: dbPath,
+    });
+  }
 
   const blockers = hasBlockingConflicts(plans, force);
   if (blockers.length > 0) {
@@ -174,18 +210,42 @@ export function runInit(options: InitOptions): InitResult {
   }
 
   let schemaVersion = 0;
+  let registered = false;
+  let registryPath: string | undefined;
+
   if (!dryRun) {
     fs.mkdirSync(targetDir, { recursive: true });
-    const migrateResult = migrateDatabase(dbPath, migrationsDir);
-    schemaVersion = migrateResult.currentVersion;
-    for (const m of migrateResult.applied) {
-      log(`migrate  v${m.version} ${m.name}`);
+    ensureEntityDirs(targetDir);
+    writeEntityDirReadmes(targetDir);
+    log("dirs     entity markdown directories ready");
+
+    if (!skipDb) {
+      const migrateResult = migrateDatabase(dbPath, migrationsDir);
+      schemaVersion = migrateResult.currentVersion;
+      for (const m of migrateResult.applied) {
+        log(`migrate  v${m.version} ${m.name}`);
+      }
+      if (migrateResult.alreadyLatest) {
+        log(`migrate  already at v${schemaVersion}`);
+      }
     }
-    if (migrateResult.alreadyLatest) {
-      log(`migrate  already at v${schemaVersion}`);
+
+    if (!options.skipRegister) {
+      try {
+        const link = linkProject(targetDir, { env, cwd });
+        registered = true;
+        registryPath = link.registryPath;
+        log(
+          `register ${link.created ? "linked" : "updated"} → ${link.registryPath}`,
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        log(`register skipped (${msg})`);
+      }
     }
   } else {
-    log("dry-run  no files or database written");
+    log("dry-run  no files, database, or registry written");
+    log("plan     would ensure entity dirs + register project");
   }
 
   return {
@@ -197,5 +257,7 @@ export function runInit(options: InitOptions): InitResult {
     skipped,
     dryRun,
     schemaVersion,
+    registered,
+    registryPath,
   };
 }

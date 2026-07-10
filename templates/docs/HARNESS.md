@@ -20,15 +20,47 @@ Every task may produce:
 1. **Product delta** — application code, tests, product docs.
 2. **Harness delta** — operating docs, templates, decisions that help the next agent.
 
-## Durable Layer
-
-Operational records live in local SQLite (`harness.db`, gitignored), managed by
-the `harness` CLI installed via npm. Policy docs in `docs/` stay human-readable.
+## Install
 
 ```bash
-npx harness init      # once per project
-npx harness migrate   # apply schema updates
+# preferred: global CLI for multi-project work
+npm i -g npm-harness
+harness --help
+
+# or one-shot
+npx npm-harness --help
 ```
 
-Additional durable commands (intake, story, query, …) arrive in later package
-versions.
+## Durable layer (markdown SoT)
+
+Operational entities live as **git-committed markdown** with YAML frontmatter:
+
+| Type | Path |
+| --- | --- |
+| Story | `docs/stories/<id>.md` |
+| Decision | `docs/decisions/<id>.md` |
+| Intake | `docs/intakes/IN-###.md` |
+| Backlog | `docs/backlog/BL-###.md` |
+
+Machine-local derived data (gitignored):
+
+- `.harness/index/` — agent search/link index (`harness reindex`)
+- `.harness/local/` — traces and other non-shared state
+
+```bash
+harness init          # scaffold + register this project
+harness link          # after clone: register + reindex
+harness story add …
+harness query matrix
+harness search "…"
+harness get US-001
+```
+
+**Agents must not hand-edit operational entity files.** Use write commands only.
+
+## Collaborator path
+
+```text
+git clone → npm i -g npm-harness → harness link → harness reindex
+→ same markdown history; dashboard/list via registry
+```
