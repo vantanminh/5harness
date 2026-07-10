@@ -496,6 +496,13 @@ async function main(argv: string[] = process.argv): Promise<void> {
       }),
   );
 
+  // Default action: no subcommand → start dashboard
+  program.action(() => {
+    withErrors(() => {
+      void executeDashboard().catch(fail);
+    });
+  });
+
   await program.parseAsync(args);
 }
 
