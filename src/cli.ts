@@ -827,8 +827,10 @@ async function main(argv: string[] = process.argv): Promise<void> {
     program
       .command("mcp")
       .description(
-        "Start MCP (Model Context Protocol) server over HTTP on port 3928. For dashboard + MCP, run `harness`.",
+        "Start MCP (Model Context Protocol) server over HTTP (default port 3928). Call records land in .harness/local/mcp-calls.jsonl. For dashboard + MCP, run `harness` (dashboard embeds /mcp).",
       )
+      .option("--port <n>", "port (default 3928)", "3928")
+      .option("--host <addr>", "bind address (default 127.0.0.1)", "127.0.0.1")
       .action((opts) => {
         withErrors(() => executeMcp(opts));
       }),

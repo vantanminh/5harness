@@ -8,7 +8,12 @@ import {
   clearMcpCalls,
   getMcpStats,
   listMcpCalls,
+  readAllMcpCalls,
 } from "../src/application/mcp-monitor.js";
+import {
+  createMonitoredMcpHandler,
+  handleMcpRequest,
+} from "../src/application/mcp-server.js";
 
 const tempDirs: string[] = [];
 
@@ -128,5 +133,81 @@ describe("MCP monitor storage", () => {
     expect(stats.error_rate).toBe(0);
     expect(stats.avg_duration_ms).toBe(0);
     expect(Object.keys(stats.by_tool)).toHaveLength(0);
+  });
+
+  it("assigns correct IDs beyond the default list limit (50)", () => {
+    const root = tmp();
+    for (let i = 0; i < 55; i++) {
+      appendMcpCall(root, makeCall({ project_root: root }));
+    }
+    const limited = listMcpCalls(root, { limit: 50 });
+    expect(limited).toHaveLength(50);
+    expect(limited[0]!.id).toBe(55);
+    const all = readAllMcpCalls(root);
+    expect(all).toHaveLength(55);
+    expect(Math.max(...all.map((c) => c.id))).toBe(55);
+    // stats must count all records, not only the default list limit
+    expect(getMcpStats(root).total_calls).toBe(55);
+  });
+});
+
+describe("MCP server monitoring instrumentation", () => {
+  it("createMonitoredMcpHandler persists successful and failed calls", () => {
+    const root = tmp();
+    const handle = createMonitoredMcpHandler(root);
+
+    const init = handle(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {},
+      }),
+    );
+    expect(JSON.parse(init).result.serverInfo.name).toBe("harness-mcp");
+
+    const list = handle(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/list",
+      }),
+    );
+    expect(JSON.parse(list).result.tools.length).toBeGreaterThan(0);
+
+    // unknown tool → error status recorded
+    const bad = handle(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/call",
+        params: { name: "not_a_real_tool", arguments: {} },
+      }),
+    );
+    expect(JSON.parse(bad).error).toBeTruthy();
+
+    const calls = listMcpCalls(root, { limit: 20 });
+    expect(calls.length).toBe(3);
+    expect(calls.map((c) => c.method).sort()).toEqual([
+      "initialize",
+      "tools/call",
+      "tools/list",
+    ].sort());
+    const errCall = calls.find((c) => c.method === "tools/call");
+    expect(errCall?.status).toBe("error");
+    expect(errCall?.tool_name).toBe("not_a_real_tool");
+
+    const stats = getMcpStats(root);
+    expect(stats.total_calls).toBe(3);
+    expect(stats.error_count).toBe(1);
+  });
+
+  it("handleMcpRequest without onCall does not write records", () => {
+    const root = tmp();
+    handleMcpRequest(
+      JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }),
+      root,
+    );
+    expect(listMcpCalls(root)).toHaveLength(0);
   });
 });

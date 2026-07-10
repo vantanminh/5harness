@@ -1,5 +1,5 @@
-﻿/**
- * MCP (Model Context Protocol) handler for harness Ã¢â‚¬â€ HTTP transport.
+/**
+ * MCP (Model Context Protocol) handler for harness — HTTP transport.
  * Pure request/response: takes JSON-RPC 2.0 body, returns response string.
  * Used by dashboard at POST /mcp and standalone `harness mcp` HTTP server.
  */

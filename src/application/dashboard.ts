@@ -1,4 +1,5 @@
 import http from "node:http";
+import path from "node:path";
 import { buildCatalog } from "./catalog.js";
 import { getEntityText } from "./index-store.js";
 import {
@@ -14,9 +15,9 @@ import type { ListedProject } from "../domain/registry.js";
 import { listLinkedProjects } from "./registry.js";
 import { VERSION } from "../version.js";
 import { handleDashboardMutation } from "./dashboard-mutations.js";
-import { createMonitoredMcpHandler, handleMcpRequest } from "./mcp-server.js";
+import { createMonitoredMcpHandler } from "./mcp-server.js";
 
-import { appendMcpCall, getMcpStats, listMcpCalls } from "./mcp-monitor.js";
+import { getMcpStats, listMcpCalls } from "./mcp-monitor.js";
 
 export type DashboardOptions = {
   host?: string;
@@ -165,6 +166,39 @@ function findProjectPath(idOrPath: string, options: DashboardOptions): string | 
       proj.name === idOrPath,
   );
   return p && !p.missing ? p.path : null;
+}
+
+/**
+ * Resolve which project root MCP calls should bind to.
+ * Priority: explicit preferred id/path → cwd match among linked projects → first healthy linked project → cwd.
+ */
+export function resolveMcpProjectRoot(
+  options: DashboardOptions = {},
+  preferred?: string | null,
+): string {
+  const projects = listProjectSummaries(options).filter(
+    (p) => !p.missing && !p.error,
+  );
+  if (preferred) {
+    const hit = projects.find(
+      (p) =>
+        p.id === preferred ||
+        p.path === preferred ||
+        p.name === preferred ||
+        path.resolve(p.path) === path.resolve(preferred),
+    );
+    if (hit) return hit.path;
+  }
+  const cwd = path.resolve(process.cwd());
+  let best: ProjectSummary | null = null;
+  for (const p of projects) {
+    const pp = path.resolve(p.path);
+    if (cwd === pp || cwd.startsWith(pp + path.sep)) {
+      if (!best || pp.length > path.resolve(best.path).length) best = p;
+    }
+  }
+  if (best) return best.path;
+  return projects[0]?.path ?? process.cwd();
 }
 
 function renderMcpMonitor(projectPath: string): string {
@@ -405,8 +439,9 @@ ${rows || `<tr><td colspan="4">No linked projects. Run <code>harness link</code>
 
 function renderProject(detail: ProjectDetail): string {
   const p = detail.project;
+  const monitorHref = `/monitor?id=${encodeURIComponent(p.id)}`;
 
-  const tabs = [
+  const tabs: Array<{ id: string; label: string; content: string; html?: boolean }> = [
     { id: "stats", label: "Stats", content: detail.stats },
     { id: "matrix", label: "Matrix", content: detail.matrix },
     { id: "stories", label: "Stories", content: detail.stories },
@@ -414,7 +449,13 @@ function renderProject(detail: ProjectDetail): string {
     { id: "intakes", label: "Intakes", content: detail.intakes },
     { id: "backlog", label: "Backlog", content: detail.backlog },
     { id: "traces", label: "Traces", content: detail.traces },
-    { id: "mcp", label: "MCP Monitor", content: "<p>Loading MCP monitor... <a href=\"/monitor?id=" + encodeURIComponent(detail.project.id) + "\">Open full page</a></p>" },
+    {
+      id: "mcp",
+      label: "MCP Monitor",
+      html: true,
+      content: `<p><a href="${monitorHref}">Open full MCP monitor page</a> for live call stats, tool usage, and error log.</p>
+<p class="muted">Records are written to <code>.harness/local/mcp-calls.jsonl</code> when agents call the MCP endpoint.</p>`,
+    },
   ];
 
   const tabLinks = tabs
@@ -426,10 +467,19 @@ function renderProject(detail: ProjectDetail): string {
 
   const sections = tabs
     .map((t) => {
-      const esc = htmlEscape(t.content);
       const empty = !t.content.trim();
+      if (empty) {
+        return `<div class="section-content" id="sec-${t.id}">
+  <p class="muted">No ${t.label.toLowerCase()} recorded.</p>
+</div>`;
+      }
+      if (t.html) {
+        return `<div class="section-content" id="sec-${t.id}">
+  ${t.content}
+</div>`;
+      }
       return `<div class="section-content" id="sec-${t.id}">
-  ${empty ? `<p class="muted">No ${t.label.toLowerCase()} recorded.</p>` : `<pre>${esc}</pre>`}
+  <pre>${htmlEscape(t.content)}</pre>
 </div>`;
     })
     .join("\n");
@@ -510,7 +560,8 @@ export type DashboardServer = {
 };
 
 /**
- * Start localhost-only read-only dashboard.
+ * Start localhost-only dashboard.
+ * GET routes share handleDashboardRequest so monitor APIs stay in sync with unit tests.
  */
 export function startDashboard(
   options: DashboardOptions = {},
@@ -526,129 +577,78 @@ export function startDashboard(
     try {
       const url = new URL(req.url ?? "/", `http://${host}:${port}`);
 
-      // --- API routes ---
-      if (url.pathname === "/api/projects") {
-        const body = JSON.stringify(listProjectSummaries(dashOpts), null, 2);
-        res.writeHead(200, {
-          "Content-Type": "application/json; charset=utf-8",
-        });
-        res.end(body);
-        return;
-      }
-      if (url.pathname === "/api/project") {
-        const id = url.searchParams.get("id") ?? "";
-        const detail = getProjectDetail(id, dashOpts);
-        if (!detail) {
-          res.writeHead(404, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "project not found" }));
-          return;
-        }
-        res.writeHead(200, {
-          "Content-Type": "application/json; charset=utf-8",
-        });
-        res.end(JSON.stringify(detail, null, 2));
-        return;
-      }
-      if (url.pathname === "/api/entity") {
-        const projectId = url.searchParams.get("project") ?? "";
-        const entityId = url.searchParams.get("id") ?? "";
-        const detail = getEntityDetail(projectId, entityId, dashOpts);
-        if (!detail) {
-          res.writeHead(404, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "entity not found" }));
-          return;
-        }
-        res.writeHead(200, {
-          "Content-Type": "application/json; charset=utf-8",
-        });
-        res.end(JSON.stringify(detail, null, 2));
-        return;
-      }
-
+      // MCP JSON-RPC (monitored) — project from ?project= or cwd-linked project
       if (url.pathname === "/mcp" && req.method === "POST") {
         let body = "";
-        req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+        req.on("data", (chunk: Buffer) => {
+          body += chunk.toString();
+        });
         req.on("end", () => {
           try {
-            // Use first available project root for MCP monitoring, or cwd
-            const projects = listProjectSummaries(dashOpts);
-            const mcpProject = projects.find(proj => !proj.missing && !proj.error);
-            const projectRoot = mcpProject ? mcpProject.path : process.cwd();
-            const json = handleMcpRequest(body, projectRoot, (info) => {
-              try {
-                const { appendMcpCall } = require("./mcp-monitor.js");
-                appendMcpCall(projectRoot, info);
-              } catch { /* non-fatal */ }
-            });
-            res.writeHead(200, { "Content-Type": "application/json" });
+            const preferred =
+              url.searchParams.get("project") ??
+              (req.headers["x-harness-project"] as string | undefined) ??
+              null;
+            const projectRoot = resolveMcpProjectRoot(dashOpts, preferred);
+            const handle = createMonitoredMcpHandler(projectRoot);
+            const json = handle(body);
+            res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
             res.end(json);
           } catch (err) {
-            res.writeHead(500, { "Content-Type": "text/plain" });
+            res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
             res.end(err instanceof Error ? err.message : String(err));
           }
         });
         return;
       }
 
-      // --- HTML routes ---
-      if (url.pathname === "/project") {
-        const id = url.searchParams.get("id") ?? "";
-        const detail = getProjectDetail(id, dashOpts);
-        if (!detail) {
-          res.writeHead(404, { "Content-Type": "text/plain" });
-          res.end("Project not found");
-          return;
-        }
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(renderProject(detail));
-        return;
-      }
-      if (url.pathname === "/entity") {
-        const projectId = url.searchParams.get("project") ?? "";
-        const entityId = url.searchParams.get("id") ?? "";
-        const detail = getEntityDetail(projectId, entityId, dashOpts);
-        if (!detail) {
-          res.writeHead(404, { "Content-Type": "text/plain" });
-          res.end("Entity not found");
-          return;
-        }
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(renderEntity(detail));
-        return;
-      // Handle POST mutations
+      // Dashboard mutations (story/intake/etc. via browser UI)
       if (req.method === "POST") {
         let body = "";
-        req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+        req.on("data", (chunk: Buffer) => {
+          body += chunk.toString();
+        });
         req.on("end", () => {
           try {
-            const mutationUrl = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}/`);
+            const mutationUrl = new URL(
+              req.url ?? "/",
+              `http://${req.headers.host ?? "localhost"}/`,
+            );
             const result = handleDashboardMutation(
-              "POST", mutationUrl, body,
+              "POST",
+              mutationUrl,
+              body,
               req.headers as Record<string, string | string[] | undefined>,
             );
-            res.writeHead(result.status, { "Content-Type": result.contentType });
+            res.writeHead(result.status, {
+              "Content-Type": result.contentType.includes("charset")
+                ? result.contentType
+                : `${result.contentType}; charset=utf-8`,
+            });
             res.end(result.body);
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            res.writeHead(500, { "Content-Type": "text/plain" });
+            res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
             res.end(msg);
           }
         });
         return;
       }
 
-
-      }
-      if (url.pathname === "/" || url.pathname === "/index.html") {
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(renderHome(listProjectSummaries(dashOpts)));
-        return;
-      }
-      res.writeHead(404, { "Content-Type": "text/plain" });
-      res.end("Not found");
+      // All GET (and other) routes — includes /monitor, /api/mcp-calls, /api/mcp-stats
+      const result = handleDashboardRequest(
+        req.method ?? "GET",
+        req.url ?? "/",
+        dashOpts,
+      );
+      const ct = result.contentType.includes("charset")
+        ? result.contentType
+        : `${result.contentType}; charset=utf-8`;
+      res.writeHead(result.status, { "Content-Type": ct });
+      res.end(result.body);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      res.writeHead(500, { "Content-Type": "text/plain" });
+      res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
       res.end(msg);
     }
   });

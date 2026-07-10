@@ -1,12 +1,14 @@
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   handleDashboardRequest,
+  startDashboard,
   type DashboardOptions,
 } from "../src/application/dashboard.js";
-import { appendMcpCall } from "../src/application/mcp-monitor.js";
+import { appendMcpCall, listMcpCalls } from "../src/application/mcp-monitor.js";
 import { addStoryMd } from "../src/application/md-durable.js";
 import { linkProject } from "../src/application/registry.js";
 
@@ -155,4 +157,122 @@ describe("dashboard MCP monitor API and page", () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatch(/No MCP calls recorded/);
   });
+
+  it("startDashboard serves monitor page and MCP APIs over HTTP", async () => {
+    const { project, opts } = setup();
+    const dash = await startDashboard({
+      host: "127.0.0.1",
+      port: 0,
+      env: opts.env,
+    });
+    try {
+      const monitor = await httpGet(
+        `${dash.url}monitor?id=${encodeURIComponent(project)}`,
+      );
+      expect(monitor.status).toBe(200);
+      expect(monitor.body).toMatch(/MCP Monitor/);
+      expect(monitor.body).toMatch(/Total Calls/);
+
+      const stats = await httpGet(
+        `${dash.url}api/mcp-stats?project=${encodeURIComponent(project)}`,
+      );
+      expect(stats.status).toBe(200);
+      const parsed = JSON.parse(stats.body) as { total_calls: number };
+      expect(parsed.total_calls).toBe(3);
+
+      const calls = await httpGet(
+        `${dash.url}api/mcp-calls?project=${encodeURIComponent(project)}`,
+      );
+      expect(calls.status).toBe(200);
+      expect(JSON.parse(calls.body)).toHaveLength(3);
+    } finally {
+      await dash.close();
+    }
+  });
+
+  it("POST /mcp on live dashboard records calls for the project", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dash-mcp-live-h-"));
+    const project = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dash-mcp-live-p-"));
+    tempDirs.push(home, project);
+    linkProject(project, { env: { ...process.env, HARNESS_HOME: home } });
+
+    const dash = await startDashboard({
+      host: "127.0.0.1",
+      port: 0,
+      env: { ...process.env, HARNESS_HOME: home },
+    });
+    try {
+      const body = JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {},
+      });
+      // Prefer explicit project so multi-project machines still record correctly
+      const res = await httpPost(
+        `${dash.url}mcp?project=${encodeURIComponent(project)}`,
+        body,
+      );
+      expect(res.status).toBe(200);
+      const rpc = JSON.parse(res.body) as { result?: { serverInfo?: { name: string } } };
+      expect(rpc.result?.serverInfo?.name).toBe("harness-mcp");
+
+      const recorded = listMcpCalls(project, { limit: 10 });
+      expect(recorded.length).toBeGreaterThanOrEqual(1);
+      expect(recorded.some((c) => c.method === "initialize")).toBe(true);
+    } finally {
+      await dash.close();
+    }
+  });
 });
+
+function httpGet(url: string): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    http
+      .get(url, (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () =>
+          resolve({
+            status: res.statusCode ?? 0,
+            body: Buffer.concat(chunks).toString("utf8"),
+          }),
+        );
+      })
+      .on("error", reject);
+  });
+}
+
+function httpPost(
+  url: string,
+  body: string,
+): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = http.request(
+      {
+        hostname: u.hostname,
+        port: u.port,
+        path: u.pathname + u.search,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () =>
+          resolve({
+            status: res.statusCode ?? 0,
+            body: Buffer.concat(chunks).toString("utf8"),
+          }),
+        );
+      },
+    );
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
+}
