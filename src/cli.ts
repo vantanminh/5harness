@@ -33,6 +33,7 @@ import {
 import { executeInit } from "./commands/init.js";
 import { executeIntake } from "./commands/intake.js";
 import { executeIntakeRun } from "./commands/intake-run.js";
+import { executeExportChangelog } from "./commands/export-cmd.js";
 
 
 import {
@@ -770,6 +771,25 @@ async function main(argv: string[] = process.argv): Promise<void> {
       .option("--status <status>", "filter by status (e.g. present)")
       .action((opts) => {
         withErrors(() => executeQuery("tools", opts));
+      }),
+  );
+
+
+  // -- Export ---------------------------------------------------------------
+  const exportCmd = program
+    .command("export")
+    .description("Export artifacts from durable history");
+
+  addDirOptions(
+    exportCmd
+      .command("changelog")
+      .description(
+        "Derive changelog notes from implemented stories/decisions (assist only)",
+      )
+      .option("--since <tag|date>", "filter entries updated on or after")
+      .option("--json", "machine-readable JSON output")
+      .action((opts) => {
+        withErrors(() => executeExportChangelog(opts));
       }),
   );
 
