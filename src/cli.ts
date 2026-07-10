@@ -12,6 +12,8 @@ import { executeDoctor } from "./commands/doctor.js";
 
 import { executeStatus } from "./commands/status.js";
 
+import { executeNext } from "./commands/next.js";
+
 import { executeBacklogAdd, executeBacklogClose } from "./commands/backlog.js";
 import { executeDecisionAdd } from "./commands/decision.js";
 import {
@@ -544,6 +546,18 @@ async function main(argv: string[] = process.argv): Promise<void> {
         withErrors(() => executeStatus(opts));
       }),
   );
+
+  addDirOptions(
+    program
+      .command("next")
+      .description("Recommend next work item (in_progress stories first, then planned, intakes, backlog)")
+      .option("--json", "machine-readable JSON output")
+      .option("--limit <N>", "max items to show (default: 10)")
+      .action((opts) => {
+        withErrors(() => executeNext(opts));
+      }),
+  );
+
 
 
 
