@@ -11,6 +11,7 @@
     "dist",
     "templates",
     "migrations",
+    "docs",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"
