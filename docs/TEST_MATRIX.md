@@ -20,7 +20,8 @@ implemented until tests or validation evidence exist.
 | Story | Contract | Unit | Integration | E2E | Platform | Status | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | US-001 | npm package exposes `harness`; `init` scaffolds Phase A payload + SQLite; `migrate` applies schema | yes | yes | yes | yes | implemented | `npm test`; `npm run build`; Windows init smoke; `npm pack --dry-run` |
-| US-002 | Durable commands: intake, story, decision, backlog, query matrix/stats | yes | yes | yes | yes | implemented | `npm test` (25); durable CLI e2e round-trip; `npm run build` |
+| US-002 | Durable commands: intake, story, decision, backlog, query matrix/stats | yes | yes | yes | yes | implemented | `npm test`; durable CLI e2e; `npm run build` |
+| US-003 | story verify, trace, score-trace, audit, query traces | yes | yes | yes | yes | implemented | `npm test` (31); quality CLI e2e; schema v2 |
 
 ## Evidence Rules
 

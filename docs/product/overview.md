@@ -83,11 +83,11 @@ Upstream project: sibling directory `../repository-harness` (or the public
 | --- | --- |
 | A — Foundation | **US-001 done** — package skeleton, `harness init` + migrate |
 | B — Durable MVP | **US-002 done** — intake, story, decision, backlog, query |
-| C — Quality | verify commands, traces, audit baseline |
+| C — Quality | **US-003 done** — verify, trace, score-trace, audit |
 | D — Hardening | multi-platform publish, checksums if native, docs polish |
 | E — Optional | advanced parity, automation UI — only with explicit stories |
 
-Stories: US-001 (E01), US-002 (E02).
+Stories: US-001 (E01), US-002 (E02), US-003 (E03).
 
 ## Open Questions
 

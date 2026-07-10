@@ -51,9 +51,21 @@ Merge/override policy for existing `AGENTS.md` / `docs/` may be a follow-up stor
 Most durable commands accept `-d, --dir <path>` for the target project (default: cwd).
 They auto-migrate an existing DB; if the DB is missing, run `harness init` first.
 
-## Commands deferred (Phase C+)
+## Commands in scope for Phase C (US-003)
 
-`story verify`, `trace`, `score-trace`, `audit`, `propose`, tool registry, changesets, etc.
+| Command | Behavior |
+| --- | --- |
+| `harness story verify <id>` | Run story `verify_command`; record pass/fail |
+| `harness story verify-all` | Verify all stories with a command |
+| `harness decision verify <id>` | Run decision verify command |
+| `harness trace` | Record execution trace (`--summary`, `--outcome`, …); scores by default |
+| `harness score-trace [--id]` | Score latest or specific trace tiers |
+| `harness query traces` | List recent traces |
+| `harness audit` | Drift findings + entropy score 0–100 |
+
+## Commands deferred (later)
+
+`propose`, tool registry, changesets, score-context, full upstream parity extras.
 
 ## Exit codes
 

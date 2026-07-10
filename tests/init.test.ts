@@ -48,7 +48,7 @@ describe("runInit", () => {
     });
 
     expect(result.dryRun).toBe(false);
-    expect(result.schemaVersion).toBe(1);
+    expect(result.schemaVersion).toBe(2);
     for (const relative of manifest.files) {
       expect(fs.existsSync(path.join(dir, relative)), relative).toBe(true);
     }
@@ -108,6 +108,6 @@ describe("runInit", () => {
       path.join(packageRoot, "migrations"),
     );
     expect(second.alreadyLatest).toBe(true);
-    expect(second.currentVersion).toBe(1);
+    expect(second.currentVersion).toBe(2);
   });
 });

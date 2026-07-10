@@ -47,6 +47,13 @@ npx harness decision add --id 0001 --title "..." --doc docs/decisions/0001.md
 npx harness backlog add --title "..." --risk tiny
 npx harness query matrix
 npx harness query stats
+
+# Phase C quality
+npx harness story verify US-001
+npx harness trace --summary "..." --outcome completed --changed "src/a.ts" --agent me
+npx harness score-trace
+npx harness audit
+npx harness query traces
 ```
 
 ### Local development (this repo)
@@ -96,10 +103,10 @@ Primary reference docs (outside this tree):
 | Product direction | Documented (`docs/product/overview.md`) |
 | Operating harness for *this* repo | Installed (docs, AGENTS, bootstrap CLI for durable records) |
 | Durable DB for *this* repo | Initialized (`harness.db`, gitignored) |
-| Product npm package | **`npm-harness` v0.2.0** — bin `harness` |
+| Product npm package | **`npm-harness` v0.3.0** — bin `harness` |
 | `harness init` / `harness migrate` | **Implemented** (US-001) |
 | Durable commands (intake/story/decision/backlog/query) | **Implemented** (US-002) |
-| `story verify`, trace, audit | Not yet (Phase C) |
+| `story verify`, trace, score-trace, audit | **Implemented** (US-003) |
 
 User-facing install and durable ops use the product CLI (`npx harness …`).
 Bootstrap `scripts/bin/harness-cli[.exe]` is legacy for this workspace only.

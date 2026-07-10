@@ -2,15 +2,17 @@
 
 Operational records live in per-project SQLite (`harness.db`, gitignored).
 
-## Commands (Phase B)
+## Commands (Phase B + C)
 
 | Command | Purpose |
 | --- | --- |
 | `harness intake` | Classify work before implementation |
-| `harness story add\|update` | Story matrix + proof flags |
-| `harness decision add` | Decision log rows |
+| `harness story add\|update\|verify\|verify-all` | Story matrix, proof flags, verification |
+| `harness decision add\|verify` | Decision log rows + optional verify |
 | `harness backlog add\|close` | Harness improvement backlog |
-| `harness query …` | Read matrix, stats, intakes, decisions, backlog, stories |
+| `harness trace` / `score-trace` | Execution traces and quality tiers |
+| `harness audit` | Drift findings + entropy score |
+| `harness query …` | matrix, stats, intakes, decisions, backlog, stories, traces |
 
 ## Lanes
 

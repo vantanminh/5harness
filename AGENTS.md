@@ -20,8 +20,9 @@ npx harness query stats
 Users install and run via **npm / npx** only. They should not need to run
 `.ps1` installers, curl pipelines, or manual `.exe` paths.
 
-**Implemented on product CLI:** `init`, `migrate`, `intake`, `story add|update`,
-`decision add`, `backlog add|close`, `query matrix|stats|intakes|decisions|stories|backlog`.
+**Implemented on product CLI:** `init`, `migrate`, `intake`, `story add|update|verify|verify-all`,
+`decision add|verify`, `backlog add|close`, `trace`, `score-trace`, `audit`,
+`query matrix|stats|intakes|decisions|stories|backlog|traces`.
 
 ## Workspace Layout (critical)
 

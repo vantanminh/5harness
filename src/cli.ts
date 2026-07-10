@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { executeAudit } from "./commands/audit.js";
 import { executeBacklogAdd, executeBacklogClose } from "./commands/backlog.js";
 import { executeDecisionAdd } from "./commands/decision.js";
 import { executeInit } from "./commands/init.js";
@@ -7,6 +8,12 @@ import { executeIntake } from "./commands/intake.js";
 import { executeMigrate } from "./commands/migrate.js";
 import { executeQuery } from "./commands/query.js";
 import { executeStoryAdd, executeStoryUpdate } from "./commands/story.js";
+import { executeScoreTrace, executeTrace } from "./commands/trace.js";
+import {
+  executeDecisionVerify,
+  executeStoryVerify,
+  executeStoryVerifyAll,
+} from "./commands/verify.js";
 import { VERSION } from "./version.js";
 
 function fail(error: unknown): never {
@@ -125,6 +132,25 @@ function main(argv: string[] = process.argv): void {
       }),
   );
 
+  addDirOptions(
+    story
+      .command("verify")
+      .description("Run a story verify_command and record pass/fail")
+      .argument("<id>", "story id")
+      .action((id: string, opts) => {
+        withErrors(() => executeStoryVerify(id, opts));
+      }),
+  );
+
+  addDirOptions(
+    story
+      .command("verify-all")
+      .description("Verify every story that has a verify_command")
+      .action((opts) => {
+        withErrors(() => executeStoryVerifyAll(opts));
+      }),
+  );
+
   const decision = program
     .command("decision")
     .description("Record a durable decision");
@@ -141,6 +167,16 @@ function main(argv: string[] = process.argv): void {
       .option("--notes <text>", "notes")
       .action((opts) => {
         withErrors(() => executeDecisionAdd(opts));
+      }),
+  );
+
+  addDirOptions(
+    decision
+      .command("verify")
+      .description("Run a decision verify_command and record pass/fail")
+      .argument("<id>", "decision id")
+      .action((id: string, opts) => {
+        withErrors(() => executeDecisionVerify(id, opts));
       }),
   );
 
@@ -234,6 +270,60 @@ function main(argv: string[] = process.argv): void {
       .option("--closed", "only implemented/rejected")
       .action((opts) => {
         withErrors(() => executeQuery("backlog", opts));
+      }),
+  );
+
+  addDirOptions(
+    query
+      .command("traces")
+      .description("Recent execution traces")
+      .action((opts) => {
+        withErrors(() => executeQuery("traces", opts));
+      }),
+  );
+
+  addDirOptions(
+    program
+      .command("trace")
+      .description("Record an agent execution trace")
+      .requiredOption("--summary <text>", "task summary")
+      .option(
+        "--outcome <outcome>",
+        "completed | blocked | partial | failed",
+      )
+      .option("--intake <id>", "linked intake id")
+      .option("--story <id>", "linked story id")
+      .option("--agent <name>", "agent name")
+      .option("--duration <ms>", "duration in milliseconds")
+      .option("--actions <text>", "actions taken")
+      .option("--read <text>", "files read")
+      .option("--changed <text>", "files changed")
+      .option("--decisions <text>", "decisions made")
+      .option("--errors <text>", "errors")
+      .option("--friction <text>", "harness friction notes")
+      .option("--notes <text>", "notes")
+      .option("--no-score", "do not auto score-trace after recording")
+      .action((opts) => {
+        withErrors(() => executeTrace(opts));
+      }),
+  );
+
+  addDirOptions(
+    program
+      .command("score-trace")
+      .description("Score a trace against quality tiers")
+      .option("--id <id>", "trace id (default: latest)")
+      .action((opts) => {
+        withErrors(() => executeScoreTrace(opts));
+      }),
+  );
+
+  addDirOptions(
+    program
+      .command("audit")
+      .description("Run drift audit and entropy score")
+      .action((opts) => {
+        withErrors(() => executeAudit(opts));
       }),
   );
 

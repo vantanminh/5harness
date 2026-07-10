@@ -6,6 +6,7 @@ import {
   queryStats,
   queryStories,
 } from "../application/durable.js";
+import { queryTraces } from "../application/quality.js";
 import { withHarnessDb, type TargetOptions } from "../infrastructure/context.js";
 
 export type QueryCliOptions = TargetOptions & {
@@ -39,9 +40,11 @@ export function executeQuery(
               : "all";
         return queryBacklog(db, filter);
       }
+      case "traces":
+        return queryTraces(db);
       default:
         throw new Error(
-          `Unknown query view "${view}". Use matrix | stats | intakes | decisions | backlog | stories`,
+          `Unknown query view "${view}". Use matrix | stats | intakes | decisions | backlog | stories | traces`,
         );
     }
   });

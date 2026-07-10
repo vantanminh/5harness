@@ -58,7 +58,7 @@ describe("CLI e2e", () => {
 
     const migrate = runHarness(["migrate", "--dir", dir]);
     expect(migrate.status, migrate.stderr + migrate.stdout).toBe(0);
-    expect(migrate.stdout).toMatch(/Already up to date|schema v1/i);
+    expect(migrate.stdout).toMatch(/Already up to date|schema v2/i);
   });
 
   it("conflict without force exits non-zero", () => {
