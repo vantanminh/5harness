@@ -32,6 +32,9 @@ import {
 } from "./commands/index-tools.js";
 import { executeInit } from "./commands/init.js";
 import { executeIntake } from "./commands/intake.js";
+import { executeIntakeRun } from "./commands/intake-run.js";
+
+
 import {
   executeLink,
   executeProjects,
@@ -297,6 +300,20 @@ async function main(argv: string[] = process.argv): Promise<void> {
         withErrors(() => executeLinks(id, opts));
       }),
   );
+
+  addDirOptions(
+    program
+      .command("intake-run")
+      .description("Analyze prompt and suggest intake classification")
+      .option("--prompt <text>", "work description to analyze")
+      .option("--summary <text>", "alias for --prompt")
+      .option("--json", "machine-readable JSON output")
+      .option("--commit", "auto-create intake record from the plan")
+      .action((opts) => {
+        withErrors(() => executeIntakeRun(opts));
+      }),
+  );
+
 
   addDirOptions(
     program
