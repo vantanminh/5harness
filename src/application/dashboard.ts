@@ -14,6 +14,7 @@ import type { ListedProject } from "../domain/registry.js";
 import { listLinkedProjects } from "./registry.js";
 import { VERSION } from "../version.js";
 import { handleDashboardMutation } from "./dashboard-mutations.js";
+import { handleMcpRequest } from "./mcp-server.js";
 
 export type DashboardOptions = {
   host?: string;
@@ -448,6 +449,22 @@ export function startDashboard(
           "Content-Type": "application/json; charset=utf-8",
         });
         res.end(JSON.stringify(detail, null, 2));
+        return;
+      }
+
+      if (url.pathname === "/mcp" && req.method === "POST") {
+        let body = "";
+        req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+        req.on("end", () => {
+          try {
+            const json = handleMcpRequest(body);
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(json);
+          } catch (err) {
+            res.writeHead(500, { "Content-Type": "text/plain" });
+            res.end(err instanceof Error ? err.message : String(err));
+          }
+        });
         return;
       }
 

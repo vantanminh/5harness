@@ -827,7 +827,7 @@ async function main(argv: string[] = process.argv): Promise<void> {
     program
       .command("mcp")
       .description(
-        "Start MCP (Model Context Protocol) server over stdio for Cursor/Claude integration",
+        "Start MCP (Model Context Protocol) server over HTTP on port 3928. For dashboard + MCP, run `harness`.",
       )
       .action((opts) => {
         withErrors(() => executeMcp(opts));

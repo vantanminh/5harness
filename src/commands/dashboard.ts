@@ -20,8 +20,9 @@ export async function executeDashboard(
   }
 
   const dash = await startDashboard({ host, port });
-  console.log(`Harness dashboard (read-only)`);
+  console.log(`Harness dashboard`);
   console.log(`  ${dash.url}`);
+  console.log(`  MCP: ${dash.url}mcp`);
   console.log(`  API: ${dash.url}api/projects`);
   console.log("Press Ctrl+C to stop.");
 
