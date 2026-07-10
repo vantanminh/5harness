@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-07-10
+
+### Added
+
+- `harness init` now auto-reindexes after scaffolding so queries work
+  immediately without a manual `harness reindex` step (Decision 0012).
+
+### Changed
+
+- CI now auto-tags and publishes to npm on push to main when `package.json`
+  version changes (no more manual `git tag` + push needed).
+
 ## [0.9.3] - 2026-07-10
 
 ### Added
