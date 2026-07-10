@@ -71,7 +71,7 @@ node dist/cli.js init ./tmp-demo
 
 | Area | Status |
 | --- | --- |
-| npm package | **`@vantanminh/harness` v0.9.0** — bin `harness` |
+| npm package | **`@vantanminh/harness` v0.9.1** — bin `harness` |
 | `init` / `link` / registry | Shipped |
 | Markdown durable SoT | Shipped (stories, decisions, intakes, backlog) |
 | Query + agent index | Shipped (`query`, `search`, `get`, `links`, `reindex`) |
