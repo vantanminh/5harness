@@ -13,6 +13,7 @@ import { queryTracesMd } from "./local-traces.js";
 import type { ListedProject } from "../domain/registry.js";
 import { listLinkedProjects } from "./registry.js";
 import { VERSION } from "../version.js";
+import { handleDashboardMutation } from "./dashboard-mutations.js";
 
 export type DashboardOptions = {
   host?: string;
@@ -475,6 +476,29 @@ export function startDashboard(
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         res.end(renderEntity(detail));
         return;
+      // Handle POST mutations
+      if (req.method === "POST") {
+        let body = "";
+        req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+        req.on("end", () => {
+          try {
+            const mutationUrl = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}/`);
+            const result = handleDashboardMutation(
+              "POST", mutationUrl, body,
+              req.headers as Record<string, string | string[] | undefined>,
+            );
+            res.writeHead(result.status, { "Content-Type": result.contentType });
+            res.end(result.body);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            res.writeHead(500, { "Content-Type": "text/plain" });
+            res.end(msg);
+          }
+        });
+        return;
+      }
+
+
       }
       if (url.pathname === "/" || url.pathname === "/index.html") {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
