@@ -4,9 +4,9 @@
   "description": "Agent-ready repository harness — global CLI with markdown durable SoT",
   "type": "module",
   "bin": {
-    "harness": "./dist/cli.js"
+    "harness": "dist/cli.js"
   },
-  "main": "./dist/cli.js",
+  "main": "dist/cli.js",
   "files": [
     "dist",
     "templates",
