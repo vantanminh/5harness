@@ -1,39 +1,54 @@
+# Continuous integration for @vantanminh/harness
+#
+# GitHub is migrating Actions from Node 20 → Node 24 (default on runners as of
+# mid-2026; Node 20 removed later in fall 2026). We pin official actions that
+# target Node 24 and set FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 for clarity.
+# See: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+
 name: CI
 
 on:
   push:
-    branches: [master, main]
+    branches: [main, master]
   pull_request:
-    branches: [master, main]
+    branches: [main, master]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Prefer Node 24 runtime for JavaScript actions on the runner.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Product CLI skips update checks in CI via process env CI=true (set by GHA).
+  HARNESS_NO_UPDATE_CHECK: "1"
 
 jobs:
   build-test:
+    name: Node ${{ matrix.node-version }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
-        node-version: [22.x]
+        # engines: >=22.5.0 — cover supported LTS line + current Actions default.
+        node-version: ["22.x", "24.x"]
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Setup Node ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
 
-      - name: Install
+      - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Test
-        run: npm test
-
-      - name: Build
-        run: npm run build
-
-      - name: Pack check
-        run: npm run pack:check
+      - name: Release check
+        run: npm run release:check

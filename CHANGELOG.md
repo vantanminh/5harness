@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- GitHub Actions: Node 24-ready CI (`checkout@v6`, `setup-node@v6`, matrix
+  Node 22.x + 24.x); optional Release workflow publishes on `v*` tags via
+  `NPM_TOKEN`.
+
 ## [0.9.2] - 2026-07-10
 
 ### Added

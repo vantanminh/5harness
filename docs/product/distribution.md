@@ -39,18 +39,23 @@ The npm tarball **must** include:
 
 ## Release checklist
 
-1. `npm run typecheck`
-2. `npm test`
-3. `npm run build`
-4. `npm run pack:check`
-5. Bump `package.json` + `src/version.ts` together; update `CHANGELOG.md`
-6. Tag `vX.Y.Z` when publishing (optional until public registry is chosen)
-7. `npm publish` (when registry access is configured)
+1. `npm run release:check` (typecheck + test + pack:check)
+2. Bump `package.json` + `src/version.ts` together; update `CHANGELOG.md`
+3. Commit and push to `main`
+4. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`
+5. **CD:** GitHub Actions `Release` workflow publishes to npm (needs `NPM_TOKEN`
+   secret), **or** publish locally: `npm publish --access public` (OTP if 2FA)
 
-## CI
+## CI / CD
 
-GitHub Actions workflow `.github/workflows/ci.yml` runs the same checks on
-push/PR for `master` / `main`.
+| Workflow | Trigger | What it does |
+| --- | --- | --- |
+| [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) | push/PR → `main` | `npm ci` + `release:check` on **Node 22.x and 24.x** |
+| [`.github/workflows/release.yml`](../../.github/workflows/release.yml) | tag `v*` | `release:check` then `npm publish` (secret `NPM_TOKEN`) |
+
+Actions are pinned to Node-24-ready major versions (`actions/checkout@v6`,
+`actions/setup-node@v6`) and set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` per
+GitHub’s Node 20 → Node 24 Actions migration.
 
 ## Native engine (future)
 

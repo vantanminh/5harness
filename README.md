@@ -67,6 +67,12 @@ node dist/cli.js init ./tmp-demo
 # or: npm run harness -- init ./tmp-demo
 ```
 
+## CI / CD
+
+- **CI** (push/PR): typecheck, tests, pack check on Node **22** and **24**
+- **Release** (optional): push tag `vX.Y.Z` → publish to npm if `NPM_TOKEN` is set
+  in repo secrets (see `docs/product/distribution.md`)
+
 ## Current status
 
 | Area | Status |
