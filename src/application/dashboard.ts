@@ -14,7 +14,9 @@ import type { ListedProject } from "../domain/registry.js";
 import { listLinkedProjects } from "./registry.js";
 import { VERSION } from "../version.js";
 import { handleDashboardMutation } from "./dashboard-mutations.js";
-import { handleMcpRequest } from "./mcp-server.js";
+import { createMonitoredMcpHandler, handleMcpRequest } from "./mcp-server.js";
+
+import { getMcpStats, listMcpCalls } from "./mcp-monitor.js";
 
 export type DashboardOptions = {
   host?: string;
@@ -151,6 +153,116 @@ export function getEntityDetail(
     body: result.body,
     project,
   };
+}
+
+
+function findProjectPath(idOrPath: string, options: DashboardOptions): string | null {
+  const projects = listProjectSummaries(options);
+  const p = projects.find(
+    (proj) =>
+      proj.id === idOrPath ||
+      proj.path === idOrPath ||
+      proj.name === idOrPath,
+  );
+  return p && !p.missing ? p.path : null;
+}
+
+function renderMcpMonitor(projectPath: string): string {
+  const stats = getMcpStats(projectPath);
+  const calls = listMcpCalls(projectPath, { limit: 50 });
+  const totalMs = stats.total_calls > 0 ? Math.round(stats.avg_duration_ms) : 0;
+
+  // Summary cards
+  const cards = `
+  <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem">
+    <div class="card"><strong>Total Calls</strong><br><span style="font-size:1.5rem">${stats.total_calls}</span></div>
+    <div class="card"><strong>Error Rate</strong><br><span style="font-size:1.5rem;color:${stats.error_rate > 0.1 ? 'var(--status-missing)' : 'var(--status-ok)'}">${(stats.error_rate * 100).toFixed(1)}%</span></div>
+    <div class="card"><strong>Avg Duration</strong><br><span style="font-size:1.5rem">${totalMs}ms</span></div>
+    <div class="card"><strong>Tools Used</strong><br><span style="font-size:1.5rem">${Object.keys(stats.by_tool).length}</span></div>
+  </div>`;
+
+  // Timeline inline SVG (24h)
+  const maxVal = Math.max(...stats.calls_per_hour, 1);
+  const barW = 26;
+  const barGap = 4;
+  const chartW = 24 * (barW + barGap);
+  const chartH = 80;
+  const bars = stats.calls_per_hour.map((v, i) => {
+    const h = Math.max(2, (v / maxVal) * (chartH - 10));
+    const x = i * (barW + barGap);
+    return `<rect x="${x}" y="${chartH - h - 5}" width="${barW}" height="${h}" fill="var(--link)" opacity="0.8" rx="2"><title>Hour ${i}: ${v} calls</title></rect>`;
+  }).join('\n');
+
+  const timeline = `
+  <h3>Calls in Last 24h</h3>
+  <div style="overflow-x:auto;padding:0.5rem 0">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${chartW + 10} ${chartH}" style="width:100%;max-width:${chartW + 10}px;height:${chartH + 20}px">
+      ${bars}
+    </svg>
+  </div>
+  <p class="muted">Hours ago: 24 ← ${maxVal} max → now</p>`;
+
+  // Tool usage bar chart (horizontal)
+  const toolNames = Object.keys(stats.by_tool).sort();
+  const maxToolVal = Math.max(...toolNames.map(n => stats.by_tool[n]), 1);
+  const toolBars = toolNames.map(n => {
+    const pct = (stats.by_tool[n] / maxToolVal) * 100;
+    return `<tr><td style="white-space:nowrap">${htmlEscape(n)}</td><td style="width:100%"><div style="background:var(--link);height:1.2rem;width:${pct}%;border-radius:3px;min-width:2rem"><span style="padding:0 0.5rem;font-size:0.8rem;color:#fff;line-height:1.2rem">${stats.by_tool[n]}</span></div></td></tr>`;
+  }).join('\n');
+
+  const toolChart = toolNames.length > 0 ? `
+  <h3>Tool Usage</h3>
+  <table><tbody>${toolBars}</tbody></table>` : '<p class="muted">No tool calls recorded yet.</p>';
+
+  // Error list
+  const errorRows = stats.recent_errors.length > 0
+    ? stats.recent_errors.map(e => `
+    <tr>
+      <td><code>${htmlEscape(e.method)}</code></td>
+      <td>${e.tool_name ? `<code>${htmlEscape(e.tool_name)}</code>` : '—'}</td>
+      <td class="status-error">${htmlEscape(e.error_message ?? '')}</td>
+      <td style="white-space:nowrap">${new Date(e.timestamp).toLocaleString()}</td>
+      <td>${e.duration_ms}ms</td>
+    </tr>`).join('\n')
+    : '<tr><td colspan="5" class="muted">No errors recorded.</td></tr>';
+
+  const errorSection = `
+  <h3>Recent Errors (last ${stats.recent_errors.length})</h3>
+  <table>
+    <thead><tr><th>Method</th><th>Tool</th><th>Error</th><th>Time</th><th>Duration</th></tr></thead>
+    <tbody>${errorRows}</tbody>
+  </table>`;
+
+  // Call log
+  const logRows = calls.length > 0 ? calls.map(c => {
+    const statusClass = c.status === 'success' ? 'status-ok' : 'status-missing';
+    return `<tr>
+      <td style="white-space:nowrap">${new Date(c.timestamp).toLocaleString()}</td>
+      <td><code>${htmlEscape(c.method)}</code></td>
+      <td>${c.tool_name ? `<code>${htmlEscape(c.tool_name)}</code>` : '—'}</td>
+      <td class="${statusClass}">${c.status}</td>
+      <td>${c.duration_ms}ms</td>
+      <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${htmlEscape(c.error_message ?? '')}">${htmlEscape(c.error_message ?? '') || '—'}</td>
+    </tr>`;
+  }).join('\n') : '<tr><td colspan="6" class="muted">No MCP calls recorded yet.</td></tr>';
+
+  const logSection = `
+  <h3>Call Log (last ${calls.length})</h3>
+  <table>
+    <thead><tr><th>Time</th><th>Method</th><th>Tool</th><th>Status</th><th>Duration</th><th>Error</th></tr></thead>
+    <tbody>${logRows}</tbody>
+  </table>`;
+
+  return `
+  <style>
+    .card { background:var(--pre-bg); border:1px solid var(--border); border-radius:6px; padding:0.75rem 1.25rem; min-width:140px; }
+  </style>
+  ${cards}
+  ${timeline}
+  ${toolChart}
+  ${errorSection}
+  ${logSection}
+  <p class="muted" style="margin-top:1rem"><a href="/api/mcp-stats?project=${htmlEscape(projectPath)}">JSON stats</a> &middot; <a href="/api/mcp-calls?project=${htmlEscape(projectPath)}">JSON call log</a></p>`;
 }
 
 function htmlEscape(s: string): string {
@@ -302,6 +414,7 @@ function renderProject(detail: ProjectDetail): string {
     { id: "intakes", label: "Intakes", content: detail.intakes },
     { id: "backlog", label: "Backlog", content: detail.backlog },
     { id: "traces", label: "Traces", content: detail.traces },
+    { id: "mcp", label: "MCP Monitor", content: "<p>Loading MCP monitor... <a href=\"/monitor?id=" + encodeURIComponent(detail.project.id) + "\">Open full page</a></p>" },
   ];
 
   const tabLinks = tabs
@@ -602,6 +715,33 @@ export function handleDashboardRequest(
     };
   }
 
+  // MCP Monitor API
+  if (url.pathname === "/api/mcp-calls") {
+    const projectId = url.searchParams.get("project") ?? "";
+    const projectPath = findProjectPath(projectId, options);
+    if (!projectPath) {
+      return { status: 404, contentType: "application/json", body: JSON.stringify({ error: "project not found" }) };
+    }
+    const limit = parseInt(url.searchParams.get("limit") ?? "50", 10);
+    return {
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(listMcpCalls(projectPath, { limit: isNaN(limit) ? 50 : limit }), null, 2),
+    };
+  }
+  if (url.pathname === "/api/mcp-stats") {
+    const projectId = url.searchParams.get("project") ?? "";
+    const projectPath = findProjectPath(projectId, options);
+    if (!projectPath) {
+      return { status: 404, contentType: "application/json", body: JSON.stringify({ error: "project not found" }) };
+    }
+    return {
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(getMcpStats(projectPath), null, 2),
+    };
+  }
+
   // HTML routes
   if (url.pathname === "/" || url.pathname === "/index.html") {
     return {
@@ -633,6 +773,41 @@ export function handleDashboardRequest(
       status: 200,
       contentType: "text/html",
       body: renderEntity(detail),
+    };
+  }
+  if (url.pathname === "/monitor") {
+    const projectId = url.searchParams.get("id") ?? "";
+    const projectPath = findProjectPath(projectId, options);
+    if (!projectPath) {
+      return { status: 404, contentType: "text/plain", body: "Project not found" };
+    }
+    const projects = listProjectSummaries(options);
+    const proj = projects.find(p => p.id === projectId || p.path === projectId || p.name === projectId);
+    const escapedId = htmlEscape(proj?.name ?? projectId);
+    const body = renderMcpMonitor(projectPath);
+    return {
+      status: 200,
+      contentType: "text/html",
+      body: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MCP Monitor — ${escapedId}</title>
+  <style>${CSS}</style>
+</head>
+<body>
+  <div class="nav">
+    <a href="/">&larr; Dashboard</a>
+    <a href="/project?id=${encodeURIComponent(projectId)}">${escapedId}</a>
+  </div>
+  <h1>MCP Monitor &mdash; ${escapedId}</h1>
+  <p class="muted">Real-time monitoring of MCP server calls from AI agents.</p>
+  ${body}
+  <p style="margin-top:1rem"><a href="#" onclick="location.reload();return false">Refresh</a></p>
+  ${renderFooter()}
+</body>
+</html>`,
     };
   }
   return { status: 404, contentType: "text/plain", body: "Not found" };
