@@ -48,6 +48,13 @@ import {
   executeStoryDone,
   executeStoryBlock,
 } from "./commands/story.js";
+import {
+  executeWorklogAdd,
+  executeWorklogList,
+  executeWorklogFromGit,
+} from "./commands/worklog.js";
+
+
 import { executeScoreTrace, executeTrace } from "./commands/trace.js";
 import { executeUpdate, executeRepoUpgrade } from "./commands/update.js";
 import {
@@ -574,6 +581,49 @@ async function main(argv: string[] = process.argv): Promise<void> {
         withErrors(() => executeScoreTrace(opts));
       }),
   );
+  // -- Worklog ---------------------------------------------------------------
+  const worklog = program
+    .command("worklog")
+    .description("Durable evidence trail linking implementation to stories");
+
+  addDirOptions(
+    worklog
+      .command("add")
+      .description("Add a worklog entry for a story")
+      .requiredOption("--story <id>", "story id")
+      .requiredOption("--summary <text>", "what was done")
+      .option("--pr <url>", "pull request URL")
+      .option("--commit <hash>", "commit hash")
+      .option("--evidence <text>", "evidence label")
+      .option("--json", "machine-readable JSON output")
+      .action((opts) => {
+        withErrors(() => executeWorklogAdd(opts));
+      }),
+  );
+
+  addDirOptions(
+    worklog
+      .command("list")
+      .description("List worklog entries")
+      .option("--json", "machine-readable JSON output")
+      .action((opts) => {
+        withErrors(() => executeWorklogList(opts));
+      }),
+  );
+
+  addDirOptions(
+    worklog
+      .command("from-git")
+      .description("Link recent git commits to a story as worklog entries")
+      .requiredOption("--story <id>", "story id")
+      .option("--since <date>", "git log --since filter (e.g. 2026-07-01)")
+      .option("--json", "machine-readable JSON output")
+      .action((opts) => {
+        withErrors(() => executeWorklogFromGit(opts));
+      }),
+  );
+
+
 
   // -- Doctor ---------------------------------------------------------------
   addDirOptions(
