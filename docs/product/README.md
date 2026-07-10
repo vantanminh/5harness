@@ -8,12 +8,12 @@ domain-named docs over one monolithic SPEC.
 | Doc | Role |
 | --- | --- |
 | `overview.md` | Product identity, goals, non-goals, roadmap, upstream relationship |
-| `cli-contract.md` | Target `harness` CLI surface (Phase A + deferred) |
+| `cli-contract.md` | Target `harness` CLI surface (Phase A/B + deferred) |
 | `init-payload.md` | Files and DB behavior for `harness init` |
+| `durable-layer.md` | SQLite operational records and Phase B commands |
 
 ## Planned (create when a story needs them)
 
-- `durable-layer.md` — SQLite schema and operational records beyond migrate bookkeeping
 - `distribution.md` — npm packaging, optional native artifacts
 
 ## Update Rule

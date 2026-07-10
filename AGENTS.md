@@ -9,15 +9,19 @@ or depends on the upstream installer/`harness-cli` binary long-term.
 **Target user UX (product direction):**
 
 ```bash
-npm i -D @harness/cli   # name may change; local install preferred
+npm i -D npm-harness    # package name; bin is `harness`
 npx harness init        # scaffold operating files + durable DB in a target repo
-npx harness intake ...
-npx harness story add ...
+npx harness intake --type spec_slice --summary "..." --lane normal
+npx harness story add --id US-001 --title "..." --lane normal
 npx harness query matrix
+npx harness query stats
 ```
 
 Users install and run via **npm / npx** only. They should not need to run
 `.ps1` installers, curl pipelines, or manual `.exe` paths.
+
+**Implemented on product CLI:** `init`, `migrate`, `intake`, `story add|update`,
+`decision add`, `backlog add|close`, `query matrix|stats|intakes|decisions|stories|backlog`.
 
 ## Workspace Layout (critical)
 
@@ -72,10 +76,10 @@ Suggested upstream entry points (read, do not edit):
 7. **Out of v0 scope:** Symphony local runner, Electron board, full Phase 4/5
    parity, copying upstream release automation as-is.
 
-Bootstrap note: this repo currently still uses the **temporary** upstream
-`scripts/bin/harness-cli.exe` only to operate *this* workspace's durable layer
-while the product CLI is unbuilt. New product code must not treat that path as
-the long-term user contract.
+Bootstrap note: this repo may still have upstream `scripts/bin/harness-cli.exe`
+from early setup. Prefer the product CLI (`npm run harness -- …` or
+`node dist/cli.js …`) for new durable work. Do not treat the bootstrap binary as
+the user-facing contract.
 
 ## Project Skills
 
@@ -95,14 +99,11 @@ This repo uses Harness. Before work, read:
 - `docs/ARCHITECTURE.md`
 - `docs/CONTEXT_RULES.md`
 - `docs/TOOL_REGISTRY.md`
-- `scripts/bin/harness-cli query matrix` on macOS/Linux, or `.\scripts\bin\harness-cli.exe query matrix` on Windows
+- `npm run harness -- query matrix` (or `node dist/cli.js query matrix` after build)
 
-Use the Rust Harness CLI at `scripts/bin/harness-cli` on macOS/Linux or
-`scripts/bin/harness-cli.exe` on Windows as the main operational tool **for this
-repo's durable records until the product CLI replaces it**. Before a step that
-could use an external tool, run `scripts/bin/harness-cli query tools
---capability <name> --status present` to see what is equipped; an absent
-capability is a clean skip.
+Use the **product** CLI (`harness` / `npm run harness -- …`) as the main
+operational tool for durable records. Bootstrap
+`scripts/bin/harness-cli[.exe]` is legacy only.
 
 When implementing product behavior that should match known harness semantics,
 consult `../repository-harness` as reference (read-only) after reading this

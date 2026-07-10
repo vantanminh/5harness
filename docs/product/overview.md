@@ -81,17 +81,16 @@ Upstream project: sibling directory `../repository-harness` (or the public
 
 | Phase | Outcome |
 | --- | --- |
-| A — Foundation | Product docs, decisions; **US-001** package skeleton, `harness init` + migrate |
-| B — Durable MVP | intake, story, decision, backlog, query matrix/stats |
+| A — Foundation | **US-001 done** — package skeleton, `harness init` + migrate |
+| B — Durable MVP | **US-002 done** — intake, story, decision, backlog, query |
 | C — Quality | verify commands, traces, audit baseline |
 | D — Hardening | multi-platform publish, checksums if native, docs polish |
 | E — Optional | advanced parity, automation UI — only with explicit stories |
 
-Active story for Phase A: `docs/stories/epics/E01-npm-cli-foundation/US-001-scaffold-package-and-harness-init.md`.
+Stories: US-001 (E01), US-002 (E02).
 
 ## Open Questions
 
-- Final npm scope/name and registry.
-- Engine: TypeScript-first vs Rust core + npm wrapper for v0.
-- Whether `init` copies templates from package contents or generates them.
-- Exact compatibility level with upstream CLI flags.
+- Final npm scope/name and registry for public publish.
+- When (if ever) to add a Rust engine behind the npm bin.
+- Exact compatibility level with upstream CLI flags beyond semantic alignment.

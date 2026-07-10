@@ -31,9 +31,29 @@ Package name: **`npm-harness`**. Bin name: **`harness`**.
 
 Merge/override policy for existing `AGENTS.md` / `docs/` may be a follow-up story if Phase A only supports empty or non-conflicting targets. **Phase A minimum:** refuse to clobber protected paths unless `--force`, with a clear error.
 
-## Commands deferred (Phase B+)
+## Commands in scope for Phase B (US-002)
 
-`intake`, `story`, `decision`, `backlog`, `query`, `trace`, `audit`, etc.
+| Command | Behavior |
+| --- | --- |
+| `harness intake` | Record feature intake (`--type`, `--summary`, `--lane`, …) |
+| `harness story add` | Add a story matrix row |
+| `harness story update` | Update status, proof flags (`0\|1`), evidence, verify command |
+| `harness decision add` | Add a decision row |
+| `harness backlog add` | Add a backlog item |
+| `harness backlog close` | Close backlog (`implemented` / `rejected`) |
+| `harness query matrix` | Story matrix (`--numeric` for 0/1) |
+| `harness query stats` | Summary counts |
+| `harness query intakes` | Recent intakes |
+| `harness query decisions` | Decisions |
+| `harness query stories` | Story list |
+| `harness query backlog` | Backlog (`--open` / `--closed`) |
+
+Most durable commands accept `-d, --dir <path>` for the target project (default: cwd).
+They auto-migrate an existing DB; if the DB is missing, run `harness init` first.
+
+## Commands deferred (Phase C+)
+
+`story verify`, `trace`, `score-trace`, `audit`, `propose`, tool registry, changesets, etc.
 
 ## Exit codes
 
