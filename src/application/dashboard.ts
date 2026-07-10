@@ -16,7 +16,7 @@ import { VERSION } from "../version.js";
 import { handleDashboardMutation } from "./dashboard-mutations.js";
 import { createMonitoredMcpHandler, handleMcpRequest } from "./mcp-server.js";
 
-import { getMcpStats, listMcpCalls } from "./mcp-monitor.js";
+import { appendMcpCall, getMcpStats, listMcpCalls } from "./mcp-monitor.js";
 
 export type DashboardOptions = {
   host?: string;
@@ -570,7 +570,16 @@ export function startDashboard(
         req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
         req.on("end", () => {
           try {
-            const json = handleMcpRequest(body);
+            // Use first available project root for MCP monitoring, or cwd
+            const projects = listProjectSummaries(dashOpts);
+            const mcpProject = projects.find(proj => !proj.missing && !proj.error);
+            const projectRoot = mcpProject ? mcpProject.path : process.cwd();
+            const json = handleMcpRequest(body, projectRoot, (info) => {
+              try {
+                const { appendMcpCall } = require("./mcp-monitor.js");
+                appendMcpCall(projectRoot, info);
+              } catch { /* non-fatal */ }
+            });
             res.writeHead(200, { "Content-Type": "application/json" });
             res.end(json);
           } catch (err) {
