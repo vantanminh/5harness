@@ -34,6 +34,7 @@ import { executeInit } from "./commands/init.js";
 import { executeIntake } from "./commands/intake.js";
 import { executeIntakeRun } from "./commands/intake-run.js";
 import { executeExportChangelog } from "./commands/export-cmd.js";
+import { executeWatch } from "./commands/watch.js";
 
 
 import {
@@ -790,6 +791,18 @@ async function main(argv: string[] = process.argv): Promise<void> {
       .option("--json", "machine-readable JSON output")
       .action((opts) => {
         withErrors(() => executeExportChangelog(opts));
+      }),
+  );
+
+  // -- Watch ---------------------------------------------------------------
+  addDirOptions(
+    program
+      .command("watch")
+      .description(
+        "Watch entity directories and auto-reindex on markdown changes",
+      )
+      .action((opts) => {
+        withErrors(() => executeWatch(opts));
       }),
   );
 
