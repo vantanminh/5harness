@@ -1,4 +1,8 @@
 import { resolvePackageRoot } from "../package-root.js";
+import {
+  hasMarkdownStore,
+  writeProjectIndex,
+} from "../application/index-store.js";
 import { runInit } from "../infrastructure/scaffold.js";
 
 export type InitCliOptions = {
@@ -40,5 +44,18 @@ export function executeInit(
       console.log(`Registered in global registry: ${result.registryPath}`);
     }
     console.log("Entity dirs: docs/stories|decisions|intakes|backlog");
+
+    // Decision 0012: init auto-reindexes after scaffolding so queries work immediately
+    if (hasMarkdownStore(result.targetDir)) {
+      try {
+        const idx = writeProjectIndex(result.targetDir);
+        console.log(
+          `  reindex: ${idx.entities} entities, ${idx.edges} edges → ${idx.path}`,
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.log(`  reindex: skipped (${msg})`);
+      }
+    }
   }
 }
