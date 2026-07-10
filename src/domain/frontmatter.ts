@@ -16,7 +16,7 @@ export function parseFrontmatter(content: string): {
   data: FrontmatterData;
   body: string;
 } {
-  const normalized = content.replace(/^\uFEFF/, "");
+  const normalized = content.replace(/^\uFEFF/, "").replace(/\r/g, "");
   if (!normalized.startsWith("---")) {
     return { data: {}, body: normalized };
   }
