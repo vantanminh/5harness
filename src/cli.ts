@@ -41,7 +41,13 @@ import { executeImportSqlite } from "./commands/import-sqlite.js";
 import { executeMigrate } from "./commands/migrate.js";
 import { executePropose } from "./commands/propose.js";
 import { executeQuery } from "./commands/query.js";
-import { executeStoryAdd, executeStoryUpdate } from "./commands/story.js";
+import {
+  executeStoryAdd,
+  executeStoryUpdate,
+  executeStoryStart,
+  executeStoryDone,
+  executeStoryBlock,
+} from "./commands/story.js";
 import { executeScoreTrace, executeTrace } from "./commands/trace.js";
 import { executeUpdate, executeRepoUpgrade } from "./commands/update.js";
 import {
@@ -345,6 +351,41 @@ async function main(argv: string[] = process.argv): Promise<void> {
         withErrors(() => executeStoryUpdate(opts));
       }),
   );
+
+  addDirOptions(
+    story
+      .command("start")
+      .description("Mark a story as in_progress (lifecycle verb)")
+      .argument("<id>", "story id")
+      .option("--evidence <text>", "evidence label")
+      .action((id, opts) => {
+        withErrors(() => executeStoryStart(id, opts));
+      }),
+  );
+
+  addDirOptions(
+    story
+      .command("done")
+      .description("Mark a story as implemented (lifecycle verb)")
+      .argument("<id>", "story id")
+      .option("--evidence <text>", "evidence label")
+      .action((id, opts) => {
+        withErrors(() => executeStoryDone(id, opts));
+      }),
+  );
+
+  addDirOptions(
+    story
+      .command("block")
+      .description("Mark a story as blocked (lifecycle verb)")
+      .argument("<id>", "story id")
+      .option("--reason <text>", "block reason")
+      .action((id, opts) => {
+        withErrors(() => executeStoryBlock(id, opts));
+      }),
+  );
+
+
 
   addDirOptions(
     story

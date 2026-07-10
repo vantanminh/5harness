@@ -15,6 +15,7 @@ export const STORY_STATUSES = [
   "planned",
   "in_progress",
   "implemented",
+  "blocked",
   "changed",
   "retired",
 ] as const;
