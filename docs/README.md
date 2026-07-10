@@ -39,5 +39,5 @@ Payload templates shipped to **target** projects live in repo-root
 
 ## Current state
 
-- **Shipped:** Phases A–G (US-001–US-014), markdown SoT, registry, index, dashboard — **v0.9.2**.
+- **Shipped:** Phases A–G (US-001–US-014), markdown SoT, registry, index, dashboard — **v0.9.3**.
 - **Locked direction:** decision 0011 (global tool, markdown SoT, index, dashboard).

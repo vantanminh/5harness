@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-07-10
+
+### Added
+
+- CLI version flags: `-v` and `-V` alongside `--version`.
+
 ### Changed
 
 - GitHub Actions: Node 24-ready CI (`checkout@v6`, `setup-node@v6`, matrix
