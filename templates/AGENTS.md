@@ -3,22 +3,54 @@
 <!-- HARNESS:BEGIN -->
 ## Harness
 
-This repo uses Harness (npm-native). Before work, read:
+This repo uses **Harness** (`npm-harness`, bin `harness`).
+
+### Install / day-to-day
+
+```bash
+# preferred on a machine that works on many projects
+npm i -g npm-harness
+harness --help
+
+# after cloning a repo that already has harness markdown history:
+harness link
+harness reindex   # when available; link may do this
+```
+
+### Before work — read
 
 - `README.md` (if present)
 - `docs/HARNESS.md`
 - `docs/FEATURE_INTAKE.md`
 - `docs/ARCHITECTURE.md`
 - `docs/CONTEXT_RULES.md`
+- Active story packet under `docs/stories/` when implementing a story
 
-Operate with the project harness CLI when available:
+### Mutation rule (mandatory)
+
+**Do not** create or edit operational durable markdown by hand
+(stories / decisions / intakes / backlog entities).
+
+Use the CLI only, for example:
 
 ```bash
-npx harness --help
-npx harness migrate
+harness intake --type … --summary "…" --lane normal
+harness story add --id US-… --title "…" --lane normal
+harness story update --id US-… --status implemented --unit 1 --integration 1 --e2e 0 --platform 0
+harness decision add --id … --title "…" --doc docs/decisions/….md
+harness query matrix
 ```
 
-Classify work with feature intake before editing code. Prefer story packets for
-normal and high-risk work. Record durable decisions when architecture or
-product rules change.
+### Read with tools (prefer over dumping large trees)
+
+```bash
+harness search "…"      # when available
+harness get <id>        # when available
+harness links <id>      # when available
+harness query matrix
+harness query stats
+```
+
+Classify work with feature intake before large edits. Record durable decisions
+when architecture or product rules change.
 <!-- HARNESS:END -->

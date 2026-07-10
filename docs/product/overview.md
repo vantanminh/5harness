@@ -4,13 +4,13 @@
 
 Working name: **Harness** (npm-native rewrite).  
 CLI bin name (target): `harness`.  
-npm package name: **TBD** (placeholder `@harness/cli` in docs only).
+npm package name: **`npm-harness`**.
 
 ## One-Liner
 
-An independent, npm-distributed repository harness that makes coding agents
-reliable by installing operating context and a durable operational database into
-any project.
+A **global npm CLI** that turns any software repo into an agent-ready workspace:
+project markdown as durable, Git-backed history; machine-local registry for
+multi-project dashboard; retrieval tools so agents never dump whole vaults.
 
 ## Problem
 
@@ -23,74 +23,81 @@ repo-level operating structure they:
 - repeat architecture debates
 - skip story-sized decomposition
 
+Binary/local-only operational DBs also fail collaboration: history does not
+travel with `git clone`.
+
 ## Solution
 
-Ship a **single npm CLI** that:
+Ship a **single npm CLI** (preferred **global** install) that:
 
 1. **Initializes** a target project with agent docs, templates, and conventions.
-2. **Records** intake, stories, decisions, backlog, and traces in local SQLite.
-3. **Queries** matrix/status so agents and humans share one operational truth.
-4. Stays **usable without** shell installer scripts or manual binary tagging.
+2. **Links** the project into a machine-local global registry (for dashboard).
+3. **Records** intake, stories, decisions, and backlog as **markdown entities**
+   (committed with the repo).
+4. **Indexes** entities + links so agents **search/get** instead of reading
+   giant files.
+5. Keeps **traces** machine-local (high volume, not default Git noise).
+
+Agents **only** mutate durable state through CLI tools (mandatory).
 
 ## Users
 
 | User | Need |
 | --- | --- |
-| Human maintainer | `npx harness init` in a repo; durable history of agent work |
-| Coding agent | Stable commands + docs to read before changing code |
+| Human maintainer | `npm i -g` once; `harness init` / `link` per repo; history on GitHub |
+| Collaborator | Clone repo → install CLI → `harness link` → same history + dashboard |
+| Coding agent | Stable tools: write via commands, read via get/search/links/query |
 | Contributor to this product | Clear rewrite scope; upstream as reference only |
 
-## Non-Goals (v0)
+## Non-Goals (near-term)
 
-- Being a drop-in binary-compatible replacement of upstream `harness-cli` flags
-  in every detail (semantic alignment is enough; exact flag parity is a later
-  choice).
-- Shipping Symphony / Electron board in v0.
-- Forcing every target project to become a Node application — Node/npm is
-  required only as the **distribution runtime** for the harness tool.
+- Drop-in binary-compatible replacement of upstream `harness-cli` flags.
+- Cloud multi-user registry (GitHub + clone is the share path).
+- Shipping full dashboard UI in the first store rewrite (design is locked).
+- Vector RAG as the primary retrieval path.
+- Forcing every target project to be a Node app — Node is only required to
+  run the harness tool.
 
-## Success Criteria (v0)
+## Success Criteria (post-0011 direction)
 
-1. A user with Node.js can install the package and run `harness init` in an
-   empty folder; they get AGENTS/docs/templates + working SQLite durable layer.
-2. Core durable commands work without invoking `.ps1` or bare `.exe` paths.
-3. Agents working **in this product repo** know to implement here and consult
-   `../repository-harness` read-only when needed (`AGENTS.md`).
-4. At least one decision records distribution and engine strategy.
+1. Global install works; `harness init` scaffolds MD + registers the project.
+2. Durable story/decision/intake/backlog history is **reviewable in Git**.
+3. After clone + `harness link`, query tools see committed history (reindex).
+4. Agents can work without reading entire markdown trees (search/get/links).
+5. Agents never need to hand-edit operational markdown.
 
 ## Surfaces
 
-| Surface | v0 |
+| Surface | Direction |
 | --- | --- |
-| CLI (`harness`) | Yes — primary |
-| Markdown operating files in target repos | Yes — installed by `init` |
-| Local SQLite DB in target repos | Yes |
-| Web UI / Symphony | No |
-| Global vs local install | Local `devDependency` + `npx` preferred; global optional |
+| CLI (`harness`) | Primary |
+| Markdown entities in target repos | **SoT**, committed |
+| Derived index (`.harness/index/`) | Local, rebuildable |
+| Global registry (`~/.harness/`) | Pointers for multi-project + dashboard |
+| Browser dashboard | Future; reads registry + project paths |
+| Project SQLite as SoT | **Retired** (decision 0011) |
 
 ## Upstream Relationship
 
-Upstream project: sibling directory `../repository-harness` (or the public
-`repository-harness` project it was cloned from).
+Upstream project: sibling directory `../repository-harness`.
 
-- **Inspiration source**, not a runtime dependency of the product we ship.
+- **Inspiration source**, not a runtime dependency.
 - Capability ideas and flows may be compared during design.
 - Implementation, packaging, and user docs are owned by this repo.
+- Do **not** inherit “SQLite SoT + install binary into each repo” as product law.
 
 ## Roadmap Sketch
 
 | Phase | Outcome |
 | --- | --- |
-| A — Foundation | **US-001 done** — package skeleton, `harness init` + migrate |
-| B — Durable MVP | **US-002 done** — intake, story, decision, backlog, query |
-| C — Quality | **US-003 done** — verify, trace, score-trace, audit |
-| D — Hardening | **US-004 done** — LICENSE, CHANGELOG, pack:check, CI |
-| E — Evolution | **US-005 done** — propose, query tools (built-in registry) |
-
-Stories: US-001 … US-005. Further optional work: automation UI, native engine, custom tool registration.
+| A–E (v0.1–0.5) | **Done** — SQLite MVP (semantics reference; store superseded) |
+| F — Pivot store | Markdown SoT + registry + link + reindex + get/search/links |
+| G — Dashboard | Local browser multi-project view |
+| Optional | Trace export, FTS upgrades, native engine |
 
 ## Open Questions
 
 - Final public registry scope/org name (currently `npm-harness`).
-- When (if ever) to add a Rust engine behind the npm bin (then add checksums).
-- Exact compatibility level with upstream CLI flags beyond semantic alignment.
+- Exact on-disk entity paths and frontmatter schema versioning.
+- Whether `TEST_MATRIX.md` remains a generated view or is removed in favor of
+  `query matrix` only.

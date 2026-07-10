@@ -1,24 +1,26 @@
-# CLI Contract (v0 target)
+# CLI Contract
 
 User-facing bin name: `harness`.
 
-Install (preferred):
+Install (**preferred** — decision 0011):
 
 ```bash
-npm i -D npm-harness
-npx harness <command>
+npm i -g npm-harness
+harness <command>
 ```
+
+Alternate: `npm i -D npm-harness` + `npx harness <command>`.
 
 Package name: **`npm-harness`**. Bin name: **`harness`**.
 
-## Commands in scope for Phase A (US-001)
+## Commands in scope for Phase A (US-001) — shipped MVP
 
 | Command | Behavior |
 | --- | --- |
 | `harness --version` / `-V` | Print CLI version from package |
 | `harness --help` / `-h` | Top-level help |
-| `harness init [options]` | Scaffold operating files + create/migrate durable DB in a target directory |
-| `harness migrate` | Apply pending SQL migrations to the resolved DB |
+| `harness init [options]` | Scaffold operating files + (MVP: SQLite; **target 0011:** markdown + registry) |
+| `harness migrate` | MVP only: apply SQL migrations (retired when markdown SoT ships) |
 
 ## `harness init` options (Phase A)
 
@@ -71,9 +73,27 @@ They auto-migrate an existing DB; if the DB is missing, run `harness init` first
 | `harness propose --commit` | Also insert new proposals into backlog (dedupe open titles) |
 | `harness query tools` | Built-in tool registry (`--capability`, `--status`) |
 
+## Commands in scope for Phase F (0011 store pivot)
+
+| Command | Behavior |
+| --- | --- |
+| `harness init` | Scaffold markdown + **register** project in global registry |
+| `harness link [path]` | Register existing harness project (clone workflow) + reindex |
+| `harness unlink [path]` | Drop registry entry only |
+| `harness projects` | List linked projects |
+| `harness reindex` | Rebuild derived index from markdown |
+| `harness get <id\|path>` | Load one entity (optional summary) |
+| `harness search <query>` | Ranked hits with snippets |
+| `harness links <id>` | Outbound + backlinks |
+
+Write commands (`intake`, `story`, `decision`, `backlog`) keep the same *intent*
+but persist to markdown entities. Agents **must** use these tools; they must not
+hand-edit operational markdown.
+
 ## Commands deferred (later)
 
-Custom tool registration, changesets, score-context, automation UI, full upstream parity extras.
+Dashboard UI, custom tool registration, changesets, score-context, full upstream
+parity extras, cloud registry.
 
 ## Exit codes
 
@@ -87,7 +107,8 @@ Custom tool registration, changesets, score-context, automation UI, full upstrea
 
 | Variable | Meaning |
 | --- | --- |
-| `HARNESS_DB_PATH` | Override path to SQLite DB (optional; default `<target>/harness.db`) |
+| `HARNESS_HOME` | Override global harness dir (default `~/.harness`) — target 0011 |
+| `HARNESS_DB_PATH` | **Legacy MVP only** — path to SQLite DB |
 
 ## Non-contract (bootstrap only)
 

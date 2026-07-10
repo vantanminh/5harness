@@ -7,14 +7,18 @@ domain-named docs over one monolithic SPEC.
 
 | Doc | Role |
 | --- | --- |
-| `overview.md` | Product identity, goals, non-goals, roadmap, upstream relationship |
-| `cli-contract.md` | Target `harness` CLI surface (Phase A/B + deferred) |
-| `init-payload.md` | Files and DB behavior for `harness init` |
-| `durable-layer.md` | SQLite operational records and Phase B/C commands |
-| `distribution.md` | npm packaging, pack contents, release checklist |
+| `roadmap.md` | **Phases, deps, US-006–014 tracking map** |
+| `overview.md` | Product identity, goals, non-goals, upstream relationship |
+| `cli-contract.md` | Target `harness` CLI surface |
+| `init-payload.md` | Files and init/link behavior for target projects |
+| `durable-layer.md` | Markdown SoT + command semantics (decision 0011) |
+| `global-registry.md` | Machine-local project registry + clone→link workflow |
+| `agent-index.md` | Derived index + get/search/links for agents |
+| `distribution.md` | npm packaging, global-first install, release checklist |
 
 ## Planned (create when a story needs them)
 
+- Dashboard UI contract
 - Native distribution notes when/if a Rust engine ships
 
 ## Update Rule

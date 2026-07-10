@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Product direction locked in decision **0011**: global-first install, markdown
+  durable SoT (Git-backed), machine-local project registry (`link` after clone),
+  derived agent index (get/search/links), agents mutate only via CLI tools.
+  SQLite project SoT (decision 0004) is superseded; v0.5 implementation remains
+  until the store rewrite ships.
+
+### Added
+
+- Full Phase F–G tracking: `docs/product/roadmap.md`, epics E06–E11, stories
+  US-006–US-014, matrix rows, architecture/HARNESS/docs map updates.
+
 ## [0.5.0] - 2026-07-10
 
 ### Added

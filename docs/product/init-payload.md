@@ -1,4 +1,4 @@
-# Init Payload (Phase A)
+# Init Payload
 
 Files and directories `harness init` installs into a **target project**.
 
@@ -9,55 +9,63 @@ the upstream installer manifest. Upstream
 ## Goals
 
 - Make a target repo agent-ready with a small, coherent operating set.
-- Initialize durable SQLite state in the target.
+- Create durable **markdown** trees that can be committed to Git.
+- **Register** the project in the machine-local global registry.
 - Avoid scaffolding application code, CI, or fake product domains.
 
-## Phase A payload (minimum)
+## Init behavior (0011)
+
+1. Write / merge operating files from templates.
+2. Ensure durable entity directories exist (stories, decisions, intakes, backlog).
+3. Ensure `.gitignore` ignores derived index and local runtime data (not durable MD).
+4. Register project path in `~/.harness` (global registry).
+5. Build initial empty index (or on first query).
+
+`harness link` skips scaffold (or only fills missing dirs) and does steps 4–5
+for clones that already have committed harness files.
+
+## Payload (minimum)
 
 ### Always create (if missing)
 
 | Path | Purpose |
 | --- | --- |
-| `AGENTS.md` | Agent shim with Harness reading list (product wording) |
+| `AGENTS.md` | Agent shim: read policy; **mutate only via harness tools** |
 | `docs/HARNESS.md` | Collaboration model |
 | `docs/FEATURE_INTAKE.md` | Intake lanes |
 | `docs/ARCHITECTURE.md` | Generic architecture discovery template |
 | `docs/CONTEXT_RULES.md` | Context engineering rules |
-| `docs/TEST_MATRIX.md` | Empty matrix placeholder |
 | `docs/README.md` | Docs index |
 | `docs/product/README.md` | Empty product docs index |
-| `docs/stories/README.md` | Stories index |
-| `docs/decisions/README.md` | Decisions index |
-| `docs/templates/story.md` | Story template |
-| `docs/templates/decision.md` | Decision template |
-| `docs/templates/validation-report.md` | Validation template |
-| `docs/templates/spec-intake.md` | Spec intake template |
-| `.gitignore` entries | `harness.db`, wal/shm (merge rules carefully) |
+| `docs/stories/` | Story entities (+ README) |
+| `docs/decisions/` | Decision entities (+ README) |
+| `docs/intakes/` | Intake entities (when store lands) |
+| `docs/backlog/` | Backlog entities (when store lands) |
+| `docs/templates/*` | story, decision, validation, spec-intake templates |
+| `.gitignore` entries | `.harness/index/`, `.harness/local/`, legacy `harness.db*` |
 
-### Durable layer
+### Explicitly out of init payload
 
-| Path | Purpose |
-| --- | --- |
-| Package-internal SQL migrations | Versioned schema applied by `init` / `migrate` |
-| `<target>/harness.db` | Created and migrated (gitignored) |
+- Full upstream phase docs (maturity, Symphony, …) unless a later story adds them.
+- Application `src/`, target-app CI, package scripts for the **target** app.
+- Shipping a project-local harness binary as the primary UX.
+- Committing derived index or trace dumps.
 
-### Explicitly out of Phase A payload
-
-- Full upstream phase docs (HARNESS_MATURITY, benchmark, Symphony, …) unless a
-  later story adds them.
-- Upstream decisions 0001–0007 content (optional later; do not require).
-- Application `src/`, package scripts for the **target** app, CI workflows.
-- Shipping `scripts/bin/harness-cli` binary into the target (users use npm CLI).
-
-## Conflict policy (Phase A)
+## Conflict policy
 
 - If protected paths already exist (`AGENTS.md`, `docs/`), **stop** with a clear
-  message unless `--force` (and then backup before overwrite) **or** a later
-  story implements `--merge`.
+  message unless `--force` (backup before overwrite) **or** a later
+  `--merge` story.
 - `.gitignore`: append harness rules if file exists; do not wipe user rules.
 
 ## Manifest
 
-Implementation should declare payload once (e.g. `templates/manifest.json` or
-equivalent) so tests can assert exact file set without scanning ad hoc lists in
-code.
+Implementation should declare payload once (e.g. `templates/manifest.json`) so
+tests can assert exact file set without scanning ad hoc lists in code.
+
+## Transition from v0.5
+
+Current shipped init still creates `harness.db` (SQLite MVP). The 0011 target
+removes project SQLite SoT in favor of markdown entities + registry registration.
+Update templates/tests in the store-rewrite story; do not treat `harness.db` as
+long-term product behavior.

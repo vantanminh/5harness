@@ -6,23 +6,39 @@ This repository (`harness/`) is an **independent product rewrite**: an
 **npm-native** agent-ready repository harness. It is **not** a fork that ships
 or depends on the upstream installer/`harness-cli` binary long-term.
 
-**Target user UX (product direction):**
+**Target user UX (product direction — decision 0011):**
 
 ```bash
-npm i -D npm-harness    # package name; bin is `harness`
-npx harness init        # scaffold operating files + durable DB in a target repo
-npx harness intake --type spec_slice --summary "..." --lane normal
-npx harness story add --id US-001 --title "..." --lane normal
-npx harness query matrix
-npx harness query stats
+npm i -g npm-harness     # preferred: global CLI (bin: harness)
+cd /path/to/project
+harness init             # scaffold markdown + register project on this machine
+# after someone else clones a harnessed repo:
+harness link             # register clone + reindex committed history
+
+harness intake --type spec_slice --summary "..." --lane normal
+harness story add --id US-001 --title "..." --lane normal
+harness query matrix
+harness search "verify story"
+harness get US-001
 ```
 
-Users install and run via **npm / npx** only. They should not need to run
-`.ps1` installers, curl pipelines, or manual `.exe` paths.
+Users install via **npm** (`-g` preferred). They should not need `.ps1`
+installers, curl pipelines, or manual `.exe` paths.
 
-**Implemented on product CLI:** `init`, `migrate`, `intake`, `story add|update|verify|verify-all`,
-`decision add|verify`, `backlog add|close`, `trace`, `score-trace`, `audit`, `propose`,
+**Agent mutation rule (mandatory):** agents change operational durable state
+**only** through harness CLI tools — never by hand-editing story/decision/intake
+/backlog markdown.
+
+**Implemented on product CLI (v0.5 MVP, SQLite store):** `init`, `migrate`,
+`intake`, `story add|update|verify|verify-all`, `decision add|verify`,
+`backlog add|close`, `trace`, `score-trace`, `audit`, `propose`,
 `query matrix|stats|intakes|decisions|stories|backlog|traces|tools`.
+
+**Target next (0011):** markdown SoT, global registry, `link`/`unlink`/
+`projects`/`reindex`/`get`/`search`/`links`.
+
+**Tracking:** implement order and story status live in
+`docs/product/roadmap.md` and `docs/stories/README.md` (US-006 → US-014).
 
 ## Workspace Layout (critical)
 
@@ -61,21 +77,20 @@ Suggested upstream entry points (read, do not edit):
 - `../repository-harness/crates/harness-cli/` (command surface / domain behavior reference)
 - `../repository-harness/scripts/schema/` (schema ideas only; we own our migrations)
 
-## Product Direction (locked for v0)
+## Product Direction (locked — see decision 0011)
 
 1. **Independent rewrite** of the agent-repository operating harness concept.
-2. **Distribution:** npm package with a `harness` CLI bin.
-3. **Primary commands (MVP):** `init`, `intake`, `story`, `decision`, `backlog`,
-   `query`, `migrate` (and related durable ops as needed).
-4. **Durable layer:** SQLite local to each target project (`harness.db`,
-   gitignored), schema versioned in-repo.
-5. **Operating files:** agent shim + docs/templates installed by `harness init`
-   into target projects.
-6. **Engine:** implementation may be TypeScript and/or Rust behind the npm bin
-   (prebuilt native binary + thin JS wrapper is allowed). Choose for correctness
-   and maintainability; do not optimize for microbenchmarks early.
-7. **Out of v0 scope:** Symphony local runner, Electron board, full Phase 4/5
-   parity, copying upstream release automation as-is.
+2. **Distribution:** npm package with `harness` bin; **preferred `npm i -g`**.
+3. **Init + link:** `init` scaffolds project markdown and registers the path in
+   `~/.harness`; `link` registers an existing clone for dashboard/query.
+4. **Durable SoT:** **markdown entities in the project** (Git-backed). Derived
+   index is local/rebuildable. Traces are machine-local by default.
+5. **Agents:** mutate durable state **only via CLI tools**; use
+   get/search/links/query for reads (no whole-vault dumps).
+6. **Dashboard (future):** browser UI over machine-local registry + project paths.
+7. **Engine:** TypeScript and/or Rust behind the npm bin is allowed.
+8. **Out of near-term scope:** cloud registry, Symphony/Electron parity,
+   vector RAG as primary search, project SQLite as SoT (superseded).
 
 Bootstrap note: this repo may still have upstream `scripts/bin/harness-cli.exe`
 from early setup. Prefer the product CLI (`npm run harness -- …` or

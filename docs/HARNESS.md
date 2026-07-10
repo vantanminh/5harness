@@ -54,76 +54,83 @@ Every task has two possible outputs:
 2. Harness delta: docs, templates, validation expectations, backlog items, or
    decision records that make the next task easier.
 
-## Harness v0 Scope
+## Product scope (this repo)
 
-Harness v0 includes:
+This repository **is** the harness product (`npm-harness` / bin `harness`).
 
-- Agent entrypoint.
-- Empty product documentation structure.
+Includes:
+
+- Agent entrypoint and collaboration docs.
 - Feature intake and risk lanes.
-- Story templates.
-- Decision log template.
-- Validation report template.
-- Test matrix placeholder.
-- Harness growth backlog.
-- Durable layer: SQLite database and CLI for operational records.
+- Story / decision / validation templates.
+- Product contracts under `docs/product/` (including **roadmap**).
+- Implementation story packets US-001+ under `docs/stories/`.
+- TypeScript CLI (v0.5: SQLite MVP; pivot 0011: markdown SoT + global registry).
 
-Harness v0 deliberately excludes:
-
-- A project-specific `SPEC.md`.
-- Pre-sliced product domains.
-- A locked application stack.
-- App source scaffolding.
-- Package scripts.
-- Test runner config.
-- CI workflows.
-
-Those should arrive only when a selected story needs them.
+Tracking map: **`docs/product/roadmap.md`**.
 
 ## Durable Layer
 
-Policy documents describe how to work. The durable layer stores what happened.
+Policy documents describe how to work. The durable layer records what happened.
 
-Operational data — intake classifications, story status, decision outcomes,
-backlog items, and execution traces — lives in a SQLite database (`harness.db`)
-managed by the Rust Harness CLI at `scripts/bin/harness-cli`. Agents and humans
-should use that binary for Harness work. The database is local to each project
-instance and `.gitignore`d. The schema is version-controlled under
-`scripts/schema/`.
+### Direction (decision 0011)
 
-This separation keeps policy docs stable and human-readable while giving agents
-a structured, queryable record of operational state. It also prepares the
-harness for future observability and automated evolution without adding more
-markdown files.
+| Kind | Storage | Git |
+| --- | --- | --- |
+| Stories, decisions, intakes, backlog | Markdown entities in the project | **Yes** |
+| Derived search index | `.harness/index/` | No |
+| Traces | Machine-local | No |
+| Multi-project pointers | `HARNESS_HOME` / `~/.harness` | No |
 
-Initialize the database if it does not exist:
+**Agents must only mutate operational durable state through the harness CLI** —
+never by hand-editing entity markdown.
+
+Collaborator workflow:
 
 ```bash
-scripts/bin/harness-cli init
+git clone <repo>
+npm i -g npm-harness
+harness link          # register path + reindex committed history
+harness query matrix
 ```
 
-Common commands:
+### Current MVP (v0.5) vs target
+
+Until Phase F stories land, the **shipped** product CLI still uses per-project
+SQLite (`harness.db`) for operational rows. Story packets and decisions in
+`docs/` are already the human/agent tracking surface for *this* product repo.
+
+Prefer the product CLI:
 
 ```bash
-scripts/bin/harness-cli intake  --type <type> --summary <text> --lane <lane>
-scripts/bin/harness-cli story   add --id <id> --title <text> --lane <lane>
-scripts/bin/harness-cli story   update --id <id> --status <status>
-scripts/bin/harness-cli story   update --id <id> --unit 1 --integration 1 --e2e 0 --platform 0
-scripts/bin/harness-cli story   verify <id>
-scripts/bin/harness-cli story   verify-all
-scripts/bin/harness-cli decision add --id <id> --title <text> --doc docs/decisions/<file>.md
-scripts/bin/harness-cli trace   --summary <text> --outcome <outcome>
-scripts/bin/harness-cli score-trace
-scripts/bin/harness-cli score-context <trace-id>
-scripts/bin/harness-cli audit
-scripts/bin/harness-cli propose
-scripts/bin/harness-cli query   matrix
-scripts/bin/harness-cli query   matrix --numeric
-scripts/bin/harness-cli query   backlog
-scripts/bin/harness-cli query   tools --summary
-scripts/bin/harness-cli query   interventions
-scripts/bin/harness-cli query   stats
-scripts/bin/harness-cli --version
+npm run harness -- --help
+# or after build: node dist/cli.js …
+# or global: harness …
+```
+
+Bootstrap binary `scripts/bin/harness-cli[.exe]` is legacy for this repo only.
+
+Common product commands (v0.5):
+
+```bash
+harness init
+harness intake  --type <type> --summary <text> --lane <lane>
+harness story   add --id <id> --title <text> --lane <lane>
+harness story   update --id <id> --status <status>
+harness story   update --id <id> --unit 1 --integration 1 --e2e 0 --platform 0
+harness decision add --id <id> --title <text> --doc docs/decisions/<file>.md
+harness query   matrix
+harness query   stats
+harness audit
+harness propose
+```
+
+Target commands (Phase F+, see roadmap):
+
+```bash
+harness link | unlink | projects
+harness reindex | get | search | links
+harness dashboard    # Phase G
 ```
 
 ## Source Hierarchy

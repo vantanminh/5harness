@@ -21,43 +21,51 @@ npm-harness/                    # parent workspace
 Agents working in this repo must implement changes **here** and may read
 `../repository-harness` for ideas, flows, and prior art. See `AGENTS.md`.
 
+**Track implementation here:** [`docs/product/roadmap.md`](docs/product/roadmap.md)
+(US-006 → US-014 after shipped US-001–US-005).
+
 ## Product Goal
 
 Turn any software repo into an agent-ready workspace with:
 
 1. **Clear agent entrypoints** — what to read before coding.
 2. **Feature intake** — classify work (tiny / normal / high-risk) before edits.
-3. **Story packets & decisions** — reviewable, inheritable work.
-4. **Durable layer** — SQLite operational state (stories, traces, queries).
-5. **npm-native UX** — one CLI surface for install and day-to-day use.
+3. **Story packets & decisions** — reviewable, **Git-backed** markdown history.
+4. **Global CLI + project link** — install once; register many repos for a local
+   dashboard; collaborators `clone` + `link` to pick up the same history.
+5. **Agent index** — search/get/links so agents do not load whole vaults.
+6. **Tools-only mutation** — agents never hand-edit operational markdown.
+
+Product pivot: [decision 0011](docs/decisions/0011-global-tool-markdown-durable-index.md).
 
 ### Intended CLI (target contract)
 
 ```bash
-# preferred: project-local (package name: npm-harness)
-npm i -D npm-harness
-npx harness init               # install operating files + init DB in target repo
-npx harness migrate
+# preferred: global install (package name: npm-harness)
+npm i -g npm-harness
+harness init                 # scaffold markdown + register project
+# after git clone of a harnessed repo on another machine:
+harness link
 
-# Phase B durable commands
-npx harness intake --type spec_slice --summary "..." --lane normal
-npx harness story add --id US-001 --title "..." --lane normal
-npx harness story update --id US-001 --status implemented --unit 1 --integration 1 --e2e 0 --platform 0
-npx harness decision add --id 0001 --title "..." --doc docs/decisions/0001.md
-npx harness backlog add --title "..." --risk tiny
-npx harness query matrix
-npx harness query stats
+harness intake --type spec_slice --summary "..." --lane normal
+harness story add --id US-001 --title "..." --lane normal
+harness story update --id US-001 --status implemented --unit 1 --integration 1 --e2e 0 --platform 0
+harness decision add --id 0001 --title "..." --doc docs/decisions/0001.md
+harness backlog add --title "..." --risk tiny
+harness query matrix
+harness search "verify"
+harness get US-001
+harness links US-001
 
-# Phase C quality
-npx harness story verify US-001
-npx harness trace --summary "..." --outcome completed --changed "src/a.ts" --agent me
-npx harness score-trace
-npx harness audit
-npx harness query traces
-npx harness query tools --capability verification
-npx harness propose
-npx harness propose --commit
+harness story verify US-001
+harness trace --summary "..." --outcome completed --changed "src/a.ts" --agent me
+harness audit
+harness propose --commit
 ```
+
+> **v0.5 shipped note:** the current binary still uses a per-project SQLite MVP
+> for durable records. Decision 0011 locks the **next** store (markdown SoT +
+> registry + index). Command *names* stay; persistence changes in the pivot.
 
 ### Local development (this repo)
 
@@ -72,9 +80,6 @@ node dist/cli.js init ./tmp-demo --dry-run
 node dist/cli.js init ./tmp-demo
 # or: npm run harness -- init ./tmp-demo
 ```
-
-Global install (`npm i -g ...`) is optional convenience. **Version pinning via
-devDependency + `npx`** is preferred for reproducible agent runs.
 
 Users should **not** need:
 

@@ -1,35 +1,44 @@
 # Documentation Map
 
-This directory holds the project harness and any product contract derived from a
-future user-provided spec.
+This directory is the operating harness **for the npm-harness product** itself
+and the product contracts we ship conceptually to target repos via `init`.
 
-## Main Files
+## Start here
 
-- `HARNESS.md`: how humans and agents collaborate.
-- `FEATURE_INTAKE.md`: how prompts become tiny, normal, or high-risk work.
-- `ARCHITECTURE.md`: architecture discovery and boundary rules.
-- `TEST_MATRIX.md`: legacy proof map; current proof status is queried with
-  `scripts/bin/harness-cli query matrix`.
-- `HARNESS_BACKLOG.md`: legacy improvement list; current improvement records
-  are stored with `scripts/bin/harness-cli backlog`.
-- `GLOSSARY.md`: shared terms.
-- `SYMPHONY_QUICKSTART.md`: beginner-facing instructions for running Harness
-  stories through Symphony.
-- `SYMPHONY_SCOPE.md`: detailed scope for the Harness-native agent workbench
-  and orchestration layer.
+| Doc | Role |
+| --- | --- |
+| [`product/roadmap.md`](./product/roadmap.md) | **Implementation tracking** (phases, deps, US-006+) |
+| [`product/overview.md`](./product/overview.md) | Product identity |
+| [`decisions/0011-global-tool-markdown-durable-index.md`](./decisions/0011-global-tool-markdown-durable-index.md) | Locked pivot |
+| [`stories/README.md`](./stories/README.md) | Epic/story index |
+| [`TEST_MATRIX.md`](./TEST_MATRIX.md) | Proof matrix |
+| [`ARCHITECTURE.md`](./ARCHITECTURE.md) | Stack and layering |
+| [`HARNESS.md`](./HARNESS.md) | Collaboration model |
+
+## Main files
+
+- `HARNESS.md` — how humans and agents collaborate.
+- `FEATURE_INTAKE.md` — tiny / normal / high-risk lanes.
+- `ARCHITECTURE.md` — architecture and boundaries.
+- `CONTEXT_RULES.md` — what to read by phase/lane.
+- `TEST_MATRIX.md` — story → proof map.
+- `GLOSSARY.md` — shared terms (if present).
+- `TOOL_REGISTRY.md` — tool inventory (evolve with CLI).
 
 ## Folders
 
-- `product/`: current product truth, empty until a spec is derived.
-- `stories/`: feature packets and backlog.
-- `decisions/`: durable decisions and tradeoffs.
-- `demo/`: concrete walkthroughs that show how the harness transforms input
-  into agent-ready work.
-- `templates/`: reusable spec-intake, story, plan, decision, and validation
-  formats.
+| Folder | Role |
+| --- | --- |
+| `product/` | **Product truth** for this CLI (contracts + roadmap) |
+| `stories/` | Feature packets and backlog |
+| `decisions/` | Durable decisions |
+| `templates/` | Story/decision/intake templates used in *this* repo |
 
-## Current State
+Payload templates shipped to **target** projects live in repo-root
+`templates/` (npm package), not only under `docs/templates/`.
 
-Harness v0 exists before implementation. These docs define how the project will
-grow; they do not imply that app code, tests, CI, or deployment automation exist
-yet.
+## Current state
+
+- **Shipped:** Phases A–E (US-001–US-005), SQLite durable MVP, v0.5.0.
+- **Locked direction:** decision 0011 (global tool, markdown SoT, index, dashboard).
+- **Next implement:** US-006 → … → US-014 per roadmap.

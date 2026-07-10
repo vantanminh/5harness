@@ -4,14 +4,18 @@
 
 | Concern | Direction |
 | --- | --- |
-| Product surface | CLI first (`harness` via npm `bin`) |
-| User runtime to *use* the product | Node.js + npm (no Rust required for end users) |
-| Implementation language | Open: TypeScript and/or Rust; see decisions |
-| Durable storage | SQLite file per target project (`harness.db`) |
-| Packaging | npm package(s); optional platform-specific native packages |
-| Web/desktop | Out of v0 architecture |
+| Product surface | CLI first (`harness` via npm `bin`); local dashboard later |
+| Preferred install | `npm i -g npm-harness` (project-local `npx` allowed) |
+| User runtime | Node.js + npm (no Rust required for end users) |
+| Implementation language | TypeScript today; Rust engine optional later |
+| **Durable SoT** | **Markdown entities in each project** (Git-backed) — decision 0011 |
+| Derived index | `.harness/index/` rebuildable; may use SQLite FTS internally |
+| Global registry | `HARNESS_HOME` / `~/.harness` project pointers only |
+| Traces | Machine-local (not default Git) |
+| Packaging | npm package; optional native packages later |
+| Project SQLite as SoT | **Retired** (was v0.5 MVP; supersedes decision 0004 for this product) |
 
-Record locking choices under `docs/decisions/` when they constrain future work.
+Record locking choices under `docs/decisions/`.
 
 ## System Context
 
@@ -19,31 +23,38 @@ Record locking choices under `docs/decisions/` when they constrain future work.
 Human / Agent
     |
     v
-npm / npx  →  harness CLI (bin)
+npm i -g  →  harness CLI
+    |
+    +--→ HARNESS_HOME (~/.harness)
+    |      registry.json  (linked project paths)
+    |      optional caches / local traces per project id
     |
     +--→ Target project filesystem
-    |      AGENTS.md, docs/, templates, schema
+           AGENTS.md, docs/ policy
+           docs/stories|decisions|intakes|backlog/*.md   ← SoT (git)
+           .harness/index/   ← derived (gitignore)
+           .harness/local/   ← traces etc (gitignore)
     |
-    +--→ Target project SQLite
-           harness.db (gitignored)
+    +--→ (future) localhost dashboard
+           reads registry + project markdown/index
 ```
 
-This **product repo** is developed under `harness/`. Upstream reference code may
-be read from `../repository-harness` but is not linked as a library dependency.
+Collaborator:
+
+```text
+git clone (gets MD history) → harness link → reindex → CLI/dashboard ready
+```
 
 ## Discovery Before Shape
 
 Before proposing implementation shape for a story, identify:
 
-- Product surfaces: CLI only for v0; later maybe API/UI.
-- Runtime stack: Node packaging always; native engine optional.
-- Core domains: init/scaffold, intake, story lifecycle, decisions, backlog,
-  traces, query, migrate.
-- Boundary inputs: CLI args, env (`HARNESS_DB_PATH`, etc.), filesystem paths,
-  migration SQL, optional native binary resolution.
-- Validation ladder: unit tests for domain rules; integration for DB/CLI;
-  e2e smoke for `init` + one durable round-trip; platform only if native bins
-  ship.
+- Product surfaces: CLI; later dashboard.
+- Core domains: init/link/registry, entity store, index/search, intake/story/
+  decision/backlog, verify/trace/audit/propose, query.
+- Boundary inputs: CLI args, `HARNESS_HOME`, project `--dir`, filesystem.
+- Validation: unit for domain; integration for FS/registry/index; e2e CLI;
+  platform for Windows paths.
 
 ## Default Layering
 
@@ -51,76 +62,30 @@ Before proposing implementation shape for a story, identify:
 domain
   <- application
       <- infrastructure
-          <- interface (CLI)
+          <- interface (CLI [, HTTP dashboard])
 ```
 
 | Layer | May depend on | Must not depend on |
 | --- | --- | --- |
-| domain | pure utilities only | filesystem, npm, process env, SQLite drivers |
-| application | domain | CLI parsing frameworks, concrete DB drivers |
-| infrastructure | domain, application | CLI presentation details |
-| interface (CLI) | all inner layers | — |
+| domain | pure utilities only | filesystem, process env, DB drivers |
+| application | domain | commander, concrete path layout details when avoidable |
+| infrastructure | application, domain | CLI parsing frameworks |
+| interface | all lower layers | — |
 
-## Candidate Repo Shape (product implementation)
+## Mutation policy
 
-Create folders only when a story implements them. Likely shape:
+Operational durable entities are written **only** through application services
+invoked by CLI (or future controlled API). Agents must not hand-edit entity
+markdown. Policy docs (`HARNESS.md`, etc.) remain human-editable.
 
-```text
-packages/cli/                 # or repo root package
-  package.json                # "bin": { "harness": "..." }
-  src/
-    domain/
-    application/
-    infrastructure/
-      db/
-      scaffold/
-    interface/cli/
-  templates/                  # files copied by `harness init`
-  migrations/                 # SQL migrations
+## This repo vs target projects
 
-# optional if Rust engine is chosen later
-crates/harness-core/
-```
+| | This product repo (`harness/`) | Target repos after `init` |
+| --- | --- | --- |
+| Purpose | Build the CLI | Consume the CLI |
+| Story packets | Yes — track product work | Yes — track their app work |
+| Upstream | `../repository-harness` reference only | N/A |
 
-## Parse-First Boundary Rule
+## Tracking
 
-Unknown data must be parsed at boundaries before it enters inner code:
-
-- CLI flags and positional args
-- Environment variables
-- SQLite rows
-- Filesystem paths and template manifests
-- Platform/binary resolution results
-
-```text
-unknown input
-  -> parser / validator
-  -> domain types
-  -> use case
-```
-
-## Dependency Rule for Upstream
-
-- **Do not** import or submodule upstream as a runtime dependency for the
-  shipped CLI.
-- **Do** read upstream docs/source when designing parity behavior.
-- **Do not** edit `../repository-harness` during normal product work.
-
-## Validation Ladder (expected)
-
-```text
-validate:quick     format, lint, typecheck, unit
-test:integration   CLI + SQLite contracts
-test:e2e           init + intake/story/query smoke in temp dir
-test:platform      native binary resolution (only if applicable)
-test:release       pack npm tarball / publish dry-run
-```
-
-Exact commands land when the package scaffold story is implemented.
-
-## Bootstrap Architecture (temporary)
-
-Until the product CLI exists, this repository uses an upstream-built
-`scripts/bin/harness-cli` binary solely to manage **this repo's** durable
-records. That binary is **not** part of the long-term architecture of the
-product we ship.
+Implement order and story IDs: **`docs/product/roadmap.md`**.

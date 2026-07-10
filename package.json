@@ -1,7 +1,7 @@
 {
   "name": "npm-harness",
   "version": "0.5.0",
-  "description": "npm-native agent-ready repository harness (init + durable SQLite)",
+  "description": "npm-native agent-ready repository harness (global CLI; markdown durable SoT direction)",
   "type": "module",
   "bin": {
     "harness": "./dist/cli.js"

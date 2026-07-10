@@ -4,7 +4,12 @@ Date: 2026-05-22
 
 ## Status
 
-Accepted
+**Superseded for this product** by
+[0011](0011-global-tool-markdown-durable-index.md) (markdown source of truth +
+derived index). Kept as historical context: the *problems* 0004 solved (fragile
+hand-edited tables, need for structured writes/queries) still apply — they are
+now solved with CLI-owned markdown entities and retrieval tools, not project
+SQLite as SoT.
 
 ## Context
 

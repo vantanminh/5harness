@@ -16,7 +16,7 @@ Read to classify the request, find the affected surface, and choose a lane.
 | --- | --- | --- | --- |
 | `AGENTS.md` | Must | Must | Must |
 | `docs/FEATURE_INTAKE.md` | Must | Must | Must |
-| `scripts/bin/harness-cli query matrix` | Must | Must | Must |
+| `docs/product/roadmap.md` + `docs/TEST_MATRIX.md` (or `harness query matrix`) | Must | Must | Must |
 | `README.md` | Should | Must | Must |
 | `docs/HARNESS.md` | Should | Must | Must |
 | `docs/ARCHITECTURE.md` | Skip | Should | Must |
@@ -36,7 +36,7 @@ Read to decide the smallest safe approach and expected proof.
 | `docs/templates/story.md` | Skip | Must when creating/updating a story | Should |
 | `docs/templates/high-risk-story/*` | Skip | Skip unless risk escalates | Must |
 | `docs/ARCHITECTURE.md` | Skip | Should for code or boundary changes | Must |
-| `docs/TEST_MATRIX.md` or `scripts/bin/harness-cli query matrix` | Should | Must | Must |
+| `docs/TEST_MATRIX.md` / roadmap / `harness query matrix` | Should | Must | Must |
 | Relevant decisions | Skip | Should | Must |
 | `docs/HARNESS_MATURITY.md` | Skip | Should for Harness improvements | Must for maturity or process changes |
 | `docs/HARNESS_BACKLOG.md` and `scripts/bin/harness-cli query backlog` | Skip | Should if friction repeats | Must if changing Harness behavior |
@@ -69,7 +69,7 @@ Read to prove the change and avoid claiming unsupported completion.
 | Document Or Source | Tiny | Normal | High-Risk |
 | --- | --- | --- | --- |
 | Story acceptance criteria | Should | Must | Must |
-| `docs/TEST_MATRIX.md` or `scripts/bin/harness-cli query matrix` | Should | Must | Must |
+| `docs/TEST_MATRIX.md` / roadmap / `harness query matrix` | Should | Must | Must |
 | Validation section of story packet | Skip if no story | Must | Must |
 | `docs/templates/validation-report.md` | Skip | Should for notable proof | Must for high-risk proof |
 | Relevant commands from README/package docs | Should | Must | Must |
