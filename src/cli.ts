@@ -35,6 +35,7 @@ import { executeIntake } from "./commands/intake.js";
 import { executeIntakeRun } from "./commands/intake-run.js";
 import { executeExportChangelog } from "./commands/export-cmd.js";
 import { executeWatch } from "./commands/watch.js";
+import { executeHandoff } from "./commands/handoff.js";
 
 
 import {
@@ -803,6 +804,20 @@ async function main(argv: string[] = process.argv): Promise<void> {
       )
       .action((opts) => {
         withErrors(() => executeWatch(opts));
+      }),
+  );
+
+  // -- Handoff -------------------------------------------------------------
+  addDirOptions(
+    program
+      .command("handoff")
+      .description(
+        "Emit concise session summary for the next agent (traces, worklog, status)",
+      )
+      .option("--story <id>", "focus handoff on a specific story")
+      .option("--json", "machine-readable JSON output")
+      .action((opts) => {
+        withErrors(() => executeHandoff(opts));
       }),
   );
 
