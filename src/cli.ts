@@ -14,6 +14,8 @@ import { executeStatus } from "./commands/status.js";
 
 import { executeNext } from "./commands/next.js";
 
+import { executeContext } from "./commands/context.js";
+
 import { executeBacklogAdd, executeBacklogClose } from "./commands/backlog.js";
 import { executeDecisionAdd } from "./commands/decision.js";
 import {
@@ -557,6 +559,20 @@ async function main(argv: string[] = process.argv): Promise<void> {
         withErrors(() => executeNext(opts));
       }),
   );
+
+  addDirOptions(
+    program
+      .command("context")
+      .description("Budgeted entity context pack (body + outbound/backlinks + proof)")
+      .argument("<id>", "entity id (e.g. US-018)")
+      .option("--json", "machine-readable JSON output")
+      .option("--depth <0|1>", "link depth: 0 = summaries only, 1 = include excerpts (default: 0)")
+      .option("--max-chars <N>", "max character budget (default: 8000)")
+      .action((id, opts) => {
+        withErrors(() => executeContext(id, opts));
+      }),
+  );
+
 
 
 
