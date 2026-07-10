@@ -10,6 +10,8 @@ import {
 
 import { executeDoctor } from "./commands/doctor.js";
 
+import { executeStatus } from "./commands/status.js";
+
 import { executeBacklogAdd, executeBacklogClose } from "./commands/backlog.js";
 import { executeDecisionAdd } from "./commands/decision.js";
 import {
@@ -532,6 +534,17 @@ async function main(argv: string[] = process.argv): Promise<void> {
         withErrors(() => executeDoctor(opts));
       }),
   );
+
+  addDirOptions(
+    program
+      .command("status")
+      .description("Project snapshot for agents: stories, intakes, backlog, version, index")
+      .option("--json", "machine-readable JSON output")
+      .action((opts) => {
+        withErrors(() => executeStatus(opts));
+      }),
+  );
+
 
 
   addDirOptions(
