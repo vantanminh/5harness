@@ -69,6 +69,12 @@ describe("runInit", () => {
     expect(agents).toMatch(/Do not[\s\S]*by hand/i);
     expect(agents).toMatch(/harness search/);
     expect(agents).toMatch(/npm i -g/);
+    // decision 0017 / US-032 — hard-fail contract in harness block
+    expect(agents).toMatch(/HARD STOP/i);
+    expect(agents).toMatch(/harness doctor/);
+    expect(agents).toMatch(/harness reindex/);
+    expect(agents).toMatch(/harness link/);
+    expect(agents).toMatch(/harness-version:\s*0\.12\.1/);
 
     const harnessDoc = fs.readFileSync(path.join(dir, "docs", "HARNESS.md"), "utf8");
     expect(harnessDoc).toMatch(/markdown/i);

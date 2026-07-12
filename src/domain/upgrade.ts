@@ -66,7 +66,9 @@ export function extractHarnessBlock(agentsText: string): {
   after: string;
 } | null {
   const beginIdx = agentsText.indexOf(HARNESS_BEGIN);
-  const endIdx = agentsText.indexOf(HARNESS_END);
+  // Use lastIndexOf so Upgrade prose that *mentions* the END marker cannot
+  // truncate the managed block (US-032 regression).
+  const endIdx = agentsText.lastIndexOf(HARNESS_END);
   if (beginIdx === -1 || endIdx === -1) return null;
   if (endIdx <= beginIdx) return null;
 

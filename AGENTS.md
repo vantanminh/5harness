@@ -28,6 +28,10 @@ Users install via **npm** (`-g` preferred).
 **only** through harness CLI tools — never by hand-editing story/decision/intake
 /backlog markdown.
 
+**Hard-fail (decision 0017):** if harness CLI or MCP fails for a required step,
+**HARD STOP** — do not hand-edit durable entities; run `harness doctor` /
+`link` / `reindex` as needed, then retry.
+
 **Implemented CLI surface:** `init`, `migrate`, `link`, `unlink`, `projects`,
 `intake`, `story add|update|verify|verify-all`, `decision add|verify`,
 `backlog add|close`, `trace`, `score-trace`, `audit`, `propose`,
@@ -99,6 +103,28 @@ harness query matrix
 All mutation commands auto-reindex after writing. You do NOT need to call
 `harness reindex` manually after mutations.
 
+### HARD STOP — harness failure contract (decision 0017)
+
+If the harness **CLI** or **MCP** fails, is missing, or returns a non-zero /
+error result for a step you need:
+
+1. **HARD STOP** that durable-write path. Do **not** continue as if it succeeded.
+2. **Never** fall back to hand-editing story / decision / intake / backlog
+   markdown to “fix” or bypass the failure.
+3. **Recover**, then retry the harness command:
+
+| Order | Command | Why |
+| --- | --- | --- |
+| 1 | `harness --version` | Confirm install / PATH |
+| 2 | `harness doctor` or `harness doctor --json` | Workspace health |
+| 3 | `harness link` | Register clone / registry pointer |
+| 4 | `harness reindex` | Rebuild derived index from markdown |
+| 5 | `harness status` / `harness next` | Confirm the project is usable |
+
+**Exit codes:** `0` = success; `1` = usage / validation / operational error
+(**stop**, fix, retry); `2` = reserved — treat as non-success unless that
+command’s docs say otherwise. Non-zero exit is never success.
+
 ### Read with tools (prefer over dumping large trees)
 
 ```bash
@@ -116,4 +142,6 @@ when architecture or product rules change.
 
 When a newer harness CLI version is installed (`npm i -g @vantanminh/harness`),
 run `harness upgrade` to update the harness block in this AGENTS.md.
-Only the section between `<!-- HARNESS:BEGIN -->` and `<!-- HARNESS:END -->
+Only the harness-managed section (markers HARNESS:BEGIN through HARNESS:END)
+is modified — all other content is preserved.
+<!-- HARNESS:END -->

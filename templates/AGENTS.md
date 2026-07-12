@@ -83,6 +83,6 @@ when architecture or product rules change.
 
 When a newer harness CLI version is installed (`npm i -g @vantanminh/harness`),
 run `harness upgrade` to update the harness block in this AGENTS.md.
-Only the section between `<!-- HARNESS:BEGIN -->` and `<!-- HARNESS:END -->`
+Only the harness-managed section (markers HARNESS:BEGIN through HARNESS:END)
 is modified — all other content is preserved.
 <!-- HARNESS:END -->
