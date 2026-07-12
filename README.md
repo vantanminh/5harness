@@ -70,10 +70,19 @@ node dist/cli.js init ./tmp-demo
 ## CI / CD
 
 - **CI** (push/PR): typecheck, tests, pack check on Node **22** and **24**
-- **Auto-release** (push to `main`): bumps version, tags `vX.Y.Z`, publishes to
-  npm when secret `NPM_TOKEN` is set (skip with `[skip release]` in the commit)
+  (ubuntu / windows / macos)
+- **Auto-release** (push to `main`): bumps version, tags `vX.Y.Z`, publishes via
+  **npm trusted publishing (OIDC) + provenance** when configured (optional
+  `NPM_TOKEN` fallback); creates a **GitHub Release** + SBOM (skip with
+  `[skip release]` in the commit)
 - **Manual release:** Actions → Release → Run workflow (patch/minor/major), or
   push a matching tag — see `docs/product/distribution.md`
+
+## Security
+
+- **Report vulnerabilities** privately — see [SECURITY.md](SECURITY.md)
+- **Trust model** (verify, MCP, registry, secrets, provenance consumers):
+  [docs/SECURITY.md](docs/SECURITY.md)
 
 ## Current status
 

@@ -60,3 +60,17 @@ export function isProtectedRelative(relativePath: string): boolean {
   if (normalized === "docs" || normalized.startsWith("docs/")) return true;
   return false;
 }
+
+/**
+ * True when a bind host is loopback-only (default safe surface for dashboard/MCP).
+ * US-037: non-loopback binds have no multi-tenant auth — warn operators.
+ */
+export function isLoopbackBindHost(host: string): boolean {
+  const h = host.trim().toLowerCase();
+  return (
+    h === "127.0.0.1" ||
+    h === "localhost" ||
+    h === "::1" ||
+    h === "[::1]"
+  );
+}

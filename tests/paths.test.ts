@@ -1,6 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  isLoopbackBindHost,
   isProtectedRelative,
   registryFilePath,
   resolveDbPath,
@@ -53,5 +54,20 @@ describe("isProtectedRelative", () => {
     expect(isProtectedRelative("docs")).toBe(true);
     expect(isProtectedRelative(".gitignore")).toBe(false);
     expect(isProtectedRelative("README.md")).toBe(false);
+  });
+});
+
+describe("isLoopbackBindHost (US-037)", () => {
+  it("accepts loopback forms", () => {
+    expect(isLoopbackBindHost("127.0.0.1")).toBe(true);
+    expect(isLoopbackBindHost("localhost")).toBe(true);
+    expect(isLoopbackBindHost("LOCALHOST")).toBe(true);
+    expect(isLoopbackBindHost("::1")).toBe(true);
+    expect(isLoopbackBindHost("[::1]")).toBe(true);
+  });
+
+  it("rejects non-loopback binds", () => {
+    expect(isLoopbackBindHost("0.0.0.0")).toBe(false);
+    expect(isLoopbackBindHost("192.168.1.10")).toBe(false);
   });
 });

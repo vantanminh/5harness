@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **`npm publish --provenance`**, optional `NPM_TOKEN` fallback, **GitHub
   Releases** (notes via `scripts/release-notes.mjs` from CHANGELOG), and
   **SPDX SBOM** asset (`npm sbom`) on each release (decision 0018).
+- Security policy (US-037): root **SECURITY.md** (reporting + supported
+  versions), expanded **docs/SECURITY.md** trust model, Dependabot
+  (npm + Actions), `publishConfig.provenance`, SECURITY in npm tarball,
+  loopback bind helper + MCP/dashboard warnings.
 - `harness mcp` — Start MCP (Model Context Protocol) server over stdio.
   Exposes 8 tools: `harness_get`, `harness_search`, `harness_links`,
   `harness_context`, `harness_status`, `harness_query_matrix`,

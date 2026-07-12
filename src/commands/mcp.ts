@@ -1,6 +1,7 @@
 import http from "node:http";
 import { resolveTargetFromOptions, type TargetOptions } from "../infrastructure/context.js";
 import { createMonitoredMcpHandler } from "../application/mcp-server.js";
+import { isLoopbackBindHost } from "../domain/paths.js";
 
 export type McpCliOptions = TargetOptions & { port?: string; host?: string };
 
@@ -8,6 +9,11 @@ export function executeMcp(options: McpCliOptions): void {
   const { targetDir } = resolveTargetFromOptions(options);
   const host = options.host ?? "127.0.0.1";
   const port = options.port ? Number(options.port) : 3928;
+  if (!isLoopbackBindHost(host)) {
+    console.log(
+      "warning: binding MCP outside loopback exposes project tools on the network (no multi-tenant auth). See docs/SECURITY.md.",
+    );
+  }
   // Always persist call records for this project (decision 0015)
   const handle = createMonitoredMcpHandler(targetDir);
 

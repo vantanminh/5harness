@@ -1,4 +1,5 @@
 import { startDashboard } from "../application/dashboard.js";
+import { isLoopbackBindHost } from "../domain/paths.js";
 
 export type DashboardCliOptions = {
   port?: string;
@@ -13,9 +14,9 @@ export async function executeDashboard(
     throw new Error(`Invalid --port "${options.port}"`);
   }
   const host = options.host ?? "127.0.0.1";
-  if (host !== "127.0.0.1" && host !== "localhost") {
+  if (!isLoopbackBindHost(host)) {
     console.log(
-      "warning: binding outside 127.0.0.1 exposes the dashboard on the network (read-only, no auth).",
+      "warning: binding outside loopback exposes the dashboard on the network (no multi-tenant auth). See docs/SECURITY.md.",
     );
   }
 
