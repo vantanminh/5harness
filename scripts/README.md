@@ -28,6 +28,10 @@ npm run pack:check
 files in sync (`package.json`, `package-lock.json`, `src/version.ts`,
 `templates/AGENTS.md` / `AGENTS.md` harness-version markers).
 
+Also **promotes** non-empty `CHANGELOG.md` `[Unreleased]` into
+`## [X.Y.Z] - YYYY-MM-DD` (Keep a Changelog cut, US-038). No-op when
+Unreleased is empty or the version section already exists.
+
 ```bash
 npm run bump          # patch
 npm run bump -- minor
@@ -44,9 +48,15 @@ by hand unless you are preparing a local publish.
 (version section, else `[Unreleased]`, else a short fallback) plus install and
 supply-chain links. Used by CI after npm publish (US-036).
 
+Optional `--with-export` (US-038) appends durable-history assist from
+`export-changelog` (implemented stories/decisions). Human CHANGELOG remains
+primary.
+
 ```bash
 node scripts/release-notes.mjs              # current package.json version
 node scripts/release-notes.mjs 1.2.3 -o notes.md
+node scripts/release-notes.mjs 1.2.3 --with-export -o notes.md
+node scripts/release-notes.mjs 1.2.3 --with-export --since 2026-07-01 -o notes.md
 ```
 
 ## Schema / migrations

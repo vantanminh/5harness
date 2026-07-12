@@ -50,13 +50,16 @@ The npm tarball **must** include:
      `[release: patch]`.
    - Skip with `[skip release]` in the commit message.
    - Runs `npm run bump`, keeps `package.json`, `package-lock.json`,
-     `src/version.ts`, and `<!-- harness-version -->` markers in sync.
-   - Commits `chore(release): X.Y.Z`, tags `vX.Y.Z`.
+     `src/version.ts`, and `<!-- harness-version -->` markers in sync, and
+     promotes `CHANGELOG.md` `[Unreleased]` → `## [X.Y.Z] - date` when non-empty
+     (US-038).
+   - Commits `chore(release): X.Y.Z` (includes `CHANGELOG.md` when promoted),
+     tags `vX.Y.Z`.
    - **npm publish** via **OIDC trusted publishing** with **`--provenance`**
      (green provenance check on npm when configured).
-   - Creates a **GitHub Release** with notes from `CHANGELOG.md` (via
-     `scripts/release-notes.mjs`) and attaches an **SPDX SBOM**
-     (`sbom.spdx.json` from `npm sbom`).
+   - Creates a **GitHub Release** with notes from `CHANGELOG.md` plus optional
+     export-changelog assist (`scripts/release-notes.mjs --with-export`) and
+     attaches an **SPDX SBOM** (`sbom.spdx.json` from `npm sbom`).
 
 ### Authentication (US-036 / decision 0018)
 
@@ -110,7 +113,20 @@ npm run bump -- 1.0.0
 ```bash
 node scripts/release-notes.mjs            # package.json version → stdout
 node scripts/release-notes.mjs 1.2.3 -o release-notes.md
+# Include durable-history assist (stories/decisions) after CHANGELOG body:
+node scripts/release-notes.mjs 1.2.3 --with-export -o release-notes.md
 ```
+
+### CHANGELOG discipline (US-038)
+
+- **Source of truth:** human-edited `CHANGELOG.md` (Keep a Changelog + semver).
+- **On bump:** `scripts/bump-version.mjs` promotes non-empty `[Unreleased]` into
+  `## [X.Y.Z] - YYYY-MM-DD` and leaves an empty Unreleased section. Release
+  commits include `CHANGELOG.md`.
+- **Assist only:** `harness export changelog` / `--with-export` on release notes
+  append implemented stories/decisions; they do **not** replace human judgment.
+- **Drafting:** run `harness export changelog [--since <date>]` when preparing
+  Unreleased notes, then edit into Added/Changed/Fixed/Security sections.
 
 ## CI / CD
 

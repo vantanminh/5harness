@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CHANGELOG discipline (US-038): Keep a Changelog promote of `[Unreleased]`
+  on version bump; release notes `--with-export` durable-history assist;
+  backfill/version hygiene for the 0.10–0.12 line.
 - Agent **hard-fail contract** in `templates/AGENTS.md` (decision 0017 /
   US-032): HARD STOP on harness CLI/MCP failure, recovery via
   `doctor` / `link` / `reindex`, no hand-edit fallback for durable entities.
@@ -28,16 +31,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   versions), expanded **docs/SECURITY.md** trust model, Dependabot
   (npm + Actions), `publishConfig.provenance`, SECURITY in npm tarball,
   loopback bind helper + MCP/dashboard warnings.
-- `harness mcp` — Start MCP (Model Context Protocol) server over stdio.
-  Exposes 8 tools: `harness_get`, `harness_search`, `harness_links`,
-  `harness_context`, `harness_status`, `harness_query_matrix`,
-  `harness_query_stats`, `harness_handoff`. Auth: local only. (US-027/E14)
-- `harness export changelog [--since] [--json]` — Derive changelog notes
-  from implemented stories/decisions (assist only). (US-028/E14)
-- `harness watch` — Watch entity directories and auto-reindex on markdown
-  changes (debounced 500ms). Fail-open, no durable mutation. (US-029/E14)
-- `harness handoff [--story <id>] [--json]` — Emit concise session summary
-  (recent traces, worklog, status, next steps) for the next agent. (US-030/E14)
 
 ### Changed
 
@@ -48,12 +41,100 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   override with `[release: major|minor|patch]` or skip with `[skip release]`.
   Manual release via Actions workflow_dispatch remains available. Version sync
   now includes `templates/AGENTS.md` harness-version marker
-  (`scripts/bump-version.mjs`, `pack:check`).
+  (`scripts/bump-version.mjs`, `pack:check`). `CHANGELOG.md` is committed on
+  release when Unreleased content is promoted (US-038).
+
+## [0.12.0] - 2026-07-10
+
+### Added
+
+- MCP monitoring foundation (IN-004 / US-031): call records, instrumented MCP
+  server, dashboard API routes and monitoring UI (call log, stats).
+
+## [0.11.1] - 2026-07-10
+
+### Changed
+
+- MCP transport: HTTP integrated with the local dashboard (replaces stdio-only
+  for dashboard-hosted MCP).
+
+## [0.11.0] - 2026-07-10
+
+### Added
+
+- `harness mcp` — MCP server for agent integration (US-027/E14).
+- `harness export changelog [--since] [--json]` — Derive changelog notes from
+  implemented stories/decisions (assist only). (US-028/E14)
+- `harness watch` — Watch entity directories and auto-reindex on markdown
+  changes (debounced 500ms). Fail-open, no durable mutation. (US-029/E14)
+- `harness handoff [--story <id>] [--json]` — Session summary for the next
+  agent (US-030/E14).
 
 ### Fixed
 
-- Frontmatter parser now strips `\r` to handle `\r\n` line endings,
-  fixing "Invalid frontmatter line" errors on Windows.
+- Frontmatter parser strips `\r` to handle `\r\n` line endings on Windows.
+
+## [0.10.2] - 2026-07-10
+
+### Added
+
+- Dashboard mutations only via CLI code paths (US-026/E13).
+- `harness intake run` structured intake pipeline (US-025/E13).
+- Worklog and PR/commit linkage (US-024/E13).
+- Story lifecycle verbs: start / done / block (US-023/E13).
+
+## [0.10.1] - 2026-07-10
+
+### Added
+
+- Inbound tool registry: register / check / remove (US-022/E12).
+- `harness context` — budgeted entity context pack (US-021/E12).
+- `harness next` — recommend next work item (US-020/E12).
+- `harness status` — project snapshot for agents (US-019/E12).
+- `harness doctor` — workspace health checks (US-018/E12).
+
+## [0.10.0] - 2026-07-10
+
+### Added
+
+- `harness docs` command group for AI agent documentation access.
+- Auto-bump version and publish to npm on main (CI).
+- Docs included in npm package for global `harness docs`.
+
+### Changed
+
+- CI/CD auto-bumps semver on main after tests; version sync includes
+  `templates/AGENTS.md` harness-version marker.
+
+### Fixed
+
+- Suppress `node:sqlite` ExperimentalWarning via lazy-loading.
+- Eliminate DEP0190 deprecation warning on `child_process` with `shell: true`.
+
+## [0.9.7] - 2026-07-10
+
+### Added
+
+- `harness update` with package-manager detection.
+
+### Fixed
+
+- Suppress ExperimentalWarning from `node:sqlite` import path.
+
+## [0.9.6] - 2026-07-10
+
+### Added
+
+- Version tracking in repos and smart upgrade system (US-016).
+- Auto-reindex after mutation commands (US-015).
+- Agent rules + dev conventions update (US-017).
+
+## [0.9.5] - 2026-07-10
+
+### Added
+
+- Dashboard: richer project views, entity detail, dark mode, version footer.
+- Bare `harness` (no subcommand) starts the dashboard.
 
 ## [0.9.4] - 2026-07-10
 
@@ -220,8 +301,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `harness init` Phase A payload + SQLite migrate via `node:sqlite`.
 - `harness migrate`, templates manifest, vitest suite.
 
-[0.5.0]: https://github.com/local/npm-harness/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/local/npm-harness/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/local/npm-harness/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/local/npm-harness/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/local/npm-harness/releases/tag/v0.1.0
+[Unreleased]: https://github.com/vantanminh/harness/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/vantanminh/harness/compare/v0.11.1...v0.12.0
+[0.11.1]: https://github.com/vantanminh/harness/compare/v0.11.0...v0.11.1
+[0.11.0]: https://github.com/vantanminh/harness/compare/v0.10.2...v0.11.0
+[0.10.2]: https://github.com/vantanminh/harness/compare/v0.10.1...v0.10.2
+[0.10.1]: https://github.com/vantanminh/harness/compare/v0.10.0...v0.10.1
+[0.10.0]: https://github.com/vantanminh/harness/compare/v0.9.7...v0.10.0
+[0.9.7]: https://github.com/vantanminh/harness/compare/v0.9.6...v0.9.7
+[0.9.6]: https://github.com/vantanminh/harness/compare/v0.9.5...v0.9.6
+[0.9.5]: https://github.com/vantanminh/harness/compare/v0.9.4...v0.9.5
+[0.9.4]: https://github.com/vantanminh/harness/compare/v0.9.3...v0.9.4
+[0.5.0]: https://github.com/vantanminh/harness/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/vantanminh/harness/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/vantanminh/harness/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/vantanminh/harness/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/vantanminh/harness/releases/tag/v0.1.0
