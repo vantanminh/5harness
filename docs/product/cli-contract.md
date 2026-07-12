@@ -178,3 +178,15 @@ JSON form (`HARNESS_JSON_ERRORS=1`):
 
 Logs never intentionally write secrets (tokens, API keys, passwords are redacted).
 `harness doctor` reports the active log file path under the `logs` check.
+
+## Index integrity (US-034)
+
+| Mechanism | Behavior |
+| --- | --- |
+| Atomic write | `index.json` written via temp file + rename |
+| Mutation lock | `.harness/mutation.lock` held during index write; stale locks reclaimed after ~30s |
+| Checksum | SHA-256 over stable index payload; stored as `checksum` on the index |
+| Recovery | `harness reindex` rebuilds a valid index; never hand-edit `index.json` |
+
+`harness doctor` includes an `index-integrity` check (corrupt JSON, schema mismatch,
+checksum failure, missing entity files → fail; unresolved links / missing checksum → warn).
