@@ -1,0 +1,77 @@
+# Security Policy
+
+This document is the **public security policy** for
+[`@vantanminh/harness`](https://www.npmjs.com/package/@vantanminh/harness)
+([source](https://github.com/vantanminh/harness)).
+
+Operational trust model (verify commands, MCP, registry, secrets, provenance):
+see **[docs/SECURITY.md](docs/SECURITY.md)**.
+
+## Supported versions
+
+| Version | Supported |
+| --- | --- |
+| Latest release on npm (`@vantanminh/harness`) | Yes — security fixes land here first |
+| Previous minor on the same major (best effort) | Yes, for critical issues when practical |
+| Older majors / unreleased `main` only | No guarantee; upgrade to latest |
+
+Use a current Node.js LTS/current line that satisfies `engines` (`>=22.5.0`).
+
+## Reporting a vulnerability
+
+**Please do not open a public GitHub issue for security vulnerabilities.**
+
+Prefer one of:
+
+1. **GitHub Security Advisories** (private):  
+   [Report a vulnerability](https://github.com/vantanminh/harness/security/advisories/new)
+   on this repository (if enabled for the org/user).
+2. **Maintainer contact** via the GitHub profile linked from the repository
+   owner (`vantanminh`), with subject prefix `[SECURITY] harness`.
+
+Include, when possible:
+
+- Affected package version (`npm list -g @vantanminh/harness` or `harness --version`)
+- Environment (OS, Node version)
+- Clear reproduction steps or proof-of-concept
+- Impact assessment (data disclosure, local code execution, supply chain, etc.)
+
+### Response expectations
+
+| Stage | Target |
+| --- | --- |
+| Initial acknowledgement | Within **7 days** |
+| Triage / severity | As soon as practical after acknowledgement |
+| Fix or mitigation advisory | Coordinated; critical issues prioritized |
+
+We may ask for more detail or a minimal repro. Please allow time for a fix
+before public disclosure when the issue is not already widely known.
+
+## Out of scope (typical)
+
+- Issues that require an attacker to already control the local project’s Git
+  history or machine user account (same trust class as “can edit the repo”)
+- Denial of service against intentional local tools (CLI, dashboard, MCP on
+  loopback) without a realistic multi-tenant exposure
+- Vulnerabilities only in **devDependencies** that do not ship in the published
+  tarball, unless they affect CI release integrity in a demonstrated way
+- Social engineering of npm/GitHub account credentials (report to those vendors)
+
+## Supply chain
+
+- Releases prefer **npm trusted publishing (OIDC)** with **provenance**
+  attestations — see [docs/product/distribution.md](docs/product/distribution.md)
+  and [docs/SECURITY.md](docs/SECURITY.md#release-provenance).
+- GitHub Releases may include an **SPDX SBOM** asset (`sbom.spdx.json`).
+- Dependency updates: Dependabot (npm + GitHub Actions) where configured under
+  `.github/dependabot.yml`.
+
+## Safe use (summary)
+
+- Run `harness` as a normal developer user; treat **verify** scripts as
+  project-trusted shell (like CI `run:` steps).
+- Keep **dashboard** and **MCP** bound to **localhost** unless you understand
+  the exposure of local project data.
+- Do not commit tokens; CI should prefer OIDC over long-lived `NPM_TOKEN`.
+
+Thank you for helping keep harness and its users safe.
