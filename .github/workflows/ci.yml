@@ -6,8 +6,11 @@
 # See: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
 #
 # Auto-release flow (push to main only):
-#   1. build-test (Node 22 + 24)
-#   2. auto-release: bump version → commit + tag → npm publish
+#   1. build-test matrix: ubuntu/windows/macos × Node 22.x/24.x (US-035)
+#   2. auto-release (ubuntu + Node 24 only): bump → commit + tag → npm publish
+#
+# Flake policy: fail-fast is false so all cells report; do not add blind
+# retries — fix or quarantine flakes with a tracked story (decision 0018).
 #
 # Note: GITHUB_TOKEN pushes do not re-trigger workflows, so publish runs in this
 # job (not via a separate tag-triggered workflow).
@@ -38,13 +41,14 @@ env:
 
 jobs:
   build-test:
-    name: Node ${{ matrix.node-version }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    name: ${{ matrix.os }} / Node ${{ matrix.node-version }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        # engines: >=22.5.0 — cover supported LTS line + current Actions default.
+        # engines: >=22.5.0 — OS coverage for the global CLI (US-035 / 0018).
+        os: [ubuntu-latest, windows-latest, macos-latest]
         node-version: ["22.x", "24.x"]
 
     steps:
