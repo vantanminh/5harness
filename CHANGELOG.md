@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.6] - 2026-07-12
+
+### Changed
+
+- **Breaking (solo-dev cleanup):** drop all legacy storage fallbacks for the old
+  `harness` identity. Runtime paths are **only** `5harness`:
+  - Global home: **`~/.5harness`** only (`HARNESS_HOME` override still works).
+  - Project state: **`.5harness/`** only (index, local traces, locks, logs).
+  - Backups: **`.5harness-backup/`**; log file **`5harness.log`**.
+  - Old `~/.harness` / `.harness/` directories are **ignored** — delete or
+    rename them manually if still on disk.
+- Scaffold / root `.gitignore` no longer list dual `.harness` rules.
+
+## [0.12.5] - 2026-07-12
+
+### Changed
+
+- Patch release after path rename line (tag `v0.12.5`); see `0.12.4` notes for
+  GitHub repo rename and initial `.5harness` storage identity.
+
 ## [0.12.4] - 2026-07-12
 
 ### Changed
@@ -14,9 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub repository renamed **`vantanminh/harness` → `vantanminh/5harness`**.
   Update clone URLs, npm Trusted Publisher repo field, and package.json
   `repository` / badges / release notes links.
-- **Storage paths** are **only** the `5harness` identity (no `.harness` fallback):
-  - Global home: **`~/.5harness`** (`HARNESS_HOME` override still works).
-  - Project derived state: **`.5harness/`** (index, local traces, locks, logs).
+- **Storage paths** renamed to the `5harness` identity (with temporary legacy
+  fallback in that release):
+  - Global home: **`~/.5harness`** (was `~/.harness`).
+  - Project derived state: **`.5harness/`**.
   - Backups: **`.5harness-backup/`**; log file **`5harness.log`**.
 - Package bins: **`harness`** and **`5harness`** both point at `dist/cli.js`.
 
