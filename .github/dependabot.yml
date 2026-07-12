@@ -1,0 +1,40 @@
+# Supply-chain hygiene (US-037): automated dependency and Actions updates.
+# PRs should still pass CI (multi-OS release:check) before merge.
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - security
+    commit-message:
+      prefix: "chore(deps)"
+    # Group non-major bumps to reduce noise; majors stay separate for review.
+    groups:
+      production-minor-patch:
+        dependency-type: production
+        update-types:
+          - "minor"
+          - "patch"
+      development-minor-patch:
+        dependency-type: development
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: "chore(ci)"

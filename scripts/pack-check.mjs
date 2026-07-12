@@ -86,6 +86,8 @@ const requiredOnDisk = [
   "migrations/002-quality.sql",
   "README.md",
   "CHANGELOG.md",
+  "SECURITY.md",
+  "docs/SECURITY.md",
 ];
 for (const rel of requiredOnDisk) {
   if (!fs.existsSync(path.join(root, rel))) {
