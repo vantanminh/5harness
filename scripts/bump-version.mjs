@@ -133,6 +133,78 @@ for (const rel of ["templates/AGENTS.md", "AGENTS.md"]) {
   });
 }
 
+// Keep a Changelog: promote [Unreleased] → [newVersion] - date (US-038)
+// Pure inline helper (keep in sync with src/application/changelog-hygiene.ts).
+function promoteUnreleased(changelog, version, date) {
+  const text = changelog.replace(/\r\n/g, "\n");
+  const headingRe = /^##\s+\[([^\]]+)\][^\n]*/gm;
+  /** @type {{ key: string; start: number; bodyStart: number }[]} */
+  const heads = [];
+  let m;
+  while ((m = headingRe.exec(text)) !== null) {
+    heads.push({
+      key: m[1].trim(),
+      start: m.index,
+      bodyStart: m.index + m[0].length,
+    });
+  }
+  /** @type {Map<string, { body: string; headingStart: number; end: number }>} */
+  const sections = new Map();
+  for (let i = 0; i < heads.length; i++) {
+    const end = i + 1 < heads.length ? heads[i + 1].start : text.length;
+    const body = text
+      .slice(heads[i].bodyStart, end)
+      .replace(/^\n+/, "")
+      .replace(/\n+$/, "");
+    sections.set(heads[i].key, {
+      body,
+      headingStart: heads[i].start,
+      end,
+    });
+  }
+  if (sections.has(version)) {
+    return { text: changelog, promoted: false, reason: "already-versioned" };
+  }
+  const unreleased = sections.get("Unreleased");
+  if (!unreleased || unreleased.body.trim().length === 0) {
+    return { text: changelog, promoted: false, reason: "empty-unreleased" };
+  }
+  const body = unreleased.body.trim();
+  const emptyUnreleased = "## [Unreleased]\n\n";
+  const versionBlock = `## [${version}] - ${date}\n\n${body}\n\n`;
+  const before = text.slice(0, unreleased.headingStart);
+  const after = text.slice(unreleased.end).replace(/^\n+/, "");
+  const next = `${before}${emptyUnreleased}${versionBlock}${after}`.replace(
+    /\n{3,}/g,
+    "\n\n",
+  );
+  return {
+    text: next.endsWith("\n") ? next : `${next}\n`,
+    promoted: true,
+    reason: "ok",
+  };
+}
+
+const changelogRel = "CHANGELOG.md";
+const changelogFull = path.join(root, changelogRel);
+if (fs.existsSync(changelogFull)) {
+  const today = new Date().toISOString().slice(0, 10);
+  const beforeCl = fs.readFileSync(changelogFull, "utf8");
+  const cut = promoteUnreleased(beforeCl, newVersion, today);
+  if (cut.promoted) {
+    fs.writeFileSync(changelogFull, cut.text, "utf8");
+    console.log(
+      `bump-version: promoted CHANGELOG [Unreleased] → [${newVersion}] - ${today}`,
+    );
+  } else {
+    console.log(
+      `bump-version: CHANGELOG Unreleased not promoted (${cut.reason})`,
+    );
+  }
+} else {
+  console.warn("bump-version: CHANGELOG.md missing (skipped promote)");
+}
+
 console.log(`bumped ${oldVersion} → ${newVersion} (${["patch", "minor", "major"].includes(arg) ? arg : "exact"})`);
 // CI-friendly last line
 console.log(newVersion);

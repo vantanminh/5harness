@@ -3,7 +3,7 @@
  * Extract GitHub Release notes from CHANGELOG.md for a given version.
  *
  * Usage:
- *   node scripts/release-notes.mjs [version] [--out path]
+ *   node scripts/release-notes.mjs [version] [--out path] [--with-export] [--since date]
  *
  * Prefers compiled dist/ when present (after release:check / build);
  * otherwise loads the TypeScript source via dynamic import of the pure
@@ -13,6 +13,10 @@
  *   1. ## [X.Y.Z] section (exact version)
  *   2. ## [Unreleased] section
  *   3. Fallback body with npm/GitHub links
+ *
+ * Optional `--with-export` (US-038) appends durable-history assist from
+ * `harness export changelog` (implemented stories/decisions). Human
+ * CHANGELOG remains the primary source of truth.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -58,7 +62,22 @@ function extractChangelogSection(changelog, version) {
 }
 
 /**
- * @param {{ version: string; packageName?: string; repoUrl?: string; changelogText?: string | null }} opts
+ * @param {string} entriesMd
+ * @returns {string}
+ */
+function formatExportAssistSectionFallback(entries) {
+  if (!entries || entries.length === 0) return "";
+  const lines = ["### From harness history (assist)", ""];
+  for (const e of entries) {
+    const label = e.type === "decision" ? "Decision" : "Story";
+    lines.push(`- [${label}] ${e.id}: ${e.title}`);
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+/**
+ * @param {{ version: string; packageName?: string; repoUrl?: string; changelogText?: string | null; exportEntries?: Array<{id:string;title:string;type:string}> | null }} opts
  * @returns {string}
  */
 function buildReleaseNotes(opts) {
@@ -81,6 +100,13 @@ function buildReleaseNotes(opts) {
       `Release **${version}**.`,
       "",
       "See [CHANGELOG.md](./CHANGELOG.md) for details when available.",
+      "",
+    );
+  }
+
+  if (opts.exportEntries && opts.exportEntries.length > 0) {
+    lines.push(
+      formatExportAssistSectionFallback(opts.exportEntries).trimEnd(),
       "",
     );
   }
@@ -115,13 +141,52 @@ async function loadImpl() {
   return { extractChangelogSection, buildReleaseNotes };
 }
 
+/**
+ * Load export-changelog entries from dist (fail-open).
+ * @param {string | undefined} since
+ * @returns {Promise<Array<{id:string;title:string;type:string}> | null>}
+ */
+async function loadExportEntries(since) {
+  const distPath = path.join(root, "dist", "application", "export-changelog.js");
+  if (!fs.existsSync(distPath)) {
+    console.error(
+      "release-notes: --with-export skipped (dist/application/export-changelog.js missing; run build)",
+    );
+    return null;
+  }
+  try {
+    const mod = await import(pathToFileURL(distPath).href);
+    const entries = mod.buildChangelog(root, since);
+    return entries.map((e) => ({
+      id: e.id,
+      title: e.title,
+      type: e.type,
+    }));
+  } catch (err) {
+    console.error(
+      `release-notes: --with-export failed (continuing without assist): ${err?.message ?? err}`,
+    );
+    return null;
+  }
+}
+
 function parseArgs(argv) {
   let version = null;
   let out = null;
+  let withExport = false;
+  let since = undefined;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--out" || a === "-o") {
       out = argv[++i];
+      continue;
+    }
+    if (a === "--with-export") {
+      withExport = true;
+      continue;
+    }
+    if (a === "--since") {
+      since = argv[++i];
       continue;
     }
     if (a.startsWith("-")) {
@@ -136,11 +201,11 @@ function parseArgs(argv) {
     );
     version = pkg.version;
   }
-  return { version, out };
+  return { version, out, withExport, since };
 }
 
 async function main() {
-  const { version, out } = parseArgs(process.argv.slice(2));
+  const { version, out, withExport, since } = parseArgs(process.argv.slice(2));
   const pkg = JSON.parse(
     fs.readFileSync(path.join(root, "package.json"), "utf8"),
   );
@@ -149,12 +214,18 @@ async function main() {
     ? fs.readFileSync(changelogPath, "utf8")
     : null;
 
+  let exportEntries = null;
+  if (withExport) {
+    exportEntries = await loadExportEntries(since);
+  }
+
   const impl = await loadImpl();
   const notes = impl.buildReleaseNotes({
     version,
     packageName: pkg.name,
     repoUrl: "https://github.com/vantanminh/harness",
     changelogText,
+    exportEntries,
   });
 
   if (out) {

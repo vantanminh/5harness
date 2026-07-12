@@ -170,7 +170,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add package.json package-lock.json src/version.ts templates/AGENTS.md AGENTS.md
+          # CHANGELOG.md may be promoted from [Unreleased] by bump-version (US-038).
+          git add package.json package-lock.json src/version.ts templates/AGENTS.md AGENTS.md CHANGELOG.md
           git commit -m "chore(release): ${VERSION}"
           git tag -a "$TAG" -m "Release ${TAG}"
           git push origin HEAD:main
@@ -187,7 +188,8 @@ jobs:
       - name: Build release notes
         run: |
           set -euo pipefail
-          node scripts/release-notes.mjs "${{ steps.version.outputs.version }}" --out release-notes.md
+          # Human CHANGELOG is primary; --with-export appends durable-history assist (US-038).
+          node scripts/release-notes.mjs "${{ steps.version.outputs.version }}" --with-export --out release-notes.md
           echo "--- release notes preview ---"
           head -n 40 release-notes.md || true
 
