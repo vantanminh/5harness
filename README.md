@@ -69,7 +69,7 @@ harness dashboard            # or bare: harness
 | **Tools-only mutation** | Agents change operational entities **only** via CLI (or MCP tools) |
 | **Quality loop** | `verify`, `trace`, `audit`, `propose` |
 | **Agent loop** | `doctor`, `status`, `next`, `context`, `handoff`, `watch` |
-| **MCP** | Local `harness mcp` / dashboard MCP for Cursor/Claude-class agents |
+| **MCP** | Local `harness mcp` / dashboard MCP — reads + durable mutations (US-041) |
 | **Dashboard** | Localhost multi-project UI + optional MCP monitoring |
 | **Releases** | CI multi-OS matrix, OIDC publish, GitHub Releases, SBOM |
 
@@ -117,7 +117,7 @@ harness export changelog [--since 2026-07-01]
 | Query + agent index | Shipped |
 | Quality (verify / trace / audit / propose) | Shipped |
 | Agent-loop tools (doctor / status / next / …) | Shipped |
-| MCP (read tools; mutations expanding) | Shipped |
+| MCP (reads + intake/story/decision/backlog mutations) | Shipped |
 | Local dashboard + MCP monitor | Shipped |
 | CI multi-OS + OIDC provenance releases | Shipped |
 | Legacy SQLite import | Optional (`harness import-sqlite`) |

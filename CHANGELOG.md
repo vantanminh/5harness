@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking install UX (US-040 / decision 0016):** npm package renamed from
   `@vantanminh/harness` to **`5harness`**. Bin remains **`harness`**.
   Migration: `npm i -g 5harness`. See [docs/DEPRECATION.md](docs/DEPRECATION.md).
+- MCP expands beyond read-only tools (US-041): `harness_intake`,
+  `harness_story_add` / `harness_story_update`, `harness_decision_add`,
+  `harness_backlog_add`, plus `harness_reindex` and `harness_doctor` — all via
+  the same application layer as the CLI (local-only).
 - Agent **hard-fail contract** in `templates/AGENTS.md` (decision 0017 /
   US-032): HARD STOP on harness CLI/MCP failure, recovery via
   `doctor` / `link` / `reindex`, no hand-edit fallback for durable entities.

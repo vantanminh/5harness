@@ -121,7 +121,7 @@ hand-edit operational markdown.
 
 | Command | Behavior |
 | --- | --- |
-| `harness mcp` | Start MCP (Model Context Protocol) server over stdio for Cursor/Claude integration. Exposes 8 tools: get, search, links, context, status, query matrix, query stats, handoff |
+| `harness mcp` | Start MCP server (HTTP / dashboard). **Read tools:** get, search, links, context, status, query matrix/stats, handoff, doctor, reindex. **Mutation tools (US-041):** intake, story_add, story_update, decision_add, backlog_add — same application layer as CLI; local-only auth |
 | `harness export changelog [--since <tag\|date>] [--json]` | Derive changelog notes from implemented stories/decisions (assist only) |
 | `harness watch` | Watch entity directories and auto-reindex on markdown changes (debounced 500ms) |
 | `harness handoff [--story <id>] [--json]` | Emit concise session summary: recent traces, worklog, status, next steps |
