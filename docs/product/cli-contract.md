@@ -132,11 +132,17 @@ Custom tool registration, changesets, score-context, cloud registry.
 
 ## Exit codes
 
-| Code | Meaning |
-| --- | --- |
-| 0 | Success |
-| 1 | Usage / validation / operational error |
-| 2 | Reserved (optional: partial success) |
+Aligned with [decision 0017](../decisions/0017-agent-hard-fail-contract.md)
+(agent hard-fail contract):
+
+| Code | Meaning | Agent expectation |
+| --- | --- | --- |
+| 0 | Success | Continue |
+| 1 | Usage / validation / operational error | **HARD STOP** for the failed step; run recovery (`doctor`, `link`, `reindex`) then retry. Never hand-edit durable entities as a fallback. |
+| 2 | Reserved (optional: partial success / soft fail) | Treat as non-success unless the specific command documents otherwise |
+
+`harness doctor` exits non-zero only for hard-fail modes; soft issues are
+warnings with exit 0 (US-018).
 
 ## Environment
 

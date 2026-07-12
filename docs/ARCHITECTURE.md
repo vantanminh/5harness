@@ -78,6 +78,11 @@ Operational durable entities are written **only** through application services
 invoked by CLI (or future controlled API). Agents must not hand-edit entity
 markdown. Policy docs (`HARNESS.md`, etc.) remain human-editable.
 
+**Agent hard-fail (decision 0017):** CLI/MCP failure is non-skippable for
+durable writes. Agents stop, recover via `doctor` / `link` / `reindex`, and
+retry — never hand-edit entities to work around a tool error. Shipped wording
+lives in the `templates/AGENTS.md` harness block.
+
 **Auto-reindex (US-015):** Every mutation command (intake, story add/update,
 decision add, backlog add/close) auto-reindexes after a successful write.
 Agents never need to call `harness reindex` manually. The shared helper

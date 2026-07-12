@@ -85,6 +85,13 @@ Policy documents describe how to work. The durable layer records what happened.
 **Agents must only mutate operational durable state through the harness CLI** —
 never by hand-editing entity markdown.
 
+**Hard-fail (decision 0017):** if the harness CLI or MCP fails for a required
+step, agents **HARD STOP** that path, run recovery (`harness doctor`,
+`harness link`, `harness reindex` as needed), and retry the tool. They must
+not bypass failures by editing story / decision / intake / backlog files by
+hand. See the harness block in `AGENTS.md` and
+`docs/decisions/0017-agent-hard-fail-contract.md`.
+
 Collaborator workflow:
 
 ```bash
