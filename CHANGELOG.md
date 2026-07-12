@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Agent **hard-fail contract** in `templates/AGENTS.md` (decision 0017 /
   US-032): HARD STOP on harness CLI/MCP failure, recovery via
   `doctor` / `link` / `reindex`, no hand-edit fallback for durable entities.
+- Structured errors and debug logging (US-033): `HARNESS_E_*` codes on CLI
+  failures, `HARNESS_JSON_ERRORS`, `HARNESS_DEBUG` / `HARNESS_LOG_FILE`,
+  secret redaction, doctor `logs` check.
 - `harness mcp` — Start MCP (Model Context Protocol) server over stdio.
   Exposes 8 tools: `harness_get`, `harness_search`, `harness_links`,
   `harness_context`, `harness_status`, `harness_query_matrix`,

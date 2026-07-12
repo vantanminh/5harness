@@ -150,3 +150,31 @@ warnings with exit 0 (US-018).
 | --- | --- |
 | `HARNESS_HOME` | Override global harness dir (default `~/.harness`) |
 | `HARNESS_DB_PATH` | **Legacy only** — path to SQLite DB for `import-sqlite` / old DB ops |
+| `HARNESS_DEBUG` | When `1`/`true`, emit debug lines to stderr and append to the log file |
+| `HARNESS_LOG_FILE` | Override log file path (default: project `.harness/logs/harness.log` when a project context exists, else `$HARNESS_HOME/logs/harness.log`) |
+| `HARNESS_JSON_ERRORS` | When `1`/`true`, print failures as a single JSON object on stderr (`ok`, `code`, `message`, `exitCode`) |
+
+## Structured errors (US-033)
+
+CLI failures go through a shared `fail()` path:
+
+| Field | Meaning |
+| --- | --- |
+| `code` | Stable `HARNESS_E_*` identifier (`USAGE`, `VALIDATION`, `NOT_FOUND`, `STATE`, `IO`, `INTERNAL`) |
+| `message` | Human-readable explanation (no secrets) |
+| `exitCode` | Process exit code (usually `1`) |
+
+Human stderr form:
+
+```text
+error: HARNESS_E_NOT_FOUND: Entity not found: US-999
+```
+
+JSON form (`HARNESS_JSON_ERRORS=1`):
+
+```json
+{"ok":false,"code":"HARNESS_E_NOT_FOUND","message":"Entity not found: US-999","exitCode":1}
+```
+
+Logs never intentionally write secrets (tokens, API keys, passwords are redacted).
+`harness doctor` reports the active log file path under the `logs` check.

@@ -73,11 +73,28 @@ import { maybeNotifyUpdateAvailable } from "./application/update-check.js";
 import { maybeNotifyRepoUpgrade } from "./application/upgrade-notify.js";
 
 import { VERSION } from "./version.js";
+import {
+  formatErrorHuman,
+  formatErrorJson,
+  toHarnessError,
+  wantsJsonErrors,
+} from "./domain/errors.js";
+import { getDefaultLogger } from "./infrastructure/logger.js";
 
+/**
+ * Terminal failure path (US-033): structured code + optional JSON errors.
+ * Always logs the error (redacted) to the harness log file when debug/warn path runs.
+ */
 function fail(error: unknown): never {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`error: ${message}`);
-  process.exit(1);
+  const he = toHarnessError(error);
+  const logger = getDefaultLogger();
+  logger.error(`${he.code}: ${he.message}`, he.details);
+  if (wantsJsonErrors()) {
+    console.error(formatErrorJson(he));
+  } else {
+    console.error(formatErrorHuman(he));
+  }
+  process.exit(he.exitCode);
 }
 
 function withErrors(fn: () => void): void {
@@ -208,10 +225,7 @@ async function main(argv: string[] = process.argv): Promise<void> {
     .action((opts) => {
       withErrors(() => {
         void executeDashboard(opts).catch((error: unknown) => {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          console.error(`error: ${message}`);
-          process.exit(1);
+          fail(error);
         });
       });
     });
@@ -847,7 +861,5 @@ async function main(argv: string[] = process.argv): Promise<void> {
 }
 
 void main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`error: ${message}`);
-  process.exit(1);
+  fail(error);
 });

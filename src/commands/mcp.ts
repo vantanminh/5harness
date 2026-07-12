@@ -46,10 +46,12 @@ export function executeMcp(options: McpCliOptions): void {
 
   server.on("error", (err: NodeJS.ErrnoException) => {
     if (err.code === "EADDRINUSE") {
-      console.error(`error: port ${port} already in use (another harness mcp?). Try --port <n>.`);
+      console.error(
+        `error: HARNESS_E_STATE: port ${port} already in use (another harness mcp?). Try --port <n>.`,
+      );
       process.exit(1);
     }
-    console.error(`error: ${err.message}`);
+    console.error(`error: HARNESS_E_INTERNAL: ${err.message}`);
     process.exit(1);
   });
 

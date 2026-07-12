@@ -92,4 +92,12 @@ describe("harness doctor (US-018)", () => {
     expect(Array.isArray(parsed.checks)).toBe(true);
     expect(typeof parsed.healthy).toBe("boolean");
   });
+
+  it("reports log file path (US-033)", () => {
+    const report = runDoctor(tmp());
+    const logs = report.checks.find((c) => c.name === "logs");
+    expect(logs).toBeDefined();
+    expect(logs!.status).toBe("ok");
+    expect(logs!.message).toMatch(/log file|Log file/i);
+  });
 });

@@ -7,6 +7,11 @@ import { findProjectByPath } from "../domain/registry.js";
 import { indexJsonPath, hasMarkdownStore } from "./index-store.js";
 import type { ProjectIndex } from "./index-store.js";
 import { VERSION } from "../version.js";
+import {
+  resolveDefaultLogFile,
+  resolveGlobalLogDir,
+  isDebugEnabled,
+} from "../infrastructure/logger.js";
 
 export type DoctorCheck = {
   name: string;
@@ -208,6 +213,18 @@ export function runDoctor(projectRoot: string): DoctorReport {
 
   // 5. Node engines
   checks.push(checkNodeEngines(projectRoot));
+
+  // 6. Log surface (US-033) — informational, never a hard fail
+  const logFile = resolveDefaultLogFile(process.env, projectRoot);
+  const globalLogs = resolveGlobalLogDir(process.env);
+  const debugOn = isDebugEnabled(process.env);
+  checks.push({
+    name: "logs",
+    status: "ok",
+    message: debugOn
+      ? `Debug logging on (HARNESS_DEBUG); log file: ${logFile} (global dir: ${globalLogs})`
+      : `Log file path: ${logFile} (set HARNESS_DEBUG=1 for debug; global: ${globalLogs})`,
+  });
 
   const hasFailure = checks.some((c) => c.status === "fail");
   return { cliVersion: VERSION, projectRoot, checks, healthy: !hasFailure };
