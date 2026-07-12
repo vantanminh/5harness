@@ -37,9 +37,15 @@ describe("SECURITY policy docs (US-037)", () => {
     expect(docsSecurity).toMatch(/127\.0\.0\.1|loopback/i);
   });
 
-  it("package ships SECURITY.md and prefers provenance", () => {
+  it("package ships SECURITY.md; CI publishes with provenance", () => {
     expect(pkg.files).toContain("SECURITY.md");
-    expect(pkg.publishConfig?.provenance).toBe(true);
+    // Provenance is CI-only (OIDC). Do not set publishConfig.provenance —
+    // local `npm publish` then fails with provider: null.
+    const ci = fs.readFileSync(
+      path.join(root, ".github", "workflows", "ci.yml"),
+      "utf8",
+    );
+    expect(ci).toMatch(/npm publish[^\n]*--provenance/);
   });
 
   it("Dependabot is configured for npm and Actions", () => {

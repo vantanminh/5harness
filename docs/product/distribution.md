@@ -114,8 +114,17 @@ Notes:
 - **GitHub UI:** Actions → **Release** → Run workflow → choose patch/minor/major.
 - **Local tag (no auto-bump):** ensure version files already match, then
   `git tag vX.Y.Z && git push origin vX.Y.Z` (tag must equal `package.json`).
-- **Local publish fallback:** `npm run release:check && npm publish --access public`
-  (uses your interactive/npm login — not OIDC).
+- **Local publish fallback** (no provenance — OIDC provenance only works on CI):
+
+  ```bash
+  npm run release:check
+  npm publish --access public
+  # Do NOT use --provenance on a laptop: npm error
+  # "Automatic provenance generation not supported for provider: null"
+  ```
+
+  Prefer re-running the **Auto-release** / **Release** GitHub Action after
+  Trusted Publisher is configured for package `5harness`.
 
 ### Local version bump (optional)
 
