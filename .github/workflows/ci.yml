@@ -191,6 +191,14 @@ jobs:
           echo "--- release notes preview ---"
           head -n 40 release-notes.md || true
 
+      # Optional SBOM (US-036): SPDX from lockfile; attach to GitHub Release for consumers.
+      - name: Generate SBOM (SPDX)
+        run: |
+          set -euo pipefail
+          npm sbom --sbom-format spdx --package-lock-only > sbom.spdx.json
+          test -s sbom.spdx.json
+          echo "SBOM bytes: $(wc -c < sbom.spdx.json)"
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -201,4 +209,5 @@ jobs:
           gh release create "$TAG" \
             --title "$TAG" \
             --notes-file release-notes.md \
-            --verify-tag
+            --verify-tag \
+            sbom.spdx.json

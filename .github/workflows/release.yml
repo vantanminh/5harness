@@ -117,6 +117,12 @@ jobs:
           set -euo pipefail
           node scripts/release-notes.mjs "${{ steps.version.outputs.version }}" --out release-notes.md
 
+      - name: Generate SBOM (SPDX)
+        run: |
+          set -euo pipefail
+          npm sbom --sbom-format spdx --package-lock-only > sbom.spdx.json
+          test -s sbom.spdx.json
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -127,7 +133,8 @@ jobs:
           gh release create "$TAG" \
             --title "$TAG" \
             --notes-file release-notes.md \
-            --verify-tag
+            --verify-tag \
+            sbom.spdx.json
 
   # Tag-triggered publish (manual git tag from a developer machine / PAT).
   publish:
@@ -179,6 +186,12 @@ jobs:
           set -euo pipefail
           node scripts/release-notes.mjs "${{ steps.version.outputs.version }}" --out release-notes.md
 
+      - name: Generate SBOM (SPDX)
+        run: |
+          set -euo pipefail
+          npm sbom --sbom-format spdx --package-lock-only > sbom.spdx.json
+          test -s sbom.spdx.json
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -188,11 +201,13 @@ jobs:
           TAG="v${VERSION}"
           # Idempotent: tag-triggered re-runs may already have a Release.
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG already exists — updating notes."
+            echo "Release $TAG already exists — updating notes + assets."
             gh release edit "$TAG" --notes-file release-notes.md
+            gh release upload "$TAG" sbom.spdx.json --clobber
           else
             gh release create "$TAG" \
               --title "$TAG" \
               --notes-file release-notes.md \
-              --verify-tag
+              --verify-tag \
+              sbom.spdx.json
           fi
