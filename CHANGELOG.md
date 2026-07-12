@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `harness_story_add` / `harness_story_update`, `harness_decision_add`,
   `harness_backlog_add`, plus `harness_reindex` and `harness_doctor` — all via
   the same application layer as the CLI (local-only).
+- CI auto-release is race-safe: concurrency lock, `release-plan` (skip /
+  tag-only / bump), rebase-retry push (`git-push-release.mjs`). Developers use
+  `npm run push` (`safe-push.mjs`) to avoid non-fast-forward on main.
 - Agent **hard-fail contract** in `templates/AGENTS.md` (decision 0017 /
   US-032): HARD STOP on harness CLI/MCP failure, recovery via
   `doctor` / `link` / `reindex`, no hand-edit fallback for durable entities.

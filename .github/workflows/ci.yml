@@ -75,6 +75,8 @@ jobs:
         run: npm run release:check
 
   # Auto-bump version, tag, and publish on push to main.
+  # Serialized so two concurrent pushes cannot both invent release commits
+  # (root cause of local non-fast-forward / package.json merge fights).
   auto-release:
     name: Auto-release
     needs: build-test
@@ -84,7 +86,10 @@ jobs:
       !contains(github.event.head_commit.message, 'chore(release):') &&
       !contains(github.event.head_commit.message, '[skip release]')
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    concurrency:
+      group: harness-auto-release-main
+      cancel-in-progress: false
     permissions:
       contents: write
       id-token: write # OIDC for npm trusted publishing + provenance (US-036)
@@ -93,6 +98,8 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          # Token with contents:write so later push can update main.
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js 24
         uses: actions/setup-node@v6
@@ -108,6 +115,18 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Sync to latest main before planning release
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          # If this workflow run is stale (another push already moved main),
+          # rebase onto tip so we release once from the newest tree.
+          git pull --rebase origin main || {
+            echo "Could not rebase onto origin/main — aborting release for this run."
+            git rebase --abort 2>/dev/null || true
+            exit 1
+          }
 
       - name: Detect bump kind from commits since last tag
         id: bump
@@ -149,42 +168,69 @@ jobs:
           echo "kind=$KIND" >> "$GITHUB_OUTPUT"
           echo "Detected bump kind: $KIND"
 
-      - name: Bump version
-        id: version
+      - name: Plan release (skip / tag-only / bump)
+        id: plan
         run: |
           set -euo pipefail
-          NEW="$(node scripts/bump-version.mjs "${{ steps.bump.outputs.kind }}" | tail -n1)"
+          # release-plan.mjs prints key=value lines; last line is version.
+          OUT="$(node scripts/release-plan.mjs --kind "${{ steps.bump.outputs.kind }}")"
+          echo "$OUT"
+          # Avoid pipe subshell so GITHUB_OUTPUT is written in this shell.
+          while IFS= read -r line; do
+            case "$line" in
+              skip=*|mode=*|version=*|kind=*|reason=*)
+                echo "$line" >> "$GITHUB_OUTPUT"
+                ;;
+            esac
+          done <<< "$OUT"
+
+      - name: Skip when already released
+        if: steps.plan.outputs.skip == 'true'
+        run: |
+          echo "Skipping auto-release: ${{ steps.plan.outputs.reason }}"
+
+      - name: Bump version (when needed)
+        id: version
+        if: steps.plan.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          MODE="${{ steps.plan.outputs.mode }}"
+          if [ "$MODE" = "bump" ]; then
+            NEW="$(node scripts/bump-version.mjs "${{ steps.bump.outputs.kind }}" | tail -n1)"
+          else
+            # tag-only: package.json already ahead of last tag — keep version
+            NEW="$(node -p "require('./package.json').version")"
+            echo "tag-only mode — publishing existing version $NEW"
+          fi
           echo "version=$NEW" >> "$GITHUB_OUTPUT"
           echo "New version: $NEW"
 
       - name: Release check (post-bump)
+        if: steps.plan.outputs.skip != 'true'
         run: npm run release:check
 
-      - name: Commit and tag
+      - name: Commit, tag, and push (rebase-retry)
+        if: steps.plan.outputs.skip != 'true'
         run: |
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
           TAG="v${VERSION}"
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # CHANGELOG.md may be promoted from [Unreleased] by bump-version (US-038).
-          git add package.json package-lock.json src/version.ts templates/AGENTS.md AGENTS.md CHANGELOG.md
-          git commit -m "chore(release): ${VERSION}"
-          git tag -a "$TAG" -m "Release ${TAG}"
-          git push origin HEAD:main
-          git push origin "$TAG"
-          echo "Pushed commit + tag $TAG"
+          # Rebase-retry push permanently avoids non-fast-forward races on main.
+          node scripts/git-push-release.mjs \
+            --tag "$TAG" \
+            --message "chore(release): ${VERSION}"
+          echo "Pushed release $TAG"
 
       # OIDC is preferred (id-token: write). NODE_AUTH_TOKEN is optional fallback
       # if trusted publisher is not yet configured on npmjs.com.
       - name: Publish to npm (OIDC + provenance)
+        if: steps.plan.outputs.skip != 'true'
         run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Build release notes
+        if: steps.plan.outputs.skip != 'true'
         run: |
           set -euo pipefail
           # Human CHANGELOG is primary; --with-export appends durable-history assist (US-038).
@@ -194,6 +240,7 @@ jobs:
 
       # Optional SBOM (US-036): SPDX from lockfile; attach to GitHub Release for consumers.
       - name: Generate SBOM (SPDX)
+        if: steps.plan.outputs.skip != 'true'
         run: |
           set -euo pipefail
           npm sbom --sbom-format spdx --package-lock-only > sbom.spdx.json
@@ -201,14 +248,22 @@ jobs:
           echo "SBOM bytes: $(wc -c < sbom.spdx.json)"
 
       - name: Create GitHub Release
+        if: steps.plan.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
           TAG="v${VERSION}"
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --notes-file release-notes.md \
-            --verify-tag \
-            sbom.spdx.json
+          # Idempotent if release already exists (re-run / race).
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — updating notes + assets."
+            gh release edit "$TAG" --notes-file release-notes.md
+            gh release upload "$TAG" sbom.spdx.json --clobber
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --notes-file release-notes.md \
+              --verify-tag \
+              sbom.spdx.json
+          fi

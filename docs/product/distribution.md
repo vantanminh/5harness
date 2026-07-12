@@ -50,17 +50,34 @@ The npm tarball **must** include:
    - Override with commit markers: `[release: major]`, `[release: minor]`,
      `[release: patch]`.
    - Skip with `[skip release]` in the commit message.
-   - Runs `npm run bump`, keeps `package.json`, `package-lock.json`,
-     `src/version.ts`, and `<!-- harness-version -->` markers in sync, and
-     promotes `CHANGELOG.md` `[Unreleased]` → `## [X.Y.Z] - date` when non-empty
-     (US-038).
-   - Commits `chore(release): X.Y.Z` (includes `CHANGELOG.md` when promoted),
-     tags `vX.Y.Z`.
+   - **Release plan** (`scripts/release-plan.mjs`): if `v{version}` tag already
+     exists → skip; if `package.json` is already ahead of the last tag →
+     **tag-only** (no second bump); else bump as usual. Prevents duplicate
+     `chore(release)` commits that diverge developer clones.
+   - Serialized with concurrency group `harness-auto-release-main`.
+   - **Push** via `scripts/git-push-release.mjs`: `fetch` + `pull --rebase` +
+     retry so concurrent main updates do not leave a bare non-fast-forward.
+   - Runs `npm run bump` when needed; keeps version files + CHANGELOG promote
+     (US-038) in sync.
+   - Commits `chore(release): X.Y.Z` when files change, tags `vX.Y.Z`.
    - **npm publish** via **OIDC trusted publishing** with **`--provenance`**
      (green provenance check on npm when configured).
    - Creates a **GitHub Release** with notes from `CHANGELOG.md` plus optional
      export-changelog assist (`scripts/release-notes.mjs --with-export`) and
      attaches an **SPDX SBOM** (`sbom.spdx.json` from `npm sbom`).
+
+### Pushing from a local clone (avoid non-fast-forward)
+
+CI may land a `chore(release): …` commit on `main` while you work. Always
+rebase before push:
+
+```bash
+npm run push          # fetch + pull --rebase + push (scripts/safe-push.mjs)
+# equivalent:
+git fetch origin && git pull --rebase origin main && git push
+```
+
+Do **not** `git push --force` to `main`.
 
 ### Authentication (US-036 / decision 0018)
 

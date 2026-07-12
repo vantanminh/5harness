@@ -23,6 +23,7 @@
     "prepack": "npm run build",
     "pack:check": "node scripts/pack-check.mjs",
     "bump": "node scripts/bump-version.mjs",
+    "push": "node scripts/safe-push.mjs",
     "release:check": "npm run typecheck && npm test && npm run pack:check",
     "test": "vitest run",
     "test:watch": "vitest",

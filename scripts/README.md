@@ -42,6 +42,21 @@ npm run bump -- 1.2.3 # exact
 CI auto-release and the Release workflow call this script; prefer not to bump
 by hand unless you are preparing a local publish.
 
+## safe-push (developers)
+
+`safe-push.mjs` — `git fetch` + `pull --rebase` + `push`. Use when main may
+have moved (e.g. CI auto-release):
+
+```bash
+npm run push
+```
+
+## release-plan / git-push-release (CI)
+
+- `release-plan.mjs` — skip / tag-only / bump decision for auto-release.
+- `git-push-release.mjs` — commit + tag + push with rebase retries (avoids
+  non-fast-forward races on `main`).
+
 ## release-notes
 
 `release-notes.mjs` builds GitHub Release body markdown from `CHANGELOG.md`
