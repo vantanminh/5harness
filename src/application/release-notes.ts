@@ -1,7 +1,12 @@
 /**
- * GitHub Release notes from CHANGELOG.md (US-036).
+ * GitHub Release notes from CHANGELOG.md (US-036 / US-038).
  * Used by scripts/release-notes.mjs in CI after npm publish.
  */
+
+import {
+  formatExportAssistSection,
+  parseChangelogSections,
+} from "./changelog-hygiene.js";
 
 /**
  * Extract a Keep-a-Changelog section body for `version`, else Unreleased.
@@ -10,28 +15,18 @@ export function extractChangelogSection(
   changelog: string,
   version: string,
 ): string | null {
-  const text = changelog.replace(/\r\n/g, "\n");
-  const headingRe = /^##\s+\[([^\]]+)\][^\n]*/gm;
-  const heads: { key: string; start: number; bodyStart: number }[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = headingRe.exec(text)) !== null) {
-    heads.push({
-      key: m[1].trim(),
-      start: m.index,
-      bodyStart: m.index + m[0].length,
-    });
-  }
-  const sections = new Map<string, string>();
-  for (let i = 0; i < heads.length; i++) {
-    const end = i + 1 < heads.length ? heads[i + 1].start : text.length;
-    const body = text.slice(heads[i].bodyStart, end).trim();
-    sections.set(heads[i].key, body);
-  }
-  const exact = sections.get(version);
+  const sections = parseChangelogSections(changelog);
+  const exact = sections.get(version)?.body?.trim();
   if (exact && exact.length > 0) return exact;
-  const unreleased = sections.get("Unreleased");
+  const unreleased = sections.get("Unreleased")?.body?.trim();
   if (unreleased && unreleased.length > 0) return unreleased;
   return null;
+}
+
+export interface ExportAssistEntry {
+  id: string;
+  title: string;
+  type: string;
 }
 
 export interface BuildReleaseNotesOptions {
@@ -40,6 +35,11 @@ export interface BuildReleaseNotesOptions {
   repoUrl?: string;
   /** Pre-loaded CHANGELOG text; if omitted, section is skipped. */
   changelogText?: string | null;
+  /**
+   * Optional durable-history assist from `harness export changelog`
+   * (US-028 / US-038). Appended after the human CHANGELOG section.
+   */
+  exportEntries?: ExportAssistEntry[] | null;
 }
 
 export function buildReleaseNotes(opts: BuildReleaseNotesOptions): string {
@@ -61,6 +61,13 @@ export function buildReleaseNotes(opts: BuildReleaseNotesOptions): string {
       `Release **${version}**.`,
       "",
       "See [CHANGELOG.md](./CHANGELOG.md) for details when available.",
+      "",
+    );
+  }
+
+  if (opts.exportEntries && opts.exportEntries.length > 0) {
+    lines.push(
+      formatExportAssistSection(opts.exportEntries).trimEnd(),
       "",
     );
   }

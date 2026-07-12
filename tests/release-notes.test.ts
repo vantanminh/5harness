@@ -91,6 +91,24 @@ describe("buildReleaseNotes", () => {
     expect(notes).toContain("Release **1.0.0**");
     expect(notes).toContain("CHANGELOG.md");
   });
+
+  it("appends export-changelog assist section when provided (US-038)", () => {
+    const notes = buildReleaseNotes({
+      version: "0.12.2",
+      packageName: "@vantanminh/harness",
+      changelogText: `# Changelog\n\n## [0.12.2] - 2026-07-12\n\n### Added\n\n- Human note\n`,
+      exportEntries: [
+        { id: "US-038", title: "CHANGELOG discipline", type: "story" },
+      ],
+    });
+    expect(notes).toContain("Human note");
+    expect(notes).toContain("### From harness history (assist)");
+    expect(notes).toContain("[Story] US-038: CHANGELOG discipline");
+    // Install still after assist
+    expect(notes.indexOf("From harness history")).toBeLessThan(
+      notes.indexOf("### Install"),
+    );
+  });
 });
 
 describe("scripts/release-notes.mjs CLI", () => {
