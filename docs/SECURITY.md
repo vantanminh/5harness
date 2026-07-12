@@ -123,7 +123,7 @@ validated by `npm run pack:check` (see `scripts/pack-check.mjs`).
 ## Update check (npm)
 
 On most commands (not bare `--help` / `--version`), the CLI may check the public
-npm registry for a newer `@vantanminh/harness` version.
+npm registry for a newer `5harness` version.
 
 | Behavior | Detail |
 | --- | --- |
@@ -152,14 +152,14 @@ Production releases (US-036 / decision 0018):
 
 ```bash
 # Install a specific released version
-npm i -g @vantanminh/harness@<version>
+npm i -g 5harness@<version>
 
 # Prefer inspecting provenance on the npm package page for that version.
 # After install, optional:
 npm audit signatures
 ```
 
-- Confirm the package name matches **`@vantanminh/harness`** (or the published
+- Confirm the package name matches **`5harness`** (or the published
   successor name after any rename story).
 - Prefer versions that show **provenance** attestations built from
   `github.com/vantanminh/harness`.

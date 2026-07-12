@@ -6,14 +6,14 @@ repo into a structured workspace for humans and coding agents.
 > The app is what users touch. The harness is what agents touch.
 
 [![CI](https://github.com/vantanminh/harness/actions/workflows/ci.yml/badge.svg)](https://github.com/vantanminh/harness/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/@vantanminh/harness.svg)](https://www.npmjs.com/package/@vantanminh/harness)
-[![Node.js](https://img.shields.io/node/v/@vantanminh/harness.svg)](https://www.npmjs.com/package/@vantanminh/harness)
+[![npm version](https://img.shields.io/npm/v/5harness.svg)](https://www.npmjs.com/package/5harness)
+[![Node.js](https://img.shields.io/node/v/5harness.svg)](https://www.npmjs.com/package/5harness)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Provenance](https://img.shields.io/badge/npm-provenance-green)](https://docs.npmjs.com/generating-provenance-statements)
 
 | | |
 | --- | --- |
-| **Package** | [`@vantanminh/harness`](https://www.npmjs.com/package/@vantanminh/harness) |
+| **Package** | [`5harness`](https://www.npmjs.com/package/5harness) |
 | **Bin** | `harness` |
 | **Source** | [github.com/vantanminh/harness](https://github.com/vantanminh/harness) |
 | **Node** | ≥ 22.5 |
@@ -24,14 +24,14 @@ repo into a structured workspace for humans and coding agents.
 Preferred (global — multi-project + dashboard):
 
 ```bash
-npm i -g @vantanminh/harness
+npm i -g 5harness
 harness --version
 ```
 
 Project-local (optional):
 
 ```bash
-npm i -D @vantanminh/harness
+npm i -D 5harness
 npx harness --help
 ```
 
@@ -111,7 +111,7 @@ harness export changelog [--since 2026-07-01]
 
 | Area | Status |
 | --- | --- |
-| npm package | **`@vantanminh/harness`** — bin `harness` (see roadmap for `5harness` rename) |
+| npm package | **`5harness`** — bin `harness` (was `@vantanminh/harness`; see [docs/DEPRECATION.md](docs/DEPRECATION.md)) |
 | `init` / `link` / registry | Shipped |
 | Markdown durable SoT | Shipped |
 | Query + agent index | Shipped |

@@ -4,7 +4,7 @@
 
 **Harness**  
 CLI bin: `harness`  
-npm package: **`@vantanminh/harness`**
+npm package: **`5harness`**
 
 ## One-Liner
 

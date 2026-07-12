@@ -47,23 +47,25 @@ export function detectPackageManager(): PackageManager {
 }
 
 export function updateCommand(pm: PackageManager): { cmd: string; args: string[] } {
+  // Package identity: 5harness (decision 0016 / US-040); bin remains harness.
+  const pkg = "5harness@latest";
   switch (pm) {
     case "pnpm":
-      return { cmd: "pnpm", args: ["add", "-g", "@vantanminh/harness@latest"] };
+      return { cmd: "pnpm", args: ["add", "-g", pkg] };
     case "yarn":
       return {
         cmd: "yarn",
-        args: ["global", "add", "@vantanminh/harness@latest"],
+        args: ["global", "add", pkg],
       };
     case "bun":
       return {
         cmd: "bun",
-        args: ["install", "-g", "@vantanminh/harness@latest"],
+        args: ["install", "-g", pkg],
       };
     default:
       return {
         cmd: "npm",
-        args: ["install", "-g", "@vantanminh/harness@latest"],
+        args: ["install", "-g", pkg],
       };
   }
 }

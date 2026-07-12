@@ -1,4 +1,4 @@
-# Publish @vantanminh/harness to npm.
+# Publish 5harness (bin: harness) to npm.
 #
 # Triggers:
 #   1. Tag push vX.Y.Z  (manual: git tag vX.Y.Z && git push origin vX.Y.Z)
@@ -71,7 +71,6 @@ jobs:
         with:
           node-version: "24.x"
           registry-url: https://registry.npmjs.org
-          scope: "@vantanminh"
           package-manager-cache: false
 
       - name: Ensure npm CLI supports OIDC (≥ 11.5.1)
@@ -153,7 +152,6 @@ jobs:
         with:
           node-version: "24.x"
           registry-url: https://registry.npmjs.org
-          scope: "@vantanminh"
           package-manager-cache: false
 
       - name: Ensure npm CLI supports OIDC (≥ 11.5.1)
@@ -176,7 +174,7 @@ jobs:
             exit 1
           fi
           echo "version=$PKG" >> "$GITHUB_OUTPUT"
-          echo "Publishing @vantanminh/harness@$PKG"
+          echo "Publishing 5harness@$PKG"
 
       - name: Publish to npm (OIDC + provenance)
         run: npm publish --access public --provenance

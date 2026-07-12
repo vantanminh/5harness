@@ -4,13 +4,13 @@
 <!-- harness-version: 0.12.1 -->
 ## Harness
 
-This repo uses **Harness** (`@vantanminh/harness`, bin `harness`).
+This repo uses **Harness** (`5harness`, bin `harness`).
 
 ### Install / day-to-day
 
 ```bash
 # preferred on a machine that works on many projects
-npm i -g @vantanminh/harness
+npm i -g 5harness
 harness --help
 
 # after cloning a repo that already has harness markdown history:
@@ -81,7 +81,7 @@ when architecture or product rules change.
 
 ### Upgrade
 
-When a newer harness CLI version is installed (`npm i -g @vantanminh/harness`),
+When a newer harness CLI version is installed (`npm i -g 5harness`),
 run `harness upgrade` to update the harness block in this AGENTS.md.
 Only the harness-managed section (markers HARNESS:BEGIN through HARNESS:END)
 is modified — all other content is preserved.

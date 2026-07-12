@@ -89,19 +89,19 @@ describe("harness update", () => {
   it("returns correct update command for each PM", () => {
     expect(updateCommand("npm")).toEqual({
       cmd: "npm",
-      args: ["install", "-g", "@vantanminh/harness@latest"],
+      args: ["install", "-g", "5harness@latest"],
     });
     expect(updateCommand("pnpm")).toEqual({
       cmd: "pnpm",
-      args: ["add", "-g", "@vantanminh/harness@latest"],
+      args: ["add", "-g", "5harness@latest"],
     });
     expect(updateCommand("yarn")).toEqual({
       cmd: "yarn",
-      args: ["global", "add", "@vantanminh/harness@latest"],
+      args: ["global", "add", "5harness@latest"],
     });
     expect(updateCommand("bun")).toEqual({
       cmd: "bun",
-      args: ["install", "-g", "@vantanminh/harness@latest"],
+      args: ["install", "-g", "5harness@latest"],
     });
   });
 });

@@ -1,4 +1,4 @@
-# Continuous integration for @vantanminh/harness
+# Continuous integration for 5harness (bin: harness)
 #
 # GitHub is migrating Actions from Node 20 → Node 24 (default on runners as of
 # mid-2026; Node 20 removed later in fall 2026). We pin official actions that
@@ -99,7 +99,6 @@ jobs:
         with:
           node-version: "24.x"
           registry-url: https://registry.npmjs.org
-          scope: "@vantanminh"
           # Never cache package-manager state for release/publish (npm trusted publishing guidance).
           package-manager-cache: false
 

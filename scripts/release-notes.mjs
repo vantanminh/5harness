@@ -82,7 +82,7 @@ function formatExportAssistSectionFallback(entries) {
  */
 function buildReleaseNotes(opts) {
   const version = opts.version;
-  const packageName = opts.packageName ?? "@vantanminh/harness";
+  const packageName = opts.packageName ?? "5harness";
   const repoUrl =
     opts.repoUrl ?? "https://github.com/vantanminh/harness";
 

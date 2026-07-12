@@ -8,7 +8,7 @@ This file is the **implementation tracking map**. Story packets under
 ## North star
 
 ```text
-npm i -g @vantanminh/harness
+npm i -g 5harness
 harness init | link          # project MD (git) + global registry (machine)
 harness story|decision|…     # tools-only writes → markdown entities
 harness search|get|links     # index, not whole-file dumps

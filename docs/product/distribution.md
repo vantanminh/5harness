@@ -4,18 +4,19 @@
 
 | Field | Value |
 | --- | --- |
-| npm name | `@vantanminh/harness` |
+| npm name | `5harness` |
 | bin | `harness` → `dist/cli.js` |
 | GitHub | [vantanminh/harness](https://github.com/vantanminh/harness) |
-| **Preferred install** | `npm i -g @vantanminh/harness` |
-| Alternate install | `npm i -D @vantanminh/harness` + `npx harness …` |
+| **Preferred install** | `npm i -g 5harness` |
+| Alternate install | `npm i -D 5harness` + `npx harness …` |
 | Node | `>=22.5.0` |
 | License | MIT |
+| Former name | `@vantanminh/harness` — see [DEPRECATION.md](../DEPRECATION.md) |
 
 ## Install story (product)
 
 ```bash
-npm i -g @vantanminh/harness
+npm i -g 5harness
 cd /path/to/project
 harness init          # new project: scaffold + register
 # or after git clone of an already-harnessed repo:
@@ -69,7 +70,7 @@ The npm tarball **must** include:
 | **`NPM_TOKEN` secret** | **Optional fallback** only (transition / emergency); not required when OIDC is configured |
 
 **One-time setup on [npmjs.com](https://www.npmjs.com)** for package
-`@vantanminh/harness` → Settings → Trusted Publisher:
+`5harness` → Settings → Trusted Publisher:
 
 | Field | Value |
 | --- | --- |
@@ -148,7 +149,7 @@ After a trusted publish, the package page on npm shows a provenance attestation
 
 ```bash
 npm audit signatures
-# or inspect the package on https://www.npmjs.com/package/@vantanminh/harness
+# or inspect the package on https://www.npmjs.com/package/5harness
 ```
 
 GitHub Releases for each `vX.Y.Z` include release notes and `sbom.spdx.json`.

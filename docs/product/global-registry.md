@@ -51,7 +51,7 @@ git add docs/ AGENTS.md && git commit && git push
 
 # Machine B (another person)
 git clone <repo>
-npm i -g @vantanminh/harness
+npm i -g 5harness
 cd my-app
 harness link
 # dashboard / query now see committed history at this path

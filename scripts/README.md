@@ -1,6 +1,6 @@
 # Scripts
 
-Dev and release helpers for **@vantanminh/harness**.
+Dev and release helpers for **5harness**.
 
 ## Product CLI
 

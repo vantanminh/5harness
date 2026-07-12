@@ -1,6 +1,6 @@
 # Product Docs
 
-Product contract files for **@vantanminh/harness**. Prefer small, domain-named
+Product contract files for **5harness**. Prefer small, domain-named
 docs over one monolithic SPEC.
 
 ## Current Product Contracts

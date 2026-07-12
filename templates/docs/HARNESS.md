@@ -24,11 +24,11 @@ Every task may produce:
 
 ```bash
 # preferred: global CLI for multi-project work
-npm i -g @vantanminh/harness
+npm i -g 5harness
 harness --help
 
 # or one-shot
-npx @vantanminh/harness --help
+npx 5harness --help
 ```
 
 ## Durable layer (markdown SoT)
@@ -61,6 +61,6 @@ harness get US-001
 ## Collaborator path
 
 ```text
-git clone → npm i -g @vantanminh/harness → harness link → harness reindex
+git clone → npm i -g 5harness → harness link → harness reindex
 → same markdown history; dashboard/list via registry
 ```

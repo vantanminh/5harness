@@ -96,7 +96,7 @@ Collaborator workflow:
 
 ```bash
 git clone <repo>
-npm i -g @vantanminh/harness
+npm i -g 5harness
 harness link          # register path + reindex committed history
 harness query matrix
 ```

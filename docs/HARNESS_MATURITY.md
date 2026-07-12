@@ -15,7 +15,7 @@ How this product progresses from static docs to an operable agent harness.
 
 ## Evidence (this product)
 
-- Global npm CLI: `@vantanminh/harness` (`harness` bin).
+- Global npm CLI: `5harness` (`harness` bin).
 - Markdown entity store + agent index (`reindex` / `get` / `search` / `links`).
 - Quality: `story verify`, `trace`, `audit`, `propose`.
 - Registry: `link` / `unlink` / `projects` + `dashboard`.

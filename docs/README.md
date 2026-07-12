@@ -1,6 +1,6 @@
 # Documentation Map
 
-This directory is the operating harness **for the @vantanminh/harness product**
+This directory is the operating harness **for the 5harness product**
 itself and the product contracts shipped to target repos via `init`.
 
 ## Start here

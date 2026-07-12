@@ -2,14 +2,14 @@
 
 ## What This Repo Is
 
-This repository is **@vantanminh/harness** — an **npm-native** agent-ready
+This repository is **5harness** — an **npm-native** agent-ready
 repository harness. Users install a global CLI and operate durable history as
 **Git-backed markdown** in each project.
 
 **Target user UX (decision 0011):**
 
 ```bash
-npm i -g @vantanminh/harness
+npm i -g 5harness
 cd /path/to/project
 harness init             # scaffold markdown + register project on this machine
 # after someone else clones a harnessed repo:
@@ -63,13 +63,13 @@ project-scoped; do not use a global copy as the source of truth.
 <!-- harness-version: 0.12.1 -->
 ## Harness
 
-This repo uses **Harness** (`@vantanminh/harness`, bin `harness`).
+This repo uses **Harness** (`5harness`, bin `harness`).
 
 ### Install / day-to-day
 
 ```bash
 # preferred on a machine that works on many projects
-npm i -g @vantanminh/harness
+npm i -g 5harness
 harness --help
 
 # after cloning a repo that already has harness markdown history:
@@ -140,7 +140,7 @@ when architecture or product rules change.
 
 ### Upgrade
 
-When a newer harness CLI version is installed (`npm i -g @vantanminh/harness`),
+When a newer harness CLI version is installed (`npm i -g 5harness`),
 run `harness upgrade` to update the harness block in this AGENTS.md.
 Only the harness-managed section (markers HARNESS:BEGIN through HARNESS:END)
 is modified — all other content is preserved.

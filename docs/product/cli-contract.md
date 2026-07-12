@@ -5,13 +5,13 @@ User-facing bin name: `harness`.
 Install (**preferred** — decision 0011):
 
 ```bash
-npm i -g @vantanminh/harness
+npm i -g 5harness
 harness <command>
 ```
 
-Alternate: `npm i -D @vantanminh/harness` + `npx harness <command>`.
+Alternate: `npm i -D 5harness` + `npx harness <command>`.
 
-Package name: **`@vantanminh/harness`**. Bin name: **`harness`**.
+Package name: **`5harness`**. Bin name: **`harness`**.
 
 ## Commands in scope for Phase A (US-001) — shipped MVP
 

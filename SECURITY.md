@@ -1,7 +1,7 @@
 # Security Policy
 
 This document is the **public security policy** for
-[`@vantanminh/harness`](https://www.npmjs.com/package/@vantanminh/harness)
+[`5harness`](https://www.npmjs.com/package/5harness)
 ([source](https://github.com/vantanminh/harness)).
 
 Operational trust model (verify commands, MCP, registry, secrets, provenance):
@@ -11,7 +11,7 @@ see **[docs/SECURITY.md](docs/SECURITY.md)**.
 
 | Version | Supported |
 | --- | --- |
-| Latest release on npm (`@vantanminh/harness`) | Yes — security fixes land here first |
+| Latest release on npm (`5harness`) | Yes — security fixes land here first |
 | Previous minor on the same major (best effort) | Yes, for critical issues when practical |
 | Older majors / unreleased `main` only | No guarantee; upgrade to latest |
 
@@ -31,7 +31,7 @@ Prefer one of:
 
 Include, when possible:
 
-- Affected package version (`npm list -g @vantanminh/harness` or `harness --version`)
+- Affected package version (`npm list -g 5harness` or `harness --version`)
 - Environment (OS, Node version)
 - Clear reproduction steps or proof-of-concept
 - Impact assessment (data disclosure, local code execution, supply chain, etc.)

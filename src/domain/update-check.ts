@@ -1,5 +1,5 @@
-/** npm package name used for update checks. */
-export const PACKAGE_NAME = "@vantanminh/harness";
+/** npm package name used for update checks (decision 0016 / US-040). */
+export const PACKAGE_NAME = "5harness";
 
 /** Default minimum interval between registry fetches. */
 export const DEFAULT_UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;

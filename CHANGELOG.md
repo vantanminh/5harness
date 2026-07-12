@@ -9,9 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- README production overhaul (US-039): badges, quickstart, features table,
+  agent rules summary, security + changelog links.
 - CHANGELOG discipline (US-038): Keep a Changelog promote of `[Unreleased]`
   on version bump; release notes `--with-export` durable-history assist;
   backfill/version hygiene for the 0.10–0.12 line.
+
+### Changed
+
+- **Breaking install UX (US-040 / decision 0016):** npm package renamed from
+  `@vantanminh/harness` to **`5harness`**. Bin remains **`harness`**.
+  Migration: `npm i -g 5harness`. See [docs/DEPRECATION.md](docs/DEPRECATION.md).
 - Agent **hard-fail contract** in `templates/AGENTS.md` (decision 0017 /
   US-032): HARD STOP on harness CLI/MCP failure, recovery via
   `doctor` / `link` / `reindex`, no hand-edit fallback for durable entities.

@@ -5,7 +5,7 @@
 | Concern | Direction |
 | --- | --- |
 | Product surface | CLI first (`harness` via npm `bin`); local dashboard later |
-| Preferred install | `npm i -g @vantanminh/harness` (project-local `npx` allowed) |
+| Preferred install | `npm i -g 5harness` (project-local `npx` allowed) |
 | User runtime | Node.js + npm |
 | Implementation language | TypeScript today; native engine optional later |
 | **Durable SoT** | **Markdown entities in each project** (Git-backed) — decision 0011 |

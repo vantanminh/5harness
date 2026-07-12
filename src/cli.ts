@@ -259,7 +259,7 @@ async function main(argv: string[] = process.argv): Promise<void> {
   program
     .command("update")
     .description(
-      "Update @vantanminh/harness globally using the detected package manager",
+      "Update 5harness globally using the detected package manager",
     )
     .action(() => {
       withErrors(() => executeUpdate());

@@ -69,17 +69,17 @@ describe("buildReleaseNotes", () => {
   it("includes package header, install, and supply-chain links", () => {
     const notes = buildReleaseNotes({
       version: "0.12.1",
-      packageName: "@vantanminh/harness",
+      packageName: "5harness",
       repoUrl: "https://github.com/vantanminh/harness",
       changelogText: `# Changelog\n\n## [Unreleased]\n\n### Added\n\n- Feature X\n`,
     });
-    expect(notes).toContain("@vantanminh/harness v0.12.1");
+    expect(notes).toContain("5harness v0.12.1");
     expect(notes).toContain("Feature X");
-    expect(notes).toContain("npm i -g @vantanminh/harness@0.12.1");
+    expect(notes).toContain("npm i -g 5harness@0.12.1");
     expect(notes).toContain("trusted publishing");
     expect(notes).toContain("provenance");
     expect(notes).toContain(
-      "https://www.npmjs.com/package/@vantanminh/harness/v/0.12.1",
+      "https://www.npmjs.com/package/5harness/v/0.12.1",
     );
   });
 
@@ -95,7 +95,7 @@ describe("buildReleaseNotes", () => {
   it("appends export-changelog assist section when provided (US-038)", () => {
     const notes = buildReleaseNotes({
       version: "0.12.2",
-      packageName: "@vantanminh/harness",
+      packageName: "5harness",
       changelogText: `# Changelog\n\n## [0.12.2] - 2026-07-12\n\n### Added\n\n- Human note\n`,
       exportEntries: [
         { id: "US-038", title: "CHANGELOG discipline", type: "story" },
@@ -124,7 +124,7 @@ describe("scripts/release-notes.mjs CLI", () => {
     expect(result.status, result.stdout + result.stderr).toBe(0);
     expect(fs.existsSync(out)).toBe(true);
     const notes = fs.readFileSync(out, "utf8");
-    expect(notes).toContain("@vantanminh/harness v0.12.1");
+    expect(notes).toContain("5harness v0.12.1");
     expect(notes).toContain("npm i -g");
   });
 });
