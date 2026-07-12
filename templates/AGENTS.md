@@ -1,7 +1,7 @@
 # Agent Instructions
 
 <!-- HARNESS:BEGIN -->
-<!-- harness-version: 0.12.0 -->
+<!-- harness-version: 0.12.1 -->
 ## Harness
 
 This repo uses **Harness** (`@vantanminh/harness`, bin `harness`).
@@ -43,6 +43,28 @@ harness query matrix
 
 All mutation commands auto-reindex after writing. You do NOT need to call
 `harness reindex` manually after mutations.
+
+### HARD STOP — harness failure contract (decision 0017)
+
+If the harness **CLI** or **MCP** fails, is missing, or returns a non-zero /
+error result for a step you need:
+
+1. **HARD STOP** that durable-write path. Do **not** continue as if it succeeded.
+2. **Never** fall back to hand-editing story / decision / intake / backlog
+   markdown to “fix” or bypass the failure.
+3. **Recover**, then retry the harness command:
+
+| Order | Command | Why |
+| --- | --- | --- |
+| 1 | `harness --version` | Confirm install / PATH |
+| 2 | `harness doctor` or `harness doctor --json` | Workspace health |
+| 3 | `harness link` | Register clone / registry pointer |
+| 4 | `harness reindex` | Rebuild derived index from markdown |
+| 5 | `harness status` / `harness next` | Confirm the project is usable |
+
+**Exit codes:** `0` = success; `1` = usage / validation / operational error
+(**stop**, fix, retry); `2` = reserved — treat as non-success unless that
+command’s docs say otherwise. Non-zero exit is never success.
 
 ### Read with tools (prefer over dumping large trees)
 
