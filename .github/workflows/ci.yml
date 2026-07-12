@@ -8,6 +8,13 @@
 # Auto-release flow (push to main only):
 #   1. build-test matrix: ubuntu/windows/macos × Node 22.x/24.x (US-035)
 #   2. auto-release (ubuntu + Node 24 only): bump → commit + tag → npm publish
+#      with OIDC trusted publishing + provenance (US-036 / decision 0018)
+#
+# npm Trusted Publisher (npmjs.com → package Settings → Trusted Publisher):
+#   - GitHub: vantanminh / harness
+#   - Workflow filename: ci.yml  (primary auto-release path)
+#   - Requires npm CLI ≥ 11.5.1 and id-token: write
+# NPM_TOKEN is optional fallback only (transition / emergency local-style publish).
 #
 # Flake policy: fail-fast is false so all cells report; do not add blind
 # retries — fix or quarantine flakes with a tracked story (decision 0018).
@@ -80,19 +87,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: write
+      id-token: write # OIDC for npm trusted publishing + provenance (US-036)
     steps:
-      - name: Require NPM_TOKEN secret
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [ -z "${NPM_TOKEN:-}" ]; then
-            echo "::error title=Missing NPM_TOKEN::Add repo secret NPM_TOKEN (npm Automation or granular publish token)."
-            echo "GitHub → Settings → Secrets and variables → Actions → New repository secret → Name: NPM_TOKEN"
-            exit 1
-          fi
-          echo "NPM_TOKEN is present (value not printed)."
-
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -102,9 +98,14 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "24.x"
-          cache: npm
           registry-url: https://registry.npmjs.org
           scope: "@vantanminh"
+          # Never cache package-manager state for release/publish (npm trusted publishing guidance).
+          package-manager-cache: false
+
+      # Trusted publishing needs npm ≥ 11.5.1 (OIDC exchange).
+      - name: Ensure npm CLI supports OIDC (≥ 11.5.1)
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: npm ci
@@ -176,7 +177,9 @@ jobs:
           git push origin "$TAG"
           echo "Pushed commit + tag $TAG"
 
-      - name: Publish to npm
-        run: npm publish --access public
+      # OIDC is preferred (id-token: write). NODE_AUTH_TOKEN is optional fallback
+      # if trusted publisher is not yet configured on npmjs.com.
+      - name: Publish to npm (OIDC + provenance)
+        run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

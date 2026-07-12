@@ -7,9 +7,16 @@
 #      inline instead).
 #   2. workflow_dispatch — bump version (patch|minor|major), commit, tag, publish
 #
-# Prerequisites (repo Settings → Secrets and variables → Actions):
-#   NPM_TOKEN — Automation or granular access token with publish rights
-#               for @vantanminh/harness (and package create if first publish).
+# Authentication (US-036 / decision 0018):
+#   Preferred: npm Trusted Publishing (OIDC) + automatic provenance.
+#   Configure on npmjs.com → package Settings → Trusted Publisher:
+#     - Organization/user: vantanminh
+#     - Repository: harness
+#     - Workflow filename: release.yml  (when using this workflow)
+#   Note: npm allows one trusted publisher workflow per package. Primary
+#   auto-release uses ci.yml; for manual/tag publishes via this file, either
+#   switch the trusted publisher to release.yml or set optional NPM_TOKEN.
+#   Requires npm CLI ≥ 11.5.1 and job permission id-token: write.
 #
 # Tag convention: vX.Y.Z must match package.json version (e.g. v0.9.11).
 #
@@ -39,6 +46,7 @@ concurrency:
 
 permissions:
   contents: write
+  id-token: write # OIDC for npm trusted publishing + provenance (US-036)
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -52,17 +60,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Require NPM_TOKEN secret
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [ -z "${NPM_TOKEN:-}" ]; then
-            echo "::error title=Missing NPM_TOKEN::Add repo secret NPM_TOKEN, then re-run."
-            exit 1
-          fi
-          echo "NPM_TOKEN is present (value not printed)."
-
       - name: Checkout
         uses: actions/checkout@v6
         with:
@@ -73,9 +70,12 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "24.x"
-          cache: npm
           registry-url: https://registry.npmjs.org
           scope: "@vantanminh"
+          package-manager-cache: false
+
+      - name: Ensure npm CLI supports OIDC (≥ 11.5.1)
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: npm ci
@@ -107,8 +107,8 @@ jobs:
           git push origin "$TAG"
           echo "Pushed commit + tag $TAG"
 
-      - name: Publish to npm
-        run: npm publish --access public
+      - name: Publish to npm (OIDC + provenance)
+        run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -119,20 +119,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Require NPM_TOKEN secret
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [ -z "${NPM_TOKEN:-}" ]; then
-            echo "::error title=Missing NPM_TOKEN::Add repo secret NPM_TOKEN (npm Automation or granular publish token), then re-run this workflow or push the tag again."
-            echo "GitHub → Settings → Secrets and variables → Actions → New repository secret"
-            echo "Name: NPM_TOKEN"
-            echo "Or publish locally: npm publish --access public"
-            exit 1
-          fi
-          echo "NPM_TOKEN is present (value not printed)."
-
       - name: Checkout
         uses: actions/checkout@v6
 
@@ -140,9 +126,12 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "24.x"
-          cache: npm
           registry-url: https://registry.npmjs.org
           scope: "@vantanminh"
+          package-manager-cache: false
+
+      - name: Ensure npm CLI supports OIDC (≥ 11.5.1)
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: npm ci
@@ -151,6 +140,7 @@ jobs:
         run: npm run release:check
 
       - name: Verify tag matches package version
+        id: version
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME#v}"
@@ -159,9 +149,10 @@ jobs:
             echo "Tag version ($TAG) does not match package.json ($PKG)"
             exit 1
           fi
+          echo "version=$PKG" >> "$GITHUB_OUTPUT"
           echo "Publishing @vantanminh/harness@$PKG"
 
-      - name: Publish
-        run: npm publish --access public
+      - name: Publish to npm (OIDC + provenance)
+        run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
