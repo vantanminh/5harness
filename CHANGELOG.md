@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Index integrity (US-034): atomic `index.json` writes, SHA-256 checksum +
   schema version, project mutation lock, doctor `index-integrity` (corrupt /
   missing entities / broken links).
+- CI multi-OS matrix (US-035): `ubuntu-latest`, `windows-latest`, `macos-latest`
+  × Node `22.x` / `24.x` for full `release:check` (decision 0018).
 - `harness mcp` — Start MCP (Model Context Protocol) server over stdio.
   Exposes 8 tools: `harness_get`, `harness_search`, `harness_links`,
   `harness_context`, `harness_status`, `harness_query_matrix`,

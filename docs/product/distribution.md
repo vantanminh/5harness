@@ -42,7 +42,7 @@ The npm tarball **must** include:
 ### Default (automatic)
 
 1. Merge / push to `main` (do **not** hand-bump the version).
-2. CI runs `release:check` on Node 22 + 24.
+2. CI runs `release:check` on **ubuntu / windows / macos × Node 22.x + 24.x**.
 3. On success, **Auto-release**:
    - Detects bump kind from commits since last `v*` tag
      (`feat:` → minor, `BREAKING CHANGE` / `type!:` → major, else patch).
@@ -76,7 +76,7 @@ npm run bump -- 1.0.0
 
 | Workflow | Trigger | What it does |
 | --- | --- | --- |
-| [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) | push/PR → `main` | `release:check` on **Node 22.x + 24.x**; on push to `main`, auto-bump + tag + **npm publish** |
+| [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) | push/PR → `main` | `release:check` on **ubuntu + windows + macos × Node 22.x + 24.x** (US-035); on push to `main`, auto-bump + tag + **npm publish** (ubuntu/24 only) |
 | [`.github/workflows/release.yml`](../../.github/workflows/release.yml) | tag `v*` **or** workflow_dispatch | Manual bump+publish, or publish when a human/PAT pushes a version tag |
 
 Actions are pinned to Node-24-ready major versions (`actions/checkout@v6`,
