@@ -10,11 +10,15 @@
 #   2. auto-release (ubuntu + Node 24 only): bump → commit + tag → npm publish
 #      with OIDC trusted publishing + provenance (US-036 / decision 0018)
 #
-# npm Trusted Publisher (npmjs.com → package Settings → Trusted Publisher):
-#   - GitHub: vantanminh / harness
+# npm Trusted Publisher (npmjs.com → package 5harness → Settings → Trusted Publisher):
+#   - Provider: GitHub Actions
+#   - Organization/user: vantanminh
+#   - Repository: harness
 #   - Workflow filename: ci.yml  (primary auto-release path)
 #   - Requires npm CLI ≥ 11.5.1 and id-token: write
-# NPM_TOKEN is optional fallback only (transition / emergency local-style publish).
+# Provenance is CI-only (`npm publish --provenance`). Do not set
+# publishConfig.provenance (local publish fails with provider: null).
+# NPM_TOKEN is optional fallback only (emergency; no OIDC provenance).
 #
 # Flake policy: fail-fast is false so all cells report; do not add blind
 # retries — fix or quarantine flakes with a tracked story (decision 0018).
@@ -221,13 +225,26 @@ jobs:
             --message "chore(release): ${VERSION}"
           echo "Pushed release $TAG"
 
-      # OIDC is preferred (id-token: write). NODE_AUTH_TOKEN is optional fallback
-      # if trusted publisher is not yet configured on npmjs.com.
+      # OIDC trusted publishing + provenance (id-token: write).
+      # If version already exists on npm (e.g. one-time local first publish), skip
+      # put and continue to GitHub Release — do not fail the whole release job.
       - name: Publish to npm (OIDC + provenance)
+        id: npm_publish
         if: steps.plan.outputs.skip != 'true'
-        run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          NAME="$(node -p "require('./package.json').name")"
+          VER="$(node -p "require('./package.json').version")"
+          if npm view "${NAME}@${VER}" version >/dev/null 2>&1; then
+            echo "npm already has ${NAME}@${VER} — skip publish (use next bump for CI provenance)"
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # GitHub Actions OIDC → provenance attestation (not available on laptops).
+          npm publish --access public --provenance
+          echo "published=true" >> "$GITHUB_OUTPUT"
 
       - name: Build release notes
         if: steps.plan.outputs.skip != 'true'

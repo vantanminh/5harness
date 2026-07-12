@@ -87,15 +87,19 @@ Do **not** `git push --force` to `main`.
 | **`NPM_TOKEN` secret** | **Optional fallback** only (transition / emergency); not required when OIDC is configured |
 
 **One-time setup on [npmjs.com](https://www.npmjs.com)** for package
-`5harness` → Settings → Trusted Publisher:
+**`5harness`** → Settings → **Trusted Publisher** (required for green
+provenance on CI; after the package exists from a first publish):
 
 | Field | Value |
 | --- | --- |
 | Provider | GitHub Actions |
 | Organization or user | `vantanminh` |
 | Repository | `harness` |
-| Workflow filename | `ci.yml` (primary auto-release) **or** `release.yml` (manual/tag path) |
+| Workflow filename | **`ci.yml`** (primary auto-release) |
 | Environment name | leave empty unless you use GitHub Environments |
+
+Day-to-day: push to `main` (or `npm run push`) — do **not** `npm publish`
+from a laptop for production releases. CI uses `npm publish --provenance`.
 
 Notes:
 

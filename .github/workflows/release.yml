@@ -108,9 +108,17 @@ jobs:
           echo "Pushed commit + tag $TAG"
 
       - name: Publish to npm (OIDC + provenance)
-        run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          NAME="$(node -p "require('./package.json').name")"
+          VER="$(node -p "require('./package.json').version")"
+          if npm view "${NAME}@${VER}" version >/dev/null 2>&1; then
+            echo "npm already has ${NAME}@${VER} — skip publish"
+            exit 0
+          fi
+          npm publish --access public --provenance
 
       - name: Build release notes
         run: |
@@ -131,11 +139,16 @@ jobs:
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
           TAG="v${VERSION}"
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --notes-file release-notes.md \
-            --verify-tag \
-            sbom.spdx.json
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file release-notes.md
+            gh release upload "$TAG" sbom.spdx.json --clobber
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --notes-file release-notes.md \
+              --verify-tag \
+              sbom.spdx.json
+          fi
 
   # Tag-triggered publish (manual git tag from a developer machine / PAT).
   publish:
@@ -177,9 +190,17 @@ jobs:
           echo "Publishing 5harness@$PKG"
 
       - name: Publish to npm (OIDC + provenance)
-        run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          NAME="$(node -p "require('./package.json').name")"
+          VER="$(node -p "require('./package.json').version")"
+          if npm view "${NAME}@${VER}" version >/dev/null 2>&1; then
+            echo "npm already has ${NAME}@${VER} — skip publish"
+            exit 0
+          fi
+          npm publish --access public --provenance
 
       - name: Build release notes
         run: |
