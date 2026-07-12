@@ -13,7 +13,7 @@
 # npm Trusted Publisher (npmjs.com → package 5harness → Settings → Trusted Publisher):
 #   - Provider: GitHub Actions
 #   - Organization/user: vantanminh
-#   - Repository: harness
+#   - Repository: 5harness
 #   - Workflow filename: ci.yml  (primary auto-release path)
 #   - Requires npm CLI ≥ 11.5.1 and id-token: write
 # Provenance is CI-only (`npm publish --provenance`). Do not set

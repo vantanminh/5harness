@@ -162,7 +162,7 @@ npm audit signatures
 - Confirm the package name matches **`5harness`** (or the published
   successor name after any rename story).
 - Prefer versions that show **provenance** attestations built from
-  `github.com/vantanminh/harness`.
+  `github.com/vantanminh/5harness`.
 - GitHub Release assets may include `sbom.spdx.json` for the release tag.
 
 Full release procedure: [docs/product/distribution.md](product/distribution.md).

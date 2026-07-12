@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- GitHub repository renamed **`vantanminh/harness` → `vantanminh/5harness`**.
+  Update clone URLs, npm Trusted Publisher repo field, and package.json
+  `repository` / badges / release notes links.
+
 ## [0.12.2] - 2026-07-12
 
 ### Added
@@ -196,7 +202,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Package identity: npm `@vantanminh/harness`, repo
-  [github.com/vantanminh/harness](https://github.com/vantanminh/harness).
+  [github.com/vantanminh/5harness](https://github.com/vantanminh/5harness).
   Scoped publish uses `publishConfig.access: public`. Bin remains `harness`.
 - Docs and agent guidance describe this product as standalone; removed bootstrap
   binary paths and third-party layout coupling. README keeps a brief credit.
@@ -318,19 +324,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `harness init` Phase A payload + SQLite migrate via `node:sqlite`.
 - `harness migrate`, templates manifest, vitest suite.
 
-[Unreleased]: https://github.com/vantanminh/harness/compare/v0.12.0...HEAD
-[0.12.0]: https://github.com/vantanminh/harness/compare/v0.11.1...v0.12.0
-[0.11.1]: https://github.com/vantanminh/harness/compare/v0.11.0...v0.11.1
-[0.11.0]: https://github.com/vantanminh/harness/compare/v0.10.2...v0.11.0
-[0.10.2]: https://github.com/vantanminh/harness/compare/v0.10.1...v0.10.2
-[0.10.1]: https://github.com/vantanminh/harness/compare/v0.10.0...v0.10.1
-[0.10.0]: https://github.com/vantanminh/harness/compare/v0.9.7...v0.10.0
-[0.9.7]: https://github.com/vantanminh/harness/compare/v0.9.6...v0.9.7
-[0.9.6]: https://github.com/vantanminh/harness/compare/v0.9.5...v0.9.6
-[0.9.5]: https://github.com/vantanminh/harness/compare/v0.9.4...v0.9.5
-[0.9.4]: https://github.com/vantanminh/harness/compare/v0.9.3...v0.9.4
-[0.5.0]: https://github.com/vantanminh/harness/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/vantanminh/harness/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/vantanminh/harness/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/vantanminh/harness/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/vantanminh/harness/releases/tag/v0.1.0
+[Unreleased]: https://github.com/vantanminh/5harness/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/vantanminh/5harness/compare/v0.11.1...v0.12.0
+[0.11.1]: https://github.com/vantanminh/5harness/compare/v0.11.0...v0.11.1
+[0.11.0]: https://github.com/vantanminh/5harness/compare/v0.10.2...v0.11.0
+[0.10.2]: https://github.com/vantanminh/5harness/compare/v0.10.1...v0.10.2
+[0.10.1]: https://github.com/vantanminh/5harness/compare/v0.10.0...v0.10.1
+[0.10.0]: https://github.com/vantanminh/5harness/compare/v0.9.7...v0.10.0
+[0.9.7]: https://github.com/vantanminh/5harness/compare/v0.9.6...v0.9.7
+[0.9.6]: https://github.com/vantanminh/5harness/compare/v0.9.5...v0.9.6
+[0.9.5]: https://github.com/vantanminh/5harness/compare/v0.9.4...v0.9.5
+[0.9.4]: https://github.com/vantanminh/5harness/compare/v0.9.3...v0.9.4
+[0.5.0]: https://github.com/vantanminh/5harness/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/vantanminh/5harness/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/vantanminh/5harness/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/vantanminh/5harness/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/vantanminh/5harness/releases/tag/v0.1.0

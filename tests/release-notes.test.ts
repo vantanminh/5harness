@@ -70,7 +70,7 @@ describe("buildReleaseNotes", () => {
     const notes = buildReleaseNotes({
       version: "0.12.1",
       packageName: "5harness",
-      repoUrl: "https://github.com/vantanminh/harness",
+      repoUrl: "https://github.com/vantanminh/5harness",
       changelogText: `# Changelog\n\n## [Unreleased]\n\n### Added\n\n- Feature X\n`,
     });
     expect(notes).toContain("5harness v0.12.1");

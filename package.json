@@ -46,12 +46,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vantanminh/harness.git"
+    "url": "git+https://github.com/vantanminh/5harness.git"
   },
   "bugs": {
-    "url": "https://github.com/vantanminh/harness/issues"
+    "url": "https://github.com/vantanminh/5harness/issues"
   },
-  "homepage": "https://github.com/vantanminh/harness#readme",
+  "homepage": "https://github.com/vantanminh/5harness#readme",
   "author": "vantanminh",
   "dependencies": {
     "commander": "^14.0.0"

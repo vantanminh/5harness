@@ -374,7 +374,7 @@ const CSS = `
 
 function renderFooter(): string {
   return `<div class="footer">
-  <p>Harness v${htmlEscape(VERSION)} &mdash; <a href="https://github.com/vantanminh/harness">github.com/vantanminh/harness</a></p>
+  <p>Harness v${htmlEscape(VERSION)} &mdash; <a href="https://github.com/vantanminh/5harness">github.com/vantanminh/5harness</a></p>
 </div>`;
 }
 

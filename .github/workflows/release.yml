@@ -11,7 +11,7 @@
 #   Preferred: npm Trusted Publishing (OIDC) + automatic provenance.
 #   Configure on npmjs.com → package Settings → Trusted Publisher:
 #     - Organization/user: vantanminh
-#     - Repository: harness
+#     - Repository: 5harness
 #     - Workflow filename: release.yml  (when using this workflow)
 #   Note: npm allows one trusted publisher workflow per package. Primary
 #   auto-release uses ci.yml; for manual/tag publishes via this file, either

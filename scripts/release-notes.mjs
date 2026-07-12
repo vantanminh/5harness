@@ -84,7 +84,7 @@ function buildReleaseNotes(opts) {
   const version = opts.version;
   const packageName = opts.packageName ?? "5harness";
   const repoUrl =
-    opts.repoUrl ?? "https://github.com/vantanminh/harness";
+    opts.repoUrl ?? "https://github.com/vantanminh/5harness";
 
   let section = null;
   if (opts.changelogText) {
@@ -223,7 +223,7 @@ async function main() {
   const notes = impl.buildReleaseNotes({
     version,
     packageName: pkg.name,
-    repoUrl: "https://github.com/vantanminh/harness",
+    repoUrl: "https://github.com/vantanminh/5harness",
     changelogText,
     exportEntries,
   });

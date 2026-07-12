@@ -10,7 +10,8 @@
 | CLI bin | `harness` | **`harness`** (unchanged) |
 | Install | `npm i -g @vantanminh/harness` | `npm i -g 5harness` |
 
-GitHub repository remains [vantanminh/harness](https://github.com/vantanminh/harness).
+GitHub repository: [vantanminh/5harness](https://github.com/vantanminh/5harness)
+(renamed from `vantanminh/harness`).
 
 ## Why
 
@@ -47,7 +48,7 @@ command surface — only the **npm package name**.
    release), run:
 
    ```bash
-   npm deprecate @vantanminh/harness@ "*" "Package renamed to 5harness. Install: npm i -g 5harness (bin: harness). See https://github.com/vantanminh/harness/blob/main/docs/DEPRECATION.md"
+   npm deprecate @vantanminh/harness@ "*" "Package renamed to 5harness. Install: npm i -g 5harness (bin: harness). See https://github.com/vantanminh/5harness/blob/main/docs/DEPRECATION.md"
    ```
 
 4. README / install docs point only at `5harness`.

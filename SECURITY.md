@@ -2,7 +2,7 @@
 
 This document is the **public security policy** for
 [`5harness`](https://www.npmjs.com/package/5harness)
-([source](https://github.com/vantanminh/harness)).
+([source](https://github.com/vantanminh/5harness)).
 
 Operational trust model (verify commands, MCP, registry, secrets, provenance):
 see **[docs/SECURITY.md](docs/SECURITY.md)**.
@@ -24,7 +24,7 @@ Use a current Node.js LTS/current line that satisfies `engines` (`>=22.5.0`).
 Prefer one of:
 
 1. **GitHub Security Advisories** (private):  
-   [Report a vulnerability](https://github.com/vantanminh/harness/security/advisories/new)
+   [Report a vulnerability](https://github.com/vantanminh/5harness/security/advisories/new)
    on this repository (if enabled for the org/user).
 2. **Maintainer contact** via the GitHub profile linked from the repository
    owner (`vantanminh`), with subject prefix `[SECURITY] harness`.

@@ -6,7 +6,7 @@
 | --- | --- |
 | npm name | `5harness` |
 | bin | `harness` → `dist/cli.js` |
-| GitHub | [vantanminh/harness](https://github.com/vantanminh/harness) |
+| GitHub | [vantanminh/5harness](https://github.com/vantanminh/5harness) |
 | **Preferred install** | `npm i -g 5harness` |
 | Alternate install | `npm i -D 5harness` + `npx harness …` |
 | Node | `>=22.5.0` |
@@ -94,7 +94,7 @@ provenance on CI; after the package exists from a first publish):
 | --- | --- |
 | Provider | GitHub Actions |
 | Organization or user | `vantanminh` |
-| Repository | `harness` |
+| Repository | `5harness` |
 | Workflow filename | **`ci.yml`** (primary auto-release) |
 | Environment name | leave empty unless you use GitHub Environments |
 
