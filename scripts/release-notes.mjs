@@ -5,16 +5,18 @@
  * Usage:
  *   node scripts/release-notes.mjs [version] [--out path]
  *
- * Resolution order:
- *   1. ## [X.Y.Z] section (exact version)
- *   2. ## [Unreleased] section (pre-CHANGELOG-discipline releases)
- *   3. Fallback body with npm/GitHub links
+ * Prefers compiled dist/ when present (after release:check / build);
+ * otherwise loads the TypeScript source via dynamic import of the pure
+ * helpers inlined below (keep in sync with src/application/release-notes.ts).
  *
- * Writes markdown to stdout, or to --out when provided.
+ * Resolution order for CHANGELOG body:
+ *   1. ## [X.Y.Z] section (exact version)
+ *   2. ## [Unreleased] section
+ *   3. Fallback body with npm/GitHub links
  */
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
@@ -24,9 +26,8 @@ const root = path.resolve(__dirname, "..");
  * @param {string} version
  * @returns {string | null}
  */
-export function extractChangelogSection(changelog, version) {
+function extractChangelogSection(changelog, version) {
   const text = changelog.replace(/\r\n/g, "\n");
-  // Match ## [1.2.3], ## [1.2.3] - 2026-01-01, or ## [Unreleased]
   const headingRe = /^##\s+\[([^\]]+)\][^\n]*/gm;
   /** @type {{ key: string; start: number; bodyStart: number }[]} */
   const heads = [];
@@ -57,27 +58,21 @@ export function extractChangelogSection(changelog, version) {
 }
 
 /**
- * @param {{ version: string; packageName?: string; repoUrl?: string; changelogPath?: string }} opts
+ * @param {{ version: string; packageName?: string; repoUrl?: string; changelogText?: string | null }} opts
  * @returns {string}
  */
-export function buildReleaseNotes(opts) {
+function buildReleaseNotes(opts) {
   const version = opts.version;
   const packageName = opts.packageName ?? "@vantanminh/harness";
   const repoUrl =
     opts.repoUrl ?? "https://github.com/vantanminh/harness";
-  const changelogPath =
-    opts.changelogPath ?? path.join(root, "CHANGELOG.md");
 
   let section = null;
-  if (fs.existsSync(changelogPath)) {
-    const raw = fs.readFileSync(changelogPath, "utf8");
-    section = extractChangelogSection(raw, version);
+  if (opts.changelogText) {
+    section = extractChangelogSection(opts.changelogText, version);
   }
 
-  const lines = [
-    `## ${packageName} v${version}`,
-    "",
-  ];
+  const lines = [`## ${packageName} v${version}`, ""];
 
   if (section) {
     lines.push(section, "");
@@ -108,6 +103,18 @@ export function buildReleaseNotes(opts) {
   return lines.join("\n");
 }
 
+/**
+ * Prefer dist/application/release-notes.js when built; else local helpers.
+ * @returns {Promise<{ extractChangelogSection: typeof extractChangelogSection; buildReleaseNotes: typeof buildReleaseNotes }>}
+ */
+async function loadImpl() {
+  const distPath = path.join(root, "dist", "application", "release-notes.js");
+  if (fs.existsSync(distPath)) {
+    return import(pathToFileURL(distPath).href);
+  }
+  return { extractChangelogSection, buildReleaseNotes };
+}
+
 function parseArgs(argv) {
   let version = null;
   let out = null;
@@ -132,16 +139,24 @@ function parseArgs(argv) {
   return { version, out };
 }
 
-function main() {
+async function main() {
   const { version, out } = parseArgs(process.argv.slice(2));
   const pkg = JSON.parse(
     fs.readFileSync(path.join(root, "package.json"), "utf8"),
   );
-  const notes = buildReleaseNotes({
+  const changelogPath = path.join(root, "CHANGELOG.md");
+  const changelogText = fs.existsSync(changelogPath)
+    ? fs.readFileSync(changelogPath, "utf8")
+    : null;
+
+  const impl = await loadImpl();
+  const notes = impl.buildReleaseNotes({
     version,
     packageName: pkg.name,
     repoUrl: "https://github.com/vantanminh/harness",
+    changelogText,
   });
+
   if (out) {
     fs.writeFileSync(out, notes, "utf8");
     console.error(`Wrote release notes → ${out}`);
@@ -155,5 +170,10 @@ const isMain =
   path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isMain) {
-  main();
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
 }
+
+export { extractChangelogSection, buildReleaseNotes };
