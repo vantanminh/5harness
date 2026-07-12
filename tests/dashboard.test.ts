@@ -232,6 +232,6 @@ describe("dashboard (US-014)", () => {
     });
     expect(html.status).toBe(200);
     expect(html.body).toMatch(/Harness v\d+\.\d+\.\d+/);
-    expect(html.body).toMatch(/github.com\/vantanminh\/harness/);
+    expect(html.body).toMatch(/github.com\/vantanminh\/5harness/);
   });
 });
