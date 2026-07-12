@@ -62,7 +62,7 @@ export function resolveGlobalLogDir(
 }
 
 /**
- * Project-local log directory: `<project>/.5harness/logs` (or legacy `.harness/logs`).
+ * Project-local log directory: `<project>/.5harness/logs`.
  */
 export function resolveProjectLogDir(projectRoot: string): string {
   return projectLogsDir(projectRoot);

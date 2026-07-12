@@ -1,6 +1,6 @@
 /**
  * MCP Monitor — local JSONL storage for MCP call records.
- * File: `.5harness/local/mcp-calls.jsonl` (or legacy `.harness/local/`)
+ * File: `.5harness/local/mcp-calls.jsonl`
  * Pattern follows local-traces.ts (same JSONL approach).
  */
 import fs from "node:fs";

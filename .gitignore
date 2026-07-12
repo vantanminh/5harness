@@ -1,4 +1,4 @@
-# Local SQLite (legacy / import only; not operational SoT)
+# Optional SQLite (import only; not operational SoT)
 harness.db
 harness.db-wal
 harness.db-shm
@@ -13,16 +13,11 @@ dist/
 coverage/
 *.tgz
 .5harness-backup/
-.harness-backup/
 
 # Derived 5harness runtime (index, local traces)
 .5harness/*
 !.5harness/changesets/
 !.5harness/changesets/*.changeset.jsonl
-# Legacy project state dir (pre-rename)
-.harness/*
-!.harness/changesets/
-!.harness/changesets/*.changeset.jsonl
 
 # Runtime logs
 *.log

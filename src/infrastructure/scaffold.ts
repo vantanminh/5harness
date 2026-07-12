@@ -7,9 +7,8 @@ import {
 } from "../domain/conflicts.js";
 import { ENTITY_DIRS } from "../domain/entities.js";
 import {
-  LEGACY_DB_BASENAME,
-  LEGACY_PROJECT_STATE_DIRNAME,
   PROJECT_STATE_DIRNAME,
+  SQLITE_DB_BASENAME,
   projectBackupRoot,
   resolveDbPath,
   resolveTargetDir,
@@ -26,13 +25,10 @@ export const GITIGNORE_RULES = [
   "# 5harness local / derived (not SoT)",
   `${PROJECT_STATE_DIRNAME}/index/`,
   `${PROJECT_STATE_DIRNAME}/local/`,
-  // Keep ignoring legacy paths so upgraded clones stay clean
-  `${LEGACY_PROJECT_STATE_DIRNAME}/index/`,
-  `${LEGACY_PROJECT_STATE_DIRNAME}/local/`,
-  "# Legacy project SQLite (if present)",
-  LEGACY_DB_BASENAME,
-  `${LEGACY_DB_BASENAME}-wal`,
-  `${LEGACY_DB_BASENAME}-shm`,
+  "# Optional SQLite import residue (not SoT)",
+  SQLITE_DB_BASENAME,
+  `${SQLITE_DB_BASENAME}-wal`,
+  `${SQLITE_DB_BASENAME}-shm`,
 ] as const;
 
 export type InitOptions = {

@@ -38,9 +38,9 @@ npx harness --help
 ```
 
 Project markdown entities and CLI command surface (`harness …`) are unchanged.
-Machine/project paths use the **5harness** identity (`~/.5harness`,
-`.5harness/`); legacy `~/.harness` / `.harness/` are still honored when the
-modern path is missing.
+Machine/project paths use **only** the **5harness** identity (`~/.5harness`,
+`.5harness/`). Old `~/.harness` / `.harness/` directories are ignored — delete them
+if still present on disk.
 
 ## Deprecation path (maintainers)
 

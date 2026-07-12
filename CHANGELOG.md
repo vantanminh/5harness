@@ -14,11 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub repository renamed **`vantanminh/harness` → `vantanminh/5harness`**.
   Update clone URLs, npm Trusted Publisher repo field, and package.json
   `repository` / badges / release notes links.
-- **Storage paths** renamed to the `5harness` identity:
-  - Global home: **`~/.5harness`** (was `~/.harness`; still used if present and
-    modern dir is missing). Override remains `HARNESS_HOME`.
-  - Project derived state: **`.5harness/`** (index, local traces, locks, logs);
-    legacy `.harness/` still read when only that exists.
+- **Storage paths** are **only** the `5harness` identity (no `.harness` fallback):
+  - Global home: **`~/.5harness`** (`HARNESS_HOME` override still works).
+  - Project derived state: **`.5harness/`** (index, local traces, locks, logs).
   - Backups: **`.5harness-backup/`**; log file **`5harness.log`**.
 - Package bins: **`harness`** and **`5harness`** both point at `dist/cli.js`.
 

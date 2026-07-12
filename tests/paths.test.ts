@@ -56,16 +56,9 @@ describe("resolveHarnessHome", () => {
     );
   });
 
-  it("falls back to legacy ~/.harness when modern is missing", () => {
+  it("always uses ~/.5harness (no legacy .harness)", () => {
     const home = tempDir();
     fs.mkdirSync(path.join(home, ".harness"));
-    expect(resolveHarnessHome({}, () => home)).toBe(path.join(home, ".harness"));
-  });
-
-  it("prefers modern ~/.5harness over legacy", () => {
-    const home = tempDir();
-    fs.mkdirSync(path.join(home, ".harness"));
-    fs.mkdirSync(path.join(home, ".5harness"));
     expect(resolveHarnessHome({}, () => home)).toBe(path.join(home, ".5harness"));
   });
 
@@ -75,15 +68,10 @@ describe("resolveHarnessHome", () => {
 });
 
 describe("resolveProjectStateRoot", () => {
-  it("defaults to .5harness when neither exists", () => {
-    const root = tempDir();
-    expect(resolveProjectStateRoot(root)).toBe(path.join(root, ".5harness"));
-  });
-
-  it("falls back to legacy .harness", () => {
+  it("always uses .5harness", () => {
     const root = tempDir();
     fs.mkdirSync(path.join(root, ".harness"));
-    expect(resolveProjectStateRoot(root)).toBe(path.join(root, ".harness"));
+    expect(resolveProjectStateRoot(root)).toBe(path.join(root, ".5harness"));
   });
 });
 
