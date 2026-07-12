@@ -38,6 +38,17 @@ npm run bump -- 1.2.3 # exact
 CI auto-release and the Release workflow call this script; prefer not to bump
 by hand unless you are preparing a local publish.
 
+## release-notes
+
+`release-notes.mjs` builds GitHub Release body markdown from `CHANGELOG.md`
+(version section, else `[Unreleased]`, else a short fallback) plus install and
+supply-chain links. Used by CI after npm publish (US-036).
+
+```bash
+node scripts/release-notes.mjs              # current package.json version
+node scripts/release-notes.mjs 1.2.3 -o notes.md
+```
+
 ## Schema / migrations
 
 Operational durable state is **markdown** under each project. SQL under

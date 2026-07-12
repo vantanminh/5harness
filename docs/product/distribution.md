@@ -43,7 +43,7 @@ The npm tarball **must** include:
 
 1. Merge / push to `main` (do **not** hand-bump the version).
 2. CI runs `release:check` on **ubuntu / windows / macos × Node 22.x + 24.x**.
-3. On success, **Auto-release**:
+3. On success, **Auto-release** (ubuntu + Node 24 only):
    - Detects bump kind from commits since last `v*` tag
      (`feat:` → minor, `BREAKING CHANGE` / `type!:` → major, else patch).
    - Override with commit markers: `[release: major]`, `[release: minor]`,
@@ -51,17 +51,50 @@ The npm tarball **must** include:
    - Skip with `[skip release]` in the commit message.
    - Runs `npm run bump`, keeps `package.json`, `package-lock.json`,
      `src/version.ts`, and `<!-- harness-version -->` markers in sync.
-   - Commits `chore(release): X.Y.Z`, tags `vX.Y.Z`, publishes to npm.
+   - Commits `chore(release): X.Y.Z`, tags `vX.Y.Z`.
+   - **npm publish** via **OIDC trusted publishing** with **`--provenance`**
+     (green provenance check on npm when configured).
+   - Creates a **GitHub Release** with notes from `CHANGELOG.md` (via
+     `scripts/release-notes.mjs`) and attaches an **SPDX SBOM**
+     (`sbom.spdx.json` from `npm sbom`).
 
-Requires repo secret **`NPM_TOKEN`** (npm Automation / granular publish token
-for `@vantanminh/harness`).
+### Authentication (US-036 / decision 0018)
+
+| Method | Role |
+| --- | --- |
+| **npm Trusted Publisher (OIDC)** | **Preferred** for CI publishes — short-lived tokens, automatic provenance |
+| **`NPM_TOKEN` secret** | **Optional fallback** only (transition / emergency); not required when OIDC is configured |
+
+**One-time setup on [npmjs.com](https://www.npmjs.com)** for package
+`@vantanminh/harness` → Settings → Trusted Publisher:
+
+| Field | Value |
+| --- | --- |
+| Provider | GitHub Actions |
+| Organization or user | `vantanminh` |
+| Repository | `harness` |
+| Workflow filename | `ci.yml` (primary auto-release) **or** `release.yml` (manual/tag path) |
+| Environment name | leave empty unless you use GitHub Environments |
+
+Notes:
+
+- npm allows **one** trusted publisher workflow filename per package. Prefer
+  `ci.yml` for day-to-day auto-release; switch to `release.yml` only if you
+  primarily publish via the Release workflow, or keep optional `NPM_TOKEN` for
+  the non-primary path.
+- Requires **npm CLI ≥ 11.5.1** on the runner (workflows install `npm@latest`)
+  and job permission **`id-token: write`**.
+- After OIDC works, consider restricting token-based publish on npm
+  (Settings → Publishing access) and revoking long-lived automation tokens.
+- `package.json` `repository.url` must match the GitHub repo used for OIDC.
 
 ### Manual
 
 - **GitHub UI:** Actions → **Release** → Run workflow → choose patch/minor/major.
 - **Local tag (no auto-bump):** ensure version files already match, then
   `git tag vX.Y.Z && git push origin vX.Y.Z` (tag must equal `package.json`).
-- **Local publish fallback:** `npm run release:check && npm publish --access public`.
+- **Local publish fallback:** `npm run release:check && npm publish --access public`
+  (uses your interactive/npm login — not OIDC).
 
 ### Local version bump (optional)
 
@@ -72,16 +105,37 @@ npm run bump -- major
 npm run bump -- 1.0.0
 ```
 
+### Release notes helper
+
+```bash
+node scripts/release-notes.mjs            # package.json version → stdout
+node scripts/release-notes.mjs 1.2.3 -o release-notes.md
+```
+
 ## CI / CD
 
 | Workflow | Trigger | What it does |
 | --- | --- | --- |
-| [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) | push/PR → `main` | `release:check` on **ubuntu + windows + macos × Node 22.x + 24.x** (US-035); on push to `main`, auto-bump + tag + **npm publish** (ubuntu/24 only) |
-| [`.github/workflows/release.yml`](../../.github/workflows/release.yml) | tag `v*` **or** workflow_dispatch | Manual bump+publish, or publish when a human/PAT pushes a version tag |
+| [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) | push/PR → `main` | `release:check` on **ubuntu + windows + macos × Node 22.x + 24.x** (US-035); on push to `main`, auto-bump + tag + **OIDC npm publish --provenance** + **GitHub Release** + SBOM (US-036) |
+| [`.github/workflows/release.yml`](../../.github/workflows/release.yml) | tag `v*` **or** workflow_dispatch | Manual bump+publish, or publish when a human/PAT pushes a version tag — same OIDC/provenance/Release/SBOM path |
 
 Actions are pinned to Node-24-ready major versions (`actions/checkout@v6`,
 `actions/setup-node@v6`) and set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` per
 GitHub’s Node 20 → Node 24 Actions migration.
+
+Publish jobs set `permissions: contents: write` and `id-token: write`.
+
+## Consumer: verifying provenance
+
+After a trusted publish, the package page on npm shows a provenance attestation
+(“Built and signed on GitHub Actions”). Consumers can also use:
+
+```bash
+npm audit signatures
+# or inspect the package on https://www.npmjs.com/package/@vantanminh/harness
+```
+
+GitHub Releases for each `vX.Y.Z` include release notes and `sbom.spdx.json`.
 
 ## Native engine (future)
 

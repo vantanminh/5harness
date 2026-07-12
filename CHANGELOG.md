@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   missing entities / broken links).
 - CI multi-OS matrix (US-035): `ubuntu-latest`, `windows-latest`, `macos-latest`
   × Node `22.x` / `24.x` for full `release:check` (decision 0018).
+- Production releases (US-036): npm **trusted publishing (OIDC)** with
+  **`npm publish --provenance`**, optional `NPM_TOKEN` fallback, **GitHub
+  Releases** (notes via `scripts/release-notes.mjs` from CHANGELOG), and
+  **SPDX SBOM** asset (`npm sbom`) on each release (decision 0018).
 - `harness mcp` — Start MCP (Model Context Protocol) server over stdio.
   Exposes 8 tools: `harness_get`, `harness_search`, `harness_links`,
   `harness_context`, `harness_status`, `harness_query_matrix`,
@@ -34,12 +38,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - CI/CD auto-bumps semver on every push to `main` (after tests pass), commits
-  `chore(release): X.Y.Z`, tags, and publishes to npm. Bump kind is inferred
-  from commits since the last tag (`feat` → minor, breaking → major, else
-  patch); override with `[release: major|minor|patch]` or skip with
-  `[skip release]`. Manual release via Actions workflow_dispatch remains
-  available. Version sync now includes `templates/AGENTS.md` harness-version
-  marker (`scripts/bump-version.mjs`, `pack:check`).
+  `chore(release): X.Y.Z`, tags, and publishes to npm via OIDC + provenance
+  when trusted publisher is configured (US-036). Bump kind is inferred from
+  commits since the last tag (`feat` → minor, breaking → major, else patch);
+  override with `[release: major|minor|patch]` or skip with `[skip release]`.
+  Manual release via Actions workflow_dispatch remains available. Version sync
+  now includes `templates/AGENTS.md` harness-version marker
+  (`scripts/bump-version.mjs`, `pack:check`).
 
 ### Fixed
 
