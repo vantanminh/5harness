@@ -100,4 +100,11 @@ describe("harness doctor (US-018)", () => {
     expect(logs!.status).toBe("ok");
     expect(logs!.message).toMatch(/log file|Log file/i);
   });
+
+  it("reports index-integrity check (US-034)", () => {
+    const report = runDoctor(tmp());
+    const integ = report.checks.find((c) => c.name === "index-integrity");
+    expect(integ).toBeDefined();
+    expect(["ok", "warn", "fail"]).toContain(integ!.status);
+  });
 });

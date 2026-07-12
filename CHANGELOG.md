@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Structured errors and debug logging (US-033): `HARNESS_E_*` codes on CLI
   failures, `HARNESS_JSON_ERRORS`, `HARNESS_DEBUG` / `HARNESS_LOG_FILE`,
   secret redaction, doctor `logs` check.
+- Index integrity (US-034): atomic `index.json` writes, SHA-256 checksum +
+  schema version, project mutation lock, doctor `index-integrity` (corrupt /
+  missing entities / broken links).
 - `harness mcp` — Start MCP (Model Context Protocol) server over stdio.
   Exposes 8 tools: `harness_get`, `harness_search`, `harness_links`,
   `harness_context`, `harness_status`, `harness_query_matrix`,

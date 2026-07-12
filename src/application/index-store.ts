@@ -2,11 +2,19 @@ import fs from "node:fs";
 import path from "node:path";
 import { asString } from "../domain/frontmatter.js";
 import {
+  computeIndexChecksum,
+  INDEX_SCHEMA_VERSION,
+  validateIndexShape,
+  type IndexIntegrityIssue,
+} from "../domain/index-integrity.js";
+import {
   extractWikilinks,
   matchLinkTarget,
   normalizeLinkTarget,
 } from "../domain/wikilinks.js";
+import { atomicWriteFile } from "../infrastructure/atomic-write.js";
 import { readEntityFile } from "../infrastructure/entities.js";
+import { withMutationLock } from "../infrastructure/lockfile.js";
 import {
   buildCatalog,
   linksOf,
@@ -31,13 +39,15 @@ export type IndexEdge = {
 };
 
 export type ProjectIndex = {
-  version: 1;
+  version: typeof INDEX_SCHEMA_VERSION;
   built_at: string;
   projectRoot: string;
   catalog: IndexCatalogRow[];
   edges: IndexEdge[];
   /** id -> searchable text */
   texts: Record<string, string>;
+  /** sha256 over stable payload (US-034) */
+  checksum?: string;
 };
 
 export function indexDir(projectRoot: string): string {
@@ -118,39 +128,65 @@ export function buildProjectIndex(projectRoot: string): ProjectIndex {
     }
   }
 
-  return {
-    version: 1,
-    built_at: new Date().toISOString(),
+  const built_at = new Date().toISOString();
+  const partial = {
+    version: INDEX_SCHEMA_VERSION,
+    built_at,
     projectRoot,
     catalog: rows,
     edges,
     texts,
   };
+  return {
+    ...partial,
+    checksum: computeIndexChecksum(partial),
+  };
 }
 
+/**
+ * Write index atomically under the project mutation lock (US-034).
+ */
 export function writeProjectIndex(
   projectRoot: string,
   index: ProjectIndex = buildProjectIndex(projectRoot),
 ): { path: string; entities: number; edges: number } {
-  fs.mkdirSync(indexDir(projectRoot), { recursive: true });
-  const outPath = indexJsonPath(projectRoot);
-  fs.writeFileSync(
-    outPath,
-    `${JSON.stringify({ ...index, projectRoot }, null, 2)}\n`,
-    "utf8",
-  );
-  return {
-    path: outPath,
-    entities: index.catalog.length,
-    edges: index.edges.length,
-  };
+  return withMutationLock(projectRoot, () => {
+    const outPath = indexJsonPath(projectRoot);
+    const withRoot = { ...index, projectRoot };
+    const checksum = computeIndexChecksum({
+      version: withRoot.version,
+      built_at: withRoot.built_at,
+      projectRoot: withRoot.projectRoot,
+      catalog: withRoot.catalog,
+      edges: withRoot.edges,
+      texts: withRoot.texts,
+    });
+    const payload: ProjectIndex = { ...withRoot, checksum };
+    atomicWriteFile(
+      outPath,
+      `${JSON.stringify(payload, null, 2)}\n`,
+      "utf8",
+    );
+    return {
+      path: outPath,
+      entities: payload.catalog.length,
+      edges: payload.edges.length,
+    };
+  });
 }
 
 export function loadProjectIndex(projectRoot: string): ProjectIndex | null {
   const p = indexJsonPath(projectRoot);
   if (!fs.existsSync(p)) return null;
   try {
-    return JSON.parse(fs.readFileSync(p, "utf8")) as ProjectIndex;
+    const raw = JSON.parse(fs.readFileSync(p, "utf8")) as unknown;
+    const shape = validateIndexShape(raw);
+    // Still return parseable indexes with warn-level issues (e.g. missing checksum)
+    // so tools keep working; fail-level shape errors are treated as missing.
+    if (!shape.ok && shape.issues.some((i) => i.code === "parse_error" || i.code === "schema_mismatch")) {
+      return null;
+    }
+    return raw as ProjectIndex;
   } catch {
     return null;
   }
@@ -162,6 +198,109 @@ export function ensureIndex(projectRoot: string): ProjectIndex {
   const built = buildProjectIndex(projectRoot);
   writeProjectIndex(projectRoot, built);
   return built;
+}
+
+export type IndexIntegrityReport = {
+  ok: boolean;
+  issues: IndexIntegrityIssue[];
+  brokenLinkCount: number;
+  missingEntityCount: number;
+};
+
+/**
+ * Full integrity scan: shape/checksum + entity files on disk + broken links.
+ */
+export function checkIndexIntegrity(projectRoot: string): IndexIntegrityReport {
+  const p = indexJsonPath(projectRoot);
+  const issues: IndexIntegrityIssue[] = [];
+  if (!fs.existsSync(p)) {
+    return {
+      ok: true,
+      issues: [],
+      brokenLinkCount: 0,
+      missingEntityCount: 0,
+    };
+  }
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(fs.readFileSync(p, "utf8")) as unknown;
+  } catch {
+    return {
+      ok: false,
+      issues: [
+        {
+          code: "parse_error",
+          severity: "fail",
+          message: "Index JSON is corrupt — run `harness reindex`",
+        },
+      ],
+      brokenLinkCount: 0,
+      missingEntityCount: 0,
+    };
+  }
+
+  const shape = validateIndexShape(raw);
+  issues.push(...shape.issues);
+
+  const index = raw as ProjectIndex;
+  let missingEntityCount = 0;
+  if (Array.isArray(index.catalog)) {
+    for (const row of index.catalog) {
+      if (!row?.path) continue;
+      const abs = path.join(projectRoot, row.path);
+      if (!fs.existsSync(abs)) {
+        missingEntityCount++;
+        issues.push({
+          code: "missing_entity_file",
+          severity: "fail",
+          message: `Catalog entry ${row.id} points to missing file ${row.path}`,
+        });
+      }
+    }
+  }
+
+  let brokenLinkCount = 0;
+  if (Array.isArray(index.edges)) {
+    for (const edge of index.edges) {
+      if (edge && edge.resolved === false) {
+        brokenLinkCount++;
+      }
+    }
+    if (brokenLinkCount > 0) {
+      issues.push({
+        code: "broken_link",
+        severity: "warn",
+        message: `${brokenLinkCount} unresolved link edge(s) — use \`harness links <id>\` to inspect`,
+      });
+    }
+  }
+
+  // Cap repeated missing-file noise in message list (keep first N)
+  const MAX_MISSING_DETAIL = 10;
+  const missingDetails = issues.filter((i) => i.code === "missing_entity_file");
+  if (missingDetails.length > MAX_MISSING_DETAIL) {
+    const kept = issues.filter((i) => i.code !== "missing_entity_file");
+    kept.push(...missingDetails.slice(0, MAX_MISSING_DETAIL));
+    kept.push({
+      code: "missing_entity_file",
+      severity: "fail",
+      message: `…and ${missingDetails.length - MAX_MISSING_DETAIL} more missing entity files`,
+    });
+    return {
+      ok: !kept.some((i) => i.severity === "fail"),
+      issues: kept,
+      brokenLinkCount,
+      missingEntityCount,
+    };
+  }
+
+  return {
+    ok: !issues.some((i) => i.severity === "fail"),
+    issues,
+    brokenLinkCount,
+    missingEntityCount,
+  };
 }
 
 export type SearchHit = {

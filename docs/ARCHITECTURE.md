@@ -9,7 +9,8 @@
 | User runtime | Node.js + npm |
 | Implementation language | TypeScript today; native engine optional later |
 | **Durable SoT** | **Markdown entities in each project** (Git-backed) — decision 0011 |
-| Derived index | `.harness/index/` rebuildable; may use SQLite FTS internally |
+| Derived index | `.harness/index/` rebuildable; atomic write + checksum (US-034); may use SQLite FTS internally |
+| Mutation lock | `.harness/mutation.lock` during index write (stale reclaim ~30s) |
 | Global registry | `HARNESS_HOME` / `~/.harness` project pointers only |
 | Traces | Machine-local (not default Git) |
 | Packaging | npm package; optional native packages later |

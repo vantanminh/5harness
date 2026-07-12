@@ -4,8 +4,11 @@ import { buildCatalog } from "./catalog.js";
 import { extractRepoVersion, compareVersions } from "../domain/upgrade.js";
 import { readRegistry } from "../infrastructure/registry.js";
 import { findProjectByPath } from "../domain/registry.js";
-import { indexJsonPath, hasMarkdownStore } from "./index-store.js";
-import type { ProjectIndex } from "./index-store.js";
+import {
+  hasMarkdownStore,
+  loadProjectIndex,
+  checkIndexIntegrity,
+} from "./index-store.js";
 import { VERSION } from "../version.js";
 import {
   resolveDefaultLogFile,
@@ -25,16 +28,6 @@ export type DoctorReport = {
   checks: DoctorCheck[];
   healthy: boolean;
 };
-
-function readProjectIndexOrNull(projectRoot: string): ProjectIndex | null {
-  const p = indexJsonPath(projectRoot);
-  if (!fs.existsSync(p)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(p, "utf8")) as ProjectIndex;
-  } catch {
-    return null;
-  }
-}
 
 function checkNodeEngines(projectRoot: string): DoctorCheck {
   const pkgPath = path.join(projectRoot, "package.json");
@@ -174,7 +167,7 @@ export function runDoctor(projectRoot: string): DoctorReport {
   }
 
   // 4. Index present and fresh
-  const index = readProjectIndexOrNull(projectRoot);
+  const index = loadProjectIndex(projectRoot);
   if (index) {
     try {
       const catalog = buildCatalog(projectRoot);
@@ -211,10 +204,49 @@ export function runDoctor(projectRoot: string): DoctorReport {
     });
   }
 
-  // 5. Node engines
+  // 5. Index integrity (US-034): schema, checksum, missing files, broken links
+  const integrity = checkIndexIntegrity(projectRoot);
+  if (!index && integrity.issues.length === 0) {
+    checks.push({
+      name: "index-integrity",
+      status: "ok",
+      message: "No index to validate (run `harness reindex` after init)",
+    });
+  } else if (integrity.ok && integrity.issues.length === 0) {
+    checks.push({
+      name: "index-integrity",
+      status: "ok",
+      message: `Index integrity ok (checksum present; ${integrity.brokenLinkCount} unresolved links)`,
+    });
+  } else if (integrity.ok) {
+    // warn-only issues (e.g. missing checksum on old index, broken links)
+    const warnMsg = integrity.issues
+      .filter((i) => i.severity === "warn")
+      .map((i) => i.message)
+      .slice(0, 3)
+      .join("; ");
+    checks.push({
+      name: "index-integrity",
+      status: "warn",
+      message: warnMsg || "Index integrity warnings",
+    });
+  } else {
+    const failMsg = integrity.issues
+      .filter((i) => i.severity === "fail")
+      .map((i) => i.message)
+      .slice(0, 3)
+      .join("; ");
+    checks.push({
+      name: "index-integrity",
+      status: "fail",
+      message: failMsg || "Index integrity failed — run `harness reindex`",
+    });
+  }
+
+  // 6. Node engines
   checks.push(checkNodeEngines(projectRoot));
 
-  // 6. Log surface (US-033) — informational, never a hard fail
+  // 7. Log surface (US-033) — informational, never a hard fail
   const logFile = resolveDefaultLogFile(process.env, projectRoot);
   const globalLogs = resolveGlobalLogDir(process.env);
   const debugOn = isDebugEnabled(process.env);
