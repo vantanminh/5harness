@@ -112,6 +112,23 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Build release notes
+        run: |
+          set -euo pipefail
+          node scripts/release-notes.mjs "${{ steps.version.outputs.version }}" --out release-notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="v${VERSION}"
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file release-notes.md \
+            --verify-tag
+
   # Tag-triggered publish (manual git tag from a developer machine / PAT).
   publish:
     name: Publish to npm
@@ -156,3 +173,26 @@ jobs:
         run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Build release notes
+        run: |
+          set -euo pipefail
+          node scripts/release-notes.mjs "${{ steps.version.outputs.version }}" --out release-notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="v${VERSION}"
+          # Idempotent: tag-triggered re-runs may already have a Release.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — updating notes."
+            gh release edit "$TAG" --notes-file release-notes.md
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --notes-file release-notes.md \
+              --verify-tag
+          fi

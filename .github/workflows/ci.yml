@@ -183,3 +183,22 @@ jobs:
         run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Build release notes
+        run: |
+          set -euo pipefail
+          node scripts/release-notes.mjs "${{ steps.version.outputs.version }}" --out release-notes.md
+          echo "--- release notes preview ---"
+          head -n 40 release-notes.md || true
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="v${VERSION}"
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file release-notes.md \
+            --verify-tag
