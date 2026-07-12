@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { runInit } from "../src/infrastructure/scaffold.js";
 import { migrateDatabase, schemaIsReadable } from "../src/infrastructure/db.js";
+import { VERSION } from "../src/version.js";
 import manifest from "../templates/manifest.json" with { type: "json" };
 
 const packageRoot = path.resolve(
@@ -74,7 +75,10 @@ describe("runInit", () => {
     expect(agents).toMatch(/harness doctor/);
     expect(agents).toMatch(/harness reindex/);
     expect(agents).toMatch(/harness link/);
-    expect(agents).toMatch(/harness-version:\s*0\.12\.1/);
+    // Marker tracks package version (must not hardcode — breaks every bump).
+    expect(agents).toMatch(
+      new RegExp(`harness-version:\\s*${VERSION.replace(/\./g, "\\.")}`),
+    );
 
     const harnessDoc = fs.readFileSync(path.join(dir, "docs", "HARNESS.md"), "utf8");
     expect(harnessDoc).toMatch(/markdown/i);
