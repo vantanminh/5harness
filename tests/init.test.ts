@@ -63,8 +63,8 @@ describe("runInit", () => {
 
     const gitignore = fs.readFileSync(path.join(dir, ".gitignore"), "utf8");
     expect(gitignore).toContain("harness.db");
-    expect(gitignore).toContain(".harness/index/");
-    expect(gitignore).toContain(".harness/local/");
+    expect(gitignore).toContain(".5harness/index/");
+    expect(gitignore).toContain(".5harness/local/");
 
     const agents = fs.readFileSync(path.join(dir, "AGENTS.md"), "utf8");
     expect(agents).toMatch(/Do not[\s\S]*by hand/i);
@@ -121,7 +121,7 @@ describe("runInit", () => {
     const agents = fs.readFileSync(path.join(dir, "AGENTS.md"), "utf8");
     expect(agents).toContain("HARNESS:BEGIN");
     expect(agents).not.toBe("mine");
-    const backupRoot = path.join(dir, ".harness-backup");
+    const backupRoot = path.join(dir, ".5harness-backup");
     expect(fs.existsSync(backupRoot)).toBe(true);
   });
 

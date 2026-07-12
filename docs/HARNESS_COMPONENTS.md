@@ -30,6 +30,6 @@ Status values:
 | --- | --- |
 | CLI (`harness`) | Primary operator interface |
 | Markdown entities | Durable SoT in each project |
-| `.harness/index/` | Derived agent index |
-| `~/.harness/` | Machine-local project registry |
+| `.5harness/index/` | Derived agent index |
+| `~/.5harness/` | Machine-local project registry |
 | `harness dashboard` | Local multi-project browser UI |

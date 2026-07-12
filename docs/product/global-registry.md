@@ -14,7 +14,7 @@ git-tracked markdown.
 ## Layout (illustrative)
 
 ```text
-~/.harness/
+~/.5harness/
   registry.json          # list of linked projects
   cache/                 # optional dashboard/query cache
   projects/<id>/         # optional per-project machine-local data (traces…)
@@ -69,5 +69,5 @@ If a project is moved or deleted, registry entries may break. CLI should:
 ## Non-goals
 
 - Syncing registry across machines.
-- Storing full story/decision bodies in `~/.harness`.
+- Storing full story/decision bodies in `~/.5harness`.
 - Replacing Git as the collaboration channel.

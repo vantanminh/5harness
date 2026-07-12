@@ -1,12 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
-import { resolveHarnessHome } from "../domain/paths.js";
+import {
+  LOG_BASENAME,
+  projectLogsDir,
+  resolveHarnessHome,
+} from "../domain/paths.js";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export type LoggerOptions = {
   env?: NodeJS.ProcessEnv;
-  /** Project root; when set, also writes under project `.harness/logs/`. */
+  /** Project root; when set, also writes under project `.5harness/logs/`. */
   projectRoot?: string;
   /** Override log file path. */
   logFile?: string;
@@ -49,7 +53,7 @@ export function isDebugEnabled(
 }
 
 /**
- * Default log directory: `$HARNESS_HOME/logs` (usually `~/.harness/logs`).
+ * Default log directory: `$HARNESS_HOME/logs` (usually `~/.5harness/logs`).
  */
 export function resolveGlobalLogDir(
   env: NodeJS.ProcessEnv = process.env,
@@ -58,10 +62,10 @@ export function resolveGlobalLogDir(
 }
 
 /**
- * Project-local log directory: `<project>/.harness/logs`.
+ * Project-local log directory: `<project>/.5harness/logs` (or legacy `.harness/logs`).
  */
 export function resolveProjectLogDir(projectRoot: string): string {
-  return path.join(projectRoot, ".harness", "logs");
+  return projectLogsDir(projectRoot);
 }
 
 export function resolveDefaultLogFile(
@@ -73,9 +77,9 @@ export function resolveDefaultLogFile(
     return path.resolve(override);
   }
   if (projectRoot) {
-    return path.join(resolveProjectLogDir(projectRoot), "harness.log");
+    return path.join(resolveProjectLogDir(projectRoot), LOG_BASENAME);
   }
-  return path.join(resolveGlobalLogDir(env), "harness.log");
+  return path.join(resolveGlobalLogDir(env), LOG_BASENAME);
 }
 
 export type Logger = {

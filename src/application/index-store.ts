@@ -7,6 +7,7 @@ import {
   validateIndexShape,
   type IndexIntegrityIssue,
 } from "../domain/index-integrity.js";
+import { projectIndexDir } from "../domain/paths.js";
 import {
   extractWikilinks,
   matchLinkTarget,
@@ -51,7 +52,7 @@ export type ProjectIndex = {
 };
 
 export function indexDir(projectRoot: string): string {
-  return path.join(projectRoot, ".harness", "index");
+  return projectIndexDir(projectRoot);
 }
 
 export function indexJsonPath(projectRoot: string): string {

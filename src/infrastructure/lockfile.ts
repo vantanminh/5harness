@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { projectMutationLockPath } from "../domain/paths.js";
 
 export type LockHandle = {
   path: string;
@@ -27,7 +28,7 @@ type LockPayload = {
  * Path for project-local mutation/index lock (US-034).
  */
 export function mutationLockPath(projectRoot: string): string {
-  return path.join(projectRoot, ".harness", "mutation.lock");
+  return projectMutationLockPath(projectRoot);
 }
 
 function readLock(file: string): LockPayload | null {

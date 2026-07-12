@@ -93,7 +93,7 @@ describe("quality on markdown store (US-012)", () => {
     expect(fs.existsSync(path.join(dir, "harness.db"))).toBe(false);
     expect(listLocalTraces(dir)).toHaveLength(1);
     expect(
-      fs.existsSync(path.join(dir, ".harness", "local", "traces.jsonl")),
+      fs.existsSync(path.join(dir, ".5harness", "local", "traces.jsonl")),
     ).toBe(true);
 
     updateStoryMd(

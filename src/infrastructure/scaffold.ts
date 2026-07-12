@@ -6,7 +6,14 @@ import {
   type PlannedWrite,
 } from "../domain/conflicts.js";
 import { ENTITY_DIRS } from "../domain/entities.js";
-import { resolveDbPath, resolveTargetDir } from "../domain/paths.js";
+import {
+  LEGACY_DB_BASENAME,
+  LEGACY_PROJECT_STATE_DIRNAME,
+  PROJECT_STATE_DIRNAME,
+  projectBackupRoot,
+  resolveDbPath,
+  resolveTargetDir,
+} from "../domain/paths.js";
 import { linkProject } from "../application/registry.js";
 import { ensureEntityDirs } from "./entities.js";
 import { migrateDatabase } from "./db.js";
@@ -16,13 +23,16 @@ export type Manifest = {
 };
 
 export const GITIGNORE_RULES = [
-  "# Harness local / derived (not SoT)",
-  ".harness/index/",
-  ".harness/local/",
+  "# 5harness local / derived (not SoT)",
+  `${PROJECT_STATE_DIRNAME}/index/`,
+  `${PROJECT_STATE_DIRNAME}/local/`,
+  // Keep ignoring legacy paths so upgraded clones stay clean
+  `${LEGACY_PROJECT_STATE_DIRNAME}/index/`,
+  `${LEGACY_PROJECT_STATE_DIRNAME}/local/`,
   "# Legacy project SQLite (if present)",
-  "harness.db",
-  "harness.db-wal",
-  "harness.db-shm",
+  LEGACY_DB_BASENAME,
+  `${LEGACY_DB_BASENAME}-wal`,
+  `${LEGACY_DB_BASENAME}-shm`,
 ] as const;
 
 export type InitOptions = {
@@ -80,7 +90,7 @@ function planGitignore(targetDir: string): PlannedWrite {
 
 function backupFile(targetDir: string, relative: string): string {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const backupRoot = path.join(targetDir, ".harness-backup", stamp);
+  const backupRoot = projectBackupRoot(targetDir, stamp);
   const dest = path.join(backupRoot, relative);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.copyFileSync(path.join(targetDir, relative), dest);

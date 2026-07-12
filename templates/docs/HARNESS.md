@@ -44,8 +44,8 @@ Operational entities live as **git-committed markdown** with YAML frontmatter:
 
 Machine-local derived data (gitignored):
 
-- `.harness/index/` — agent search/link index (`harness reindex`)
-- `.harness/local/` — traces and other non-shared state
+- `.5harness/index/` — agent search/link index (`harness reindex`)
+- `.5harness/local/` — traces and other non-shared state
 
 ```bash
 harness init          # scaffold + register this project

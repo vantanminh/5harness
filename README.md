@@ -63,7 +63,7 @@ harness dashboard            # or bare: harness
 
 | Feature | What it does |
 | --- | --- |
-| **Init / link** | Scaffold agent docs + markdown entities; register project in `~/.harness` |
+| **Init / link** | Scaffold agent docs + markdown entities; register project in `~/.5harness` |
 | **Durable history** | Stories, decisions, intakes, backlog as **Git-backed** markdown |
 | **Agent index** | `search` / `get` / `links` / `reindex` — no whole-vault dumps |
 | **Tools-only mutation** | Agents change operational entities **only** via CLI (or MCP tools) |
@@ -157,7 +157,7 @@ Details: [docs/product/distribution.md](docs/product/distribution.md).
 ## Update notices
 
 The CLI may print a one-line notice on stderr when a newer npm version exists
-(cached at most once per day under `~/.harness/`). Disable with
+(cached at most once per day under `~/.5harness/`). Disable with
 `HARNESS_NO_UPDATE_CHECK=1` (also auto-disabled when `CI=true`).
 
 ```bash

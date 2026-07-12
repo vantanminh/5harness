@@ -70,8 +70,8 @@ Agents **only** mutate durable state through CLI tools (mandatory).
 | --- | --- |
 | CLI (`harness`) | Primary |
 | Markdown entities in target repos | **SoT**, committed |
-| Derived index (`.harness/index/`) | Local, rebuildable |
-| Global registry (`~/.harness/`) | Pointers for multi-project + dashboard |
+| Derived index (`.5harness/index/`) | Local, rebuildable |
+| Global registry (`~/.5harness/`) | Pointers for multi-project + dashboard |
 | Browser dashboard | Localhost; reads registry + project paths |
 | Project SQLite as SoT | **Retired** (decision 0011); optional `import-sqlite` |
 

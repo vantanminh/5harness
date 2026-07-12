@@ -1,13 +1,28 @@
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   isLoopbackBindHost,
   isProtectedRelative,
   registryFilePath,
   resolveDbPath,
   resolveHarnessHome,
+  resolveProjectStateRoot,
   resolveTargetDir,
 } from "../src/domain/paths.js";
+
+const tempDirs: string[] = [];
+afterEach(() => {
+  for (const dir of tempDirs.splice(0)) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+function tempDir(): string {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "paths-"));
+  tempDirs.push(d);
+  return d;
+}
 
 describe("resolveTargetDir", () => {
   it("defaults to cwd", () => {
@@ -35,14 +50,40 @@ describe("resolveDbPath", () => {
 });
 
 describe("resolveHarnessHome", () => {
-  it("joins .harness under home when HARNESS_HOME unset", () => {
+  it("joins .5harness under home when HARNESS_HOME unset", () => {
     expect(resolveHarnessHome({}, () => "/Users/me")).toBe(
-      path.join("/Users/me", ".harness"),
+      path.join("/Users/me", ".5harness"),
     );
+  });
+
+  it("falls back to legacy ~/.harness when modern is missing", () => {
+    const home = tempDir();
+    fs.mkdirSync(path.join(home, ".harness"));
+    expect(resolveHarnessHome({}, () => home)).toBe(path.join(home, ".harness"));
+  });
+
+  it("prefers modern ~/.5harness over legacy", () => {
+    const home = tempDir();
+    fs.mkdirSync(path.join(home, ".harness"));
+    fs.mkdirSync(path.join(home, ".5harness"));
+    expect(resolveHarnessHome({}, () => home)).toBe(path.join(home, ".5harness"));
   });
 
   it("registry file lives under home", () => {
     expect(registryFilePath("/tmp/h")).toBe(path.join("/tmp/h", "registry.json"));
+  });
+});
+
+describe("resolveProjectStateRoot", () => {
+  it("defaults to .5harness when neither exists", () => {
+    const root = tempDir();
+    expect(resolveProjectStateRoot(root)).toBe(path.join(root, ".5harness"));
+  });
+
+  it("falls back to legacy .harness", () => {
+    const root = tempDir();
+    fs.mkdirSync(path.join(root, ".harness"));
+    expect(resolveProjectStateRoot(root)).toBe(path.join(root, ".harness"));
   });
 });
 

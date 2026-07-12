@@ -62,6 +62,12 @@ if (binHarness !== "dist/cli.js") {
     `bin.harness must be dist/cli.js (got ${JSON.stringify(pkg.bin)})`,
   );
 }
+const bin5 = pkg.bin?.["5harness"]?.replace(/^\.\//, "");
+if (bin5 !== "dist/cli.js") {
+  fail(
+    `bin.5harness must be dist/cli.js (got ${JSON.stringify(pkg.bin)})`,
+  );
+}
 
 if (!pkg.files?.includes("LICENSE")) {
   // files may list LICENSE implicitly via root — require LICENSE file on disk

@@ -28,9 +28,9 @@ afterEach(() => {
 });
 
 describe("resolveHarnessHome", () => {
-  it("defaults to ~/.harness", () => {
+  it("defaults to ~/.5harness", () => {
     const home = path.join(os.tmpdir(), "fake-home-reg");
-    expect(resolveHarnessHome({}, () => home)).toBe(path.join(home, ".harness"));
+    expect(resolveHarnessHome({}, () => home)).toBe(path.join(home, ".5harness"));
   });
 
   it("honors HARNESS_HOME", () => {

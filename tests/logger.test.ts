@@ -47,7 +47,7 @@ describe("logger paths and debug (US-033)", () => {
   it("prefers project log file when projectRoot set", () => {
     const project = tempDir();
     const file = resolveDefaultLogFile({}, project);
-    expect(file).toBe(path.join(project, ".harness", "logs", "harness.log"));
+    expect(file).toBe(path.join(project, ".5harness", "logs", "5harness.log"));
   });
 
   it("honors HARNESS_LOG_FILE override", () => {
@@ -64,7 +64,7 @@ describe("logger paths and debug (US-033)", () => {
 
   it("writes error lines to log file and redacts secrets", () => {
     const home = tempDir();
-    const logFile = path.join(home, "logs", "harness.log");
+    const logFile = path.join(home, "logs", "5harness.log");
     const logger = createLogger({
       env: { HARNESS_HOME: home },
       logFile,
@@ -80,7 +80,7 @@ describe("logger paths and debug (US-033)", () => {
 
   it("debug lines only when HARNESS_DEBUG set", () => {
     const home = tempDir();
-    const logFile = path.join(home, "logs", "harness.log");
+    const logFile = path.join(home, "logs", "5harness.log");
     const quiet = createLogger({
       env: { HARNESS_HOME: home },
       logFile,

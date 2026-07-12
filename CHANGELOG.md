@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub repository renamed **`vantanminh/harness` → `vantanminh/5harness`**.
   Update clone URLs, npm Trusted Publisher repo field, and package.json
   `repository` / badges / release notes links.
+- **Storage paths** renamed to the `5harness` identity:
+  - Global home: **`~/.5harness`** (was `~/.harness`; still used if present and
+    modern dir is missing). Override remains `HARNESS_HOME`.
+  - Project derived state: **`.5harness/`** (index, local traces, locks, logs);
+    legacy `.harness/` still read when only that exists.
+  - Backups: **`.5harness-backup/`**; log file **`5harness.log`**.
+- Package bins: **`harness`** and **`5harness`** both point at `dist/cli.js`.
 
 ## [0.12.2] - 2026-07-12
 
@@ -219,10 +226,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Init registers project in global registry; ensures entity dirs (stories/decisions/intakes/backlog).
-- `.gitignore` rules for `.harness/index/` and `.harness/local/`.
+- `.gitignore` rules for `.5harness/index/` and `.5harness/local/`.
 - Target templates: markdown SoT + tools-only agent policy (US-010/011).
 - Quality on markdown store (US-012): verify updates entity frontmatter; traces in
-  `.harness/local/traces.jsonl`; audit/propose/query traces without project SQLite.
+  `.5harness/local/traces.jsonl`; audit/propose/query traces without project SQLite.
 
 ### Fixed
 
@@ -241,7 +248,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Agent index tools (US-009): `harness reindex`, `get`, `search`, `links`.
-- Derived index at `.harness/index/index.json` (catalog + edges + search text).
+- Derived index at `.5harness/index/index.json` (catalog + edges + search text).
 - `harness link` auto-reindexes when a markdown entity store is present.
 - Wikilink parsing (`[[id]]`) for link graph.
 
@@ -276,7 +283,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `harness link [path]` — register a project in the machine-local global registry.
 - `harness unlink [path]` — remove registry entry (does not delete project files).
 - `harness projects` — list linked projects; warns when paths are missing.
-- `HARNESS_HOME` env (default `~/.harness`) stores `registry.json`.
+- `HARNESS_HOME` env (default `~/.5harness`) stores `registry.json`.
 - Unit + CLI e2e tests with isolated `HARNESS_HOME`.
 
 ### Changed

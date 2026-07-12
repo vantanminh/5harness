@@ -42,9 +42,9 @@ Users install via **npm** (`-g` preferred).
 
 ## Product Direction (locked — decision 0011)
 
-1. **Distribution:** npm package with `harness` bin; preferred `npm i -g`.
+1. **Distribution:** npm package **`5harness`** with bins `harness` / `5harness`; preferred `npm i -g 5harness`.
 2. **Init + link:** `init` scaffolds project markdown and registers the path in
-   `~/.harness`; `link` registers an existing clone for dashboard/query.
+   `~/.5harness`; `link` registers an existing clone for dashboard/query.
 3. **Durable SoT:** markdown entities in the project (Git-backed). Derived index
    is local/rebuildable. Traces are machine-local by default.
 4. **Agents:** mutate durable state only via CLI tools; use get/search/links/

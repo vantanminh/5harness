@@ -13,7 +13,7 @@ and CI. Implementation references point into `src/` where useful.
 | Durable markdown (stories, decisions, …) | Project Git authors | Repo contents |
 | `harness` CLI mutations | Local operator / agent with shell | Local filesystem |
 | `verify` frontmatter commands | Project-authored shell | Local cwd = project |
-| Machine registry (`~/.harness`) | Local user | Paths on this machine |
+| Machine registry (`~/.5harness`) | Local user | Paths on this machine |
 | Dashboard | Loopback HTTP | `127.0.0.1` by default |
 | MCP server | Loopback / stdio as configured | Local only by default |
 | npm update check | Public registry read | Advisory stderr only |
@@ -57,7 +57,7 @@ Implementation: `src/infrastructure/verify.ts`.
 | Auth model | **Local only** — no remote multi-user auth layer |
 | Default bind | `127.0.0.1` (see `harness mcp` / dashboard `--host`) |
 | Mutation surface | Read-oriented tools today; agents should still follow AGENTS hard-fail rules |
-| Call log | `.harness/local/mcp-calls.jsonl` under the project (machine-local) |
+| Call log | `.5harness/local/mcp-calls.jsonl` under the project (machine-local) |
 
 Binding MCP or the dashboard to a non-loopback address exposes project paths,
 index data, and tool responses to anyone who can reach that host:port. Keep
@@ -71,9 +71,9 @@ Implementation: `src/application/mcp-server.ts`, `src/application/dashboard.ts`.
 
 | Path | Purpose |
 | --- | --- |
-| `~/.harness/registry.json` (or `$HARNESS_HOME`) | Registered project roots on this machine |
-| `<project>/.harness/index/` | Derived search index (rebuildable) |
-| `<project>/.harness/local/` | Machine-local data (traces, MCP logs, …) |
+| `~/.5harness/registry.json` (or `$HARNESS_HOME`) | Registered project roots on this machine |
+| `<project>/.5harness/index/` | Derived search index (rebuildable) |
+| `<project>/.5harness/local/` | Machine-local data (traces, MCP logs, …) |
 
 - Registry entries are **local path pointers**, not a cloud multi-tenant store.
 - `harness link` / `unlink` only affect this machine’s registry.
@@ -127,7 +127,7 @@ npm registry for a newer `5harness` version.
 
 | Behavior | Detail |
 | --- | --- |
-| Frequency | At most one registry fetch per 24h (cache: `~/.harness/update-check.json`) |
+| Frequency | At most one registry fetch per 24h (cache: `~/.5harness/update-check.json`) |
 | Effect | One-line **stderr** notice only; never blocks or changes exit codes |
 | Fail-open | Network/errors are silent |
 | Disable | `HARNESS_NO_UPDATE_CHECK=1`, or when `CI=true` / `CONTINUOUS_INTEGRATION` |

@@ -34,8 +34,8 @@ are **not** the source of truth.
 | Intakes | `docs/intakes/<id>.md` | Yes |
 | Backlog items | `docs/backlog/<id>.md` | Yes |
 | Policy docs / templates | `docs/*`, `AGENTS.md` | Yes |
-| Derived index | `.harness/index/` | No |
-| Traces / noisy runtime | `.harness/local/` (or global project cache) | No |
+| Derived index | `.5harness/index/` | No |
+| Traces / noisy runtime | `.5harness/local/` (or global project cache) | No |
 
 Exact paths are finalized in the store implementation story; this doc locks the
 **commit policy**.

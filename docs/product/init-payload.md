@@ -16,7 +16,7 @@ This product owns the payload shipped inside the npm package (`templates/`).
 1. Write / merge operating files from templates.
 2. Ensure durable entity directories exist (stories, decisions, intakes, backlog).
 3. Ensure `.gitignore` ignores derived index and local runtime data (not durable MD).
-4. Register project path in `~/.harness` (global registry).
+4. Register project path in `~/.5harness` (global registry).
 5. Build initial empty index (or on first query).
 
 `harness link` skips scaffold (or only fills missing dirs) and does steps 4–5
@@ -40,7 +40,7 @@ for clones that already have committed harness files.
 | `docs/intakes/` | Intake entities (when store lands) |
 | `docs/backlog/` | Backlog entities (when store lands) |
 | `docs/templates/*` | story, decision, validation, spec-intake templates |
-| `.gitignore` entries | `.harness/index/`, `.harness/local/`, legacy `harness.db*` |
+| `.gitignore` entries | `.5harness/index/`, `.5harness/local/`, legacy `harness.db*` |
 
 ### Explicitly out of init payload
 

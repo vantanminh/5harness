@@ -31,9 +31,9 @@ describe("harness doctor (US-018)", () => {
   it("reports fresh index when present", () => {
     const root = tmp();
     fs.mkdirSync(path.join(root, "docs", "stories"), { recursive: true });
-    fs.mkdirSync(path.join(root, ".harness", "index"), { recursive: true });
+    fs.mkdirSync(path.join(root, ".5harness", "index"), { recursive: true });
     fs.writeFileSync(
-      path.join(root, ".harness", "index", "index.json"),
+      path.join(root, ".5harness", "index", "index.json"),
       JSON.stringify({
         version: 1,
         built_at: new Date().toISOString(),
@@ -52,11 +52,11 @@ describe("harness doctor (US-018)", () => {
   it("detects stale index", () => {
     const root = tmp();
     fs.mkdirSync(path.join(root, "docs", "stories"), { recursive: true });
-    fs.mkdirSync(path.join(root, ".harness", "index"), { recursive: true });
+    fs.mkdirSync(path.join(root, ".5harness", "index"), { recursive: true });
     // index built 1 hour ago
     const past = new Date(Date.now() - 3600_000).toISOString();
     fs.writeFileSync(
-      path.join(root, ".harness", "index", "index.json"),
+      path.join(root, ".5harness", "index", "index.json"),
       JSON.stringify({
         version: 1,
         built_at: past,

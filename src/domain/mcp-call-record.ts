@@ -1,6 +1,6 @@
 /**
  * MCP (Model Context Protocol) call record — durable local log.
- * Stored in `.harness/local/mcp-calls.jsonl` (JSONL format, same pattern as traces).
+ * Stored in `.5harness/local/mcp-calls.jsonl` (JSONL format, same pattern as traces).
  */
 export type McpCallRecord = {
   id: number;

@@ -118,9 +118,9 @@ describe("MCP monitor storage", () => {
   it("clearMcpCalls removes the file", () => {
     const root = tmp();
     appendMcpCall(root, makeCall({ project_root: root }));
-    expect(fs.existsSync(path.join(root, ".harness", "local", "mcp-calls.jsonl"))).toBe(true);
+    expect(fs.existsSync(path.join(root, ".5harness", "local", "mcp-calls.jsonl"))).toBe(true);
     clearMcpCalls(root);
-    expect(fs.existsSync(path.join(root, ".harness", "local", "mcp-calls.jsonl"))).toBe(false);
+    expect(fs.existsSync(path.join(root, ".5harness", "local", "mcp-calls.jsonl"))).toBe(false);
     expect(listMcpCalls(root)).toHaveLength(0);
   });
 

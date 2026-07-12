@@ -454,7 +454,7 @@ function renderProject(detail: ProjectDetail): string {
       label: "MCP Monitor",
       html: true,
       content: `<p><a href="${monitorHref}">Open full MCP monitor page</a> for live call stats, tool usage, and error log.</p>
-<p class="muted">Records are written to <code>.harness/local/mcp-calls.jsonl</code> when agents call the MCP endpoint.</p>`,
+<p class="muted">Records are written to <code>.5harness/local/mcp-calls.jsonl</code> when agents call the MCP endpoint.</p>`,
     },
   ];
 

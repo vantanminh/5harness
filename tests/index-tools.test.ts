@@ -35,7 +35,7 @@ describe("agent index (US-009)", () => {
     ]);
   });
 
-  it("reindex writes .harness/index and search returns snippets", () => {
+  it("reindex writes .5harness/index and search returns snippets", () => {
     const root = tmp();
     addStoryMd(
       { projectRoot: root },

@@ -37,8 +37,10 @@ npm i -D 5harness
 npx harness --help
 ```
 
-No change to project markdown entities, registry layout (`~/.harness`), or
-command surface — only the **npm package name**.
+Project markdown entities and CLI command surface (`harness …`) are unchanged.
+Machine/project paths use the **5harness** identity (`~/.5harness`,
+`.5harness/`); legacy `~/.harness` / `.harness/` are still honored when the
+modern path is missing.
 
 ## Deprecation path (maintainers)
 

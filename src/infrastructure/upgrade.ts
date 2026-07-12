@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { projectBackupRoot } from "../domain/paths.js";
 import {
   extractRepoVersion,
   readTemplateBlock,
@@ -48,7 +49,7 @@ export function readTemplateAgents(packageRoot: string): string {
  * Only the content between `<!-- HARNESS:BEGIN -->` and `<!-- HARNESS:END -->`
  * is replaced. Everything else (user-customized agent instructions) stays.
  *
- * A timestamped backup is written to `.harness-backup/` before modification.
+ * A timestamped backup is written to `.5harness-backup/` before modification.
  *
  * Returns true when the file was modified, false when it was already up-to-date.
  */
@@ -78,7 +79,7 @@ export function applyHarnessBlockUpgrade(
 
   // Backup before modifying
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const backupRoot = path.join(projectRoot, ".harness-backup", stamp);
+  const backupRoot = projectBackupRoot(projectRoot, stamp);
   const backupPath = path.join(backupRoot, "AGENTS.md");
   fs.mkdirSync(path.dirname(backupPath), { recursive: true });
   fs.copyFileSync(targetPath, backupPath);

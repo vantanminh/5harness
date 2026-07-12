@@ -78,9 +78,9 @@ Policy documents describe how to work. The durable layer records what happened.
 | Kind | Storage | Git |
 | --- | --- | --- |
 | Stories, decisions, intakes, backlog | Markdown entities in the project | **Yes** |
-| Derived search index | `.harness/index/` | No |
+| Derived search index | `.5harness/index/` | No |
 | Traces | Machine-local | No |
-| Multi-project pointers | `HARNESS_HOME` / `~/.harness` | No |
+| Multi-project pointers | `HARNESS_HOME` / `~/.5harness` | No |
 
 **Agents must only mutate operational durable state through the harness CLI** —
 never by hand-editing entity markdown.

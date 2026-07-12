@@ -12,9 +12,14 @@ dist/
 *.tsbuildinfo
 coverage/
 *.tgz
+.5harness-backup/
 .harness-backup/
 
-# Derived harness runtime (index, local traces)
+# Derived 5harness runtime (index, local traces)
+.5harness/*
+!.5harness/changesets/
+!.5harness/changesets/*.changeset.jsonl
+# Legacy project state dir (pre-rename)
 .harness/*
 !.harness/changesets/
 !.harness/changesets/*.changeset.jsonl

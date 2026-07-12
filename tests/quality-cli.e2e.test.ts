@@ -87,7 +87,7 @@ describe("quality CLI e2e (MD store)", () => {
     expect(trace.stdout).toMatch(/Trace #1/);
     expect(trace.stdout).toMatch(/Tier achieved/);
     expect(
-      fs.existsSync(path.join(dir, ".harness", "local", "traces.jsonl")),
+      fs.existsSync(path.join(dir, ".5harness", "local", "traces.jsonl")),
     ).toBe(true);
     expect(fs.existsSync(path.join(dir, "harness.db"))).toBe(false);
 

@@ -65,7 +65,7 @@ describe("index tools CLI e2e (US-009)", () => {
     const reindex = runHarness(["reindex", "--dir", dir]);
     expect(reindex.status, reindex.stderr + reindex.stdout).toBe(0);
     expect(reindex.stdout).toMatch(/entities/);
-    expect(fs.existsSync(path.join(dir, ".harness", "index", "index.json"))).toBe(
+    expect(fs.existsSync(path.join(dir, ".5harness", "index", "index.json"))).toBe(
       true,
     );
 

@@ -11,7 +11,7 @@ slices.
 ## Index is derived
 
 ```text
-markdown entities (SoT, git) ──reindex──► .harness/index/* (local, gitignored)
+markdown entities (SoT, git) ──reindex──► .5harness/index/* (local, gitignored)
 ```
 
 After `git clone` + `harness link`, run **reindex** (link may do this
@@ -56,5 +56,5 @@ unsupported for correctness).
 
 - Prefer deterministic ranking (keyword/FTS) over opaque ML for v1.
 - Chunk large bodies if needed; store chunk offsets so snippets are stable.
-- Optional engine: SQLite FTS **only inside** `.harness/index/`, never as project
+- Optional engine: SQLite FTS **only inside** `.5harness/index/`, never as project
   SoT.

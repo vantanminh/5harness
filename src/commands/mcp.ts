@@ -64,7 +64,7 @@ export function executeMcp(options: McpCliOptions): void {
   server.listen(port, host, () => {
     console.log(`MCP endpoint: http://${host}:${port}/mcp`);
     console.log(`Project: ${targetDir}`);
-    console.log(`Monitor log: ${targetDir}/.harness/local/mcp-calls.jsonl`);
+    console.log(`Monitor log: ${targetDir}/.5harness/local/mcp-calls.jsonl`);
     console.log("Press Ctrl+C to stop.");
   });
 }

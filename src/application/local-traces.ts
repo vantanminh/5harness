@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { projectLocalDir } from "../domain/paths.js";
 import { formatTable } from "../infrastructure/table.js";
 
 export type LocalTrace = {
@@ -22,7 +23,7 @@ export type LocalTrace = {
 };
 
 export function localTracesDir(projectRoot: string): string {
-  return path.join(projectRoot, ".harness", "local");
+  return projectLocalDir(projectRoot);
 }
 
 export function localTracesPath(projectRoot: string): string {

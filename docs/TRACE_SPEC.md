@@ -4,7 +4,7 @@ The `trace` table records what happened during a Harness task. This document
 defines the expected depth and format for each field so traces are useful for
 review, benchmark scoring, failure attribution, and future harness evolution.
 
-Traces are machine-local (JSONL under `.harness/local/` by default). Field
+Traces are machine-local (JSONL under `.5harness/local/` by default). Field
 names below describe the durable trace record shape the CLI expects.
 
 ## Field Reference

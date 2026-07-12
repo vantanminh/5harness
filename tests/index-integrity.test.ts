@@ -112,7 +112,7 @@ describe("atomic index write + lock (US-034)", () => {
       { id: "US-MISS", title: "Will delete", lane: "tiny" },
     );
     writeProjectIndex(root);
-    const p = path.join(root, ".harness", "index", "index.json");
+    const p = path.join(root, ".5harness", "index", "index.json");
     const raw = JSON.parse(fs.readFileSync(p, "utf8")) as Record<string, unknown>;
     raw.checksum = "0".repeat(64);
     fs.writeFileSync(p, JSON.stringify(raw, null, 2), "utf8");

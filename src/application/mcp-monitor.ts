@@ -1,21 +1,22 @@
 /**
  * MCP Monitor — local JSONL storage for MCP call records.
- * File: `.harness/local/mcp-calls.jsonl`
+ * File: `.5harness/local/mcp-calls.jsonl` (or legacy `.harness/local/`)
  * Pattern follows local-traces.ts (same JSONL approach).
  */
 import fs from "node:fs";
 import path from "node:path";
 import type { McpCallFilter, McpCallInput, McpCallRecord, McpCallStats } from "../domain/mcp-call-record.js";
+import { projectLocalDir, projectMcpCallsPath } from "../domain/paths.js";
 
 /** Soft cap for retained records (decision 0015 follow-up). */
 export const MCP_CALLS_RETENTION = 10_000;
 
 export function mcpCallsPath(projectRoot: string): string {
-  return path.join(projectRoot, ".harness", "local", "mcp-calls.jsonl");
+  return projectMcpCallsPath(projectRoot);
 }
 
 function ensureDir(projectRoot: string): void {
-  fs.mkdirSync(path.join(projectRoot, ".harness", "local"), { recursive: true });
+  fs.mkdirSync(projectLocalDir(projectRoot), { recursive: true });
 }
 
 /** Read and parse all call records (no filter/limit). Corrupt lines skipped. */

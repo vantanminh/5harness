@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { projectWorklogPath } from "../domain/paths.js";
 
 export type WorklogEntry = {
   id: number;
@@ -13,7 +14,7 @@ export type WorklogEntry = {
 };
 
 function worklogPath(projectRoot: string): string {
-  return path.join(projectRoot, ".harness", "worklog.jsonl");
+  return projectWorklogPath(projectRoot);
 }
 
 export function listWorklog(projectRoot: string): WorklogEntry[] {

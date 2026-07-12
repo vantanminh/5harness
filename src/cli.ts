@@ -151,7 +151,7 @@ async function main(argv: string[] = process.argv): Promise<void> {
       .option("--dry-run", "print planned operations without writing")
       .option(
         "--force",
-        "overwrite conflicting files after backup under .harness-backup/",
+        "overwrite conflicting files after backup under .5harness-backup/",
       )
       .action((directory: string | undefined, opts) => {
         withErrors(() => executeInit(directory, opts));
@@ -841,7 +841,7 @@ async function main(argv: string[] = process.argv): Promise<void> {
     program
       .command("mcp")
       .description(
-        "Start MCP (Model Context Protocol) server over HTTP (default port 3928). Call records land in .harness/local/mcp-calls.jsonl. For dashboard + MCP, run `harness` (dashboard embeds /mcp).",
+        "Start MCP (Model Context Protocol) server over HTTP (default port 3928). Call records land in .5harness/local/mcp-calls.jsonl. For dashboard + MCP, run `harness` (dashboard embeds /mcp).",
       )
       .option("--port <n>", "port (default 3928)", "3928")
       .option("--host <addr>", "bind address (default 127.0.0.1)", "127.0.0.1")

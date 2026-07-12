@@ -148,10 +148,10 @@ warnings with exit 0 (US-018).
 
 | Variable | Meaning |
 | --- | --- |
-| `HARNESS_HOME` | Override global harness dir (default `~/.harness`) |
+| `HARNESS_HOME` | Override global harness dir (default `~/.5harness`) |
 | `HARNESS_DB_PATH` | **Legacy only** — path to SQLite DB for `import-sqlite` / old DB ops |
 | `HARNESS_DEBUG` | When `1`/`true`, emit debug lines to stderr and append to the log file |
-| `HARNESS_LOG_FILE` | Override log file path (default: project `.harness/logs/harness.log` when a project context exists, else `$HARNESS_HOME/logs/harness.log`) |
+| `HARNESS_LOG_FILE` | Override log file path (default: project `.5harness/logs/5harness.log` when a project context exists, else `$HARNESS_HOME/logs/5harness.log`) |
 | `HARNESS_JSON_ERRORS` | When `1`/`true`, print failures as a single JSON object on stderr (`ok`, `code`, `message`, `exitCode`) |
 
 ## Structured errors (US-033)
@@ -184,7 +184,7 @@ Logs never intentionally write secrets (tokens, API keys, passwords are redacted
 | Mechanism | Behavior |
 | --- | --- |
 | Atomic write | `index.json` written via temp file + rename |
-| Mutation lock | `.harness/mutation.lock` held during index write; stale locks reclaimed after ~30s |
+| Mutation lock | `.5harness/mutation.lock` held during index write; stale locks reclaimed after ~30s |
 | Checksum | SHA-256 over stable index payload; stored as `checksum` on the index |
 | Recovery | `harness reindex` rebuilds a valid index; never hand-edit `index.json` |
 

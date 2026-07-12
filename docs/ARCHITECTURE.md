@@ -9,9 +9,9 @@
 | User runtime | Node.js + npm |
 | Implementation language | TypeScript today; native engine optional later |
 | **Durable SoT** | **Markdown entities in each project** (Git-backed) — decision 0011 |
-| Derived index | `.harness/index/` rebuildable; atomic write + checksum (US-034); may use SQLite FTS internally |
-| Mutation lock | `.harness/mutation.lock` during index write (stale reclaim ~30s) |
-| Global registry | `HARNESS_HOME` / `~/.harness` project pointers only |
+| Derived index | `.5harness/index/` rebuildable; atomic write + checksum (US-034); may use SQLite FTS internally |
+| Mutation lock | `.5harness/mutation.lock` during index write (stale reclaim ~30s) |
+| Global registry | `HARNESS_HOME` / `~/.5harness` project pointers only |
 | Traces | Machine-local (not default Git) |
 | Packaging | npm package; optional native packages later |
 | Project SQLite as SoT | **Retired** (was v0.5 MVP; supersedes decision 0004 for this product) |
@@ -26,15 +26,15 @@ Human / Agent
     v
 npm i -g  →  harness CLI
     |
-    +--→ HARNESS_HOME (~/.harness)
+    +--→ HARNESS_HOME (~/.5harness)
     |      registry.json  (linked project paths)
     |      optional caches / local traces per project id
     |
     +--→ Target project filesystem
            AGENTS.md, docs/ policy
            docs/stories|decisions|intakes|backlog/*.md   ← SoT (git)
-           .harness/index/   ← derived (gitignore)
-           .harness/local/   ← traces etc (gitignore)
+           .5harness/index/   ← derived (gitignore)
+           .5harness/local/   ← traces etc (gitignore)
     |
     +--→ (future) localhost dashboard
            reads registry + project markdown/index
@@ -111,7 +111,7 @@ CLI (v0.9.7)
 Key properties:
 - Only the `<!-- HARNESS:BEGIN -->` ... `<!-- HARNESS:END -->` section is modified
 - User-customized content outside the block is preserved
-- Timestamped backup written to `.harness-backup/` before modification
+- Timestamped backup written to `.5harness-backup/` before modification
 - Backward compatible: any old version can be upgraded to current
 - Pre-0.9.7 repos (no version marker) receive guidance to re-init
 

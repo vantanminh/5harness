@@ -8,9 +8,10 @@ import {
   type InboundTool,
   type ToolRegistry,
 } from "../domain/tool-registry.js";
+import { projectToolRegistryPath } from "../domain/paths.js";
 
 export function toolRegistryPath(projectRoot: string): string {
-  return path.join(projectRoot, ".harness", "tool-registry.json");
+  return projectToolRegistryPath(projectRoot);
 }
 
 export function readToolRegistry(projectRoot: string): ToolRegistry {
