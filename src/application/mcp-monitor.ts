@@ -30,7 +30,12 @@ export function readAllMcpCalls(projectRoot: string): McpCallRecord[] {
   const out: McpCallRecord[] = [];
   for (const line of lines) {
     try {
-      out.push(JSON.parse(line) as McpCallRecord);
+      const record = JSON.parse(line) as McpCallRecord;
+      out.push({
+        ...record,
+        project_id: record.project_id ?? null,
+        project_mode: record.project_mode ?? null,
+      });
     } catch {
       // skip corrupt lines
     }
@@ -55,6 +60,8 @@ export function listMcpCalls(
     if (filter?.method && rec.method !== filter.method) return false;
     if (filter?.tool_name && rec.tool_name !== filter.tool_name) return false;
     if (filter?.status && rec.status !== filter.status) return false;
+    if (filter?.project_id && rec.project_id !== filter.project_id) return false;
+    if (filter?.project_mode && rec.project_mode !== filter.project_mode) return false;
     return true;
   });
   // newest first
@@ -91,6 +98,8 @@ export function appendMcpCall(
     status: record.status,
     error_message: record.error_message ?? null,
     project_root: record.project_root,
+    project_id: record.project_id ?? null,
+    project_mode: record.project_mode ?? null,
   };
 
   const file = mcpCallsPath(projectRoot);

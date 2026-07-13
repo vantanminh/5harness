@@ -13,12 +13,19 @@ export type McpCallRecord = {
   status: "success" | "error";
   error_message: string | null;
   project_root: string;
+  project_id: string | null;
+  project_mode: "single" | "all" | null;
 };
 
 /** Input type for appendMcpCall — id and timestamp are optional (auto-generated). */
-export type McpCallInput = Omit<McpCallRecord, "id" | "timestamp"> & {
+export type McpCallInput = Omit<
+  McpCallRecord,
+  "id" | "timestamp" | "project_id" | "project_mode"
+> & {
   id?: number;
   timestamp?: string;
+  project_id?: string | null;
+  project_mode?: "single" | "all" | null;
 };
 
 export type McpCallStats = {
@@ -40,4 +47,6 @@ export type McpCallFilter = {
   method?: string;
   tool_name?: string;
   status?: "success" | "error";
+  project_id?: string;
+  project_mode?: "single" | "all";
 };

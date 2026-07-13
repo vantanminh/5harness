@@ -613,11 +613,16 @@ export function handleMcpRequest(
  */
 export function createMonitoredMcpHandler(
   projectRoot: string,
+  binding?: { projectId: string; projectMode: "single" | "all" },
 ): (body: string) => string {
   return (body: string) => {
     return handleMcpRequest(body, projectRoot, (info) => {
       try {
-        appendMcpCall(projectRoot, info);
+        appendMcpCall(projectRoot, {
+          ...info,
+          project_id: binding?.projectId ?? null,
+          project_mode: binding?.projectMode ?? null,
+        });
       } catch {
         // monitoring write failures are non-fatal
       }

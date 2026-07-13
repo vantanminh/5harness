@@ -1,9 +1,14 @@
 import http from "node:http";
 import { resolveTargetFromOptions, type TargetOptions } from "../infrastructure/context.js";
-import { handleMcpRequest, mcpStreamableHttpStatus } from "../application/mcp-server.js";
+import { createMonitoredMcpHandler, mcpStreamableHttpStatus } from "../application/mcp-server.js";
 import { isLoopbackBindHost } from "../domain/paths.js";
 import { McpOAuthService } from "../application/mcp-oauth.js";
-import { handleMcpOAuthRoute, requireMcpBearer } from "../application/mcp-oauth-http.js";
+import {
+  handleMcpOAuthRoute,
+  requireMcpBearer,
+  sendMcpProjectError,
+} from "../application/mcp-oauth-http.js";
+import { resolveMcpProjectBinding } from "../application/mcp-project-binding.js";
 import { renderLoginPage, safeRedirectPath } from "../application/auth-pages.js";
 import {
   createSession,
@@ -43,7 +48,10 @@ export function executeMcp(options: McpCliOptions): void {
   const server = http.createServer(async (req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, X-Harness-Project",
+    );
 
     if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
 
@@ -104,12 +112,28 @@ export function executeMcp(options: McpCliOptions): void {
     }
 
     if (req.method === "POST" && (url.pathname === "/mcp" || url.pathname === "/")) {
-      if (!requireMcpBearer(req, res, oauth)) return;
+      const grant = requireMcpBearer(req, res, oauth);
+      if (!grant) return;
+      const headerValue = req.headers["x-harness-project"];
+      const resolved = resolveMcpProjectBinding(
+        grant,
+        listLinkedProjects(),
+        {
+          header: typeof headerValue === "string" ? headerValue : undefined,
+          query: url.searchParams.get("project") ?? undefined,
+        },
+      );
+      if (!resolved.ok) {
+        sendMcpProjectError(res, resolved);
+        return;
+      }
+      const { binding } = resolved;
+      const handle = createMonitoredMcpHandler(binding.projectRoot, binding);
       let body = "";
       req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
       req.on("end", () => {
         try {
-          const json = handleMcpRequest(body);
+          const json = handle(body);
           const status = mcpStreamableHttpStatus(json);
           if (status === 202) {
             // Notification-only (e.g. notifications/initialized): no body.

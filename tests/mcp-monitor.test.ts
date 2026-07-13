@@ -53,6 +53,8 @@ describe("MCP monitor storage", () => {
     expect(call.duration_ms).toBe(42);
     expect(call.status).toBe("success");
     expect(call.timestamp).toBeTruthy();
+    expect(call.project_id).toBeNull();
+    expect(call.project_mode).toBeNull();
 
     const calls = listMcpCalls(root);
     expect(calls).toHaveLength(1);
@@ -201,6 +203,34 @@ describe("MCP server monitoring instrumentation", () => {
     const stats = getMcpStats(root);
     expect(stats.total_calls).toBe(3);
     expect(stats.error_count).toBe(1);
+  });
+
+  it("records and filters OAuth project binding metadata", () => {
+    const root = tmp();
+    const handle = createMonitoredMcpHandler(root, {
+      projectId: "project-a",
+      projectMode: "all",
+    });
+    handle(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {},
+      }),
+    );
+
+    const calls = listMcpCalls(root, {
+      project_id: "project-a",
+      project_mode: "all",
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      project_id: "project-a",
+      project_mode: "all",
+      project_root: root,
+    });
+    expect(listMcpCalls(root, { project_id: "project-b" })).toHaveLength(0);
   });
 
   it("handleMcpRequest without onCall does not write records", () => {

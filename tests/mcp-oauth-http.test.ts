@@ -6,8 +6,9 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { startDashboard } from "../src/application/dashboard.js";
-import { linkProject } from "../src/application/registry.js";
+import { linkProject, unlinkProject } from "../src/application/registry.js";
 import { listMcpCalls } from "../src/application/mcp-monitor.js";
+import { addStoryMd } from "../src/application/md-durable.js";
 import { MCP_OAUTH_SCOPE } from "../src/application/mcp-oauth.js";
 
 const tempDirs: string[] = [];
@@ -77,6 +78,7 @@ async function loginAsAdmin(baseUrl: string, redirect = "/"): Promise<string> {
 async function acquireToken(
   baseUrl: string,
   projectMode: "single" | "all" = "single",
+  selectedProjectId?: string,
 ): Promise<string> {
   const redirectUri = "http://127.0.0.1:4567/callback";
   const resource = `${baseUrl}mcp`;
@@ -126,8 +128,12 @@ async function acquireToken(
   expect(html).not.toMatch(/name="password"/);
   const requestId = /name="request_id" value="([^"]+)"/.exec(html)?.[1];
   expect(requestId).toBeTruthy();
-  const projectId = /name="project_id" type="radio" value="([^"]+)"/.exec(html)?.[1];
+  const projectIds = [
+    ...html.matchAll(/name="project_id" type="radio" value="([^"]+)"/g),
+  ].map((match) => match[1]!);
+  const projectId = selectedProjectId ?? projectIds[0];
   if (projectMode === "single") expect(projectId).toBeTruthy();
+  if (selectedProjectId) expect(projectIds).toContain(selectedProjectId);
 
   const approval = await fetch(`${baseUrl}authorize`, {
     method: "POST",
@@ -178,7 +184,7 @@ describe("MCP OAuth HTTP integration", () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-oauth-home-"));
     const project = fs.mkdtempSync(path.join(os.tmpdir(), "harness-oauth-project-"));
     tempDirs.push(home, project);
-    linkProject(project, { harnessHome: home });
+    const linked = linkProject(project, { harnessHome: home });
     const dashboard = await startDashboard({ host: "127.0.0.1", port: 0, harnessHome: home });
     try {
       const rpcBody = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} });
@@ -203,8 +209,12 @@ describe("MCP OAuth HTTP integration", () => {
         grant_types_supported: ["authorization_code"],
       });
 
-      const token = await acquireToken(dashboard.url);
-      const accepted = await fetch(`${dashboard.url}mcp?project=${encodeURIComponent(project)}`, {
+      const token = await acquireToken(
+        dashboard.url,
+        "single",
+        linked.entry.id,
+      );
+      const accepted = await fetch(`${dashboard.url}mcp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -216,10 +226,16 @@ describe("MCP OAuth HTTP integration", () => {
       await expect(accepted.json()).resolves.toMatchObject({
         result: { serverInfo: { name: "harness-mcp" } },
       });
-      expect(listMcpCalls(project)).toHaveLength(0);
+      expect(listMcpCalls(project)).toEqual([
+        expect.objectContaining({
+          method: "initialize",
+          project_id: linked.entry.id,
+          project_mode: "single",
+        }),
+      ]);
 
-      const unboundTool = await fetch(
-        `${dashboard.url}mcp?project=${encodeURIComponent(project)}`,
+      const projectTool = await fetch(
+        `${dashboard.url}mcp`,
         {
           method: "POST",
           headers: {
@@ -234,15 +250,15 @@ describe("MCP OAuth HTTP integration", () => {
           }),
         },
       );
-      expect(unboundTool.status).toBe(200);
-      await expect(unboundTool.json()).resolves.toMatchObject({
-        error: { code: -32001, message: expect.stringMatching(/unbound/i) },
+      expect(projectTool.status).toBe(200);
+      await expect(projectTool.json()).resolves.toMatchObject({
+        result: { content: expect.any(Array) },
       });
-      expect(listMcpCalls(project)).toHaveLength(0);
+      expect(listMcpCalls(project)).toHaveLength(2);
 
       // Streamable HTTP: notification-only POSTs must be 202 with empty body.
       // Codex CLI (rmcp) fails handshake if this is 200 + empty application/json.
-      const initialized = await fetch(`${dashboard.url}mcp?project=${encodeURIComponent(project)}`, {
+      const initialized = await fetch(`${dashboard.url}mcp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -284,6 +300,185 @@ describe("MCP OAuth HTTP integration", () => {
     }
   });
 
+  it("isolates single grants and requires an explicit project id for all grants", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-oauth-routing-home-"));
+    const firstProject = fs.mkdtempSync(path.join(os.tmpdir(), "harness-oauth-routing-a-"));
+    const secondProject = fs.mkdtempSync(path.join(os.tmpdir(), "harness-oauth-routing-b-"));
+    tempDirs.push(home, firstProject, secondProject);
+    addStoryMd(
+      { projectRoot: firstProject },
+      { id: "US-SHARED", title: "First project story", lane: "tiny" },
+    );
+    addStoryMd(
+      { projectRoot: secondProject },
+      { id: "US-SHARED", title: "Second project story", lane: "tiny" },
+    );
+    const first = linkProject(firstProject, { harnessHome: home }).entry;
+    const second = linkProject(secondProject, { harnessHome: home }).entry;
+    const dashboard = await startDashboard({
+      host: "127.0.0.1",
+      port: 0,
+      harnessHome: home,
+    });
+    const body = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 10,
+      method: "tools/call",
+      params: {
+        name: "harness_get",
+        arguments: { id: "US-SHARED" },
+      },
+    });
+    try {
+      const singleToken = await acquireToken(
+        dashboard.url,
+        "single",
+        first.id,
+      );
+      const single = await fetch(`${dashboard.url}mcp`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${singleToken}`,
+          "Content-Type": "application/json",
+        },
+        body,
+      });
+      expect(single.status).toBe(200);
+      expect(JSON.stringify(await single.json())).toContain("First project story");
+
+      const crossProject = await fetch(`${dashboard.url}mcp`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${singleToken}`,
+          "Content-Type": "application/json",
+          "X-Harness-Project": second.id,
+        },
+        body,
+      });
+      expect(crossProject.status).toBe(403);
+      await expect(crossProject.json()).resolves.toMatchObject({
+        error_code: "project_hint_mismatch",
+      });
+
+      const allToken = await acquireToken(dashboard.url, "all");
+      const missing = await fetch(`${dashboard.url}mcp`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${allToken}`,
+          "Content-Type": "application/json",
+        },
+        body,
+      });
+      expect(missing.status).toBe(403);
+      await expect(missing.json()).resolves.toMatchObject({
+        error_code: "project_required",
+      });
+
+      const unknown = await fetch(`${dashboard.url}mcp?project=unknown`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${allToken}`,
+          "Content-Type": "application/json",
+        },
+        body,
+      });
+      expect(unknown.status).toBe(403);
+      await expect(unknown.json()).resolves.toMatchObject({
+        error_code: "project_not_linked",
+      });
+
+      const routedSecond = await fetch(
+        `${dashboard.url}mcp?project=${encodeURIComponent(second.id)}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${allToken}`,
+            "Content-Type": "application/json",
+          },
+          body,
+        },
+      );
+      expect(routedSecond.status).toBe(200);
+      expect(JSON.stringify(await routedSecond.json())).toContain(
+        "Second project story",
+      );
+
+      const routedFirst = await fetch(`${dashboard.url}mcp`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${allToken}`,
+          "Content-Type": "application/json",
+          "X-Harness-Project": first.id,
+        },
+        body,
+      });
+      expect(routedFirst.status).toBe(200);
+      expect(JSON.stringify(await routedFirst.json())).toContain(
+        "First project story",
+      );
+
+      const conflicting = await fetch(
+        `${dashboard.url}mcp?project=${encodeURIComponent(second.id)}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${allToken}`,
+            "Content-Type": "application/json",
+            "X-Harness-Project": first.id,
+          },
+          body,
+        },
+      );
+      expect(conflicting.status).toBe(403);
+      await expect(conflicting.json()).resolves.toMatchObject({
+        error_code: "conflicting_project_hint",
+      });
+
+      expect(listMcpCalls(firstProject)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ project_id: first.id, project_mode: "single" }),
+          expect.objectContaining({ project_id: first.id, project_mode: "all" }),
+        ]),
+      );
+      expect(listMcpCalls(secondProject)).toEqual([
+        expect.objectContaining({ project_id: second.id, project_mode: "all" }),
+      ]);
+
+      fs.rmSync(secondProject, { recursive: true, force: true });
+      const missingOnDisk = await fetch(
+        `${dashboard.url}mcp?project=${encodeURIComponent(second.id)}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${allToken}`,
+            "Content-Type": "application/json",
+          },
+          body,
+        },
+      );
+      expect(missingOnDisk.status).toBe(403);
+      await expect(missingOnDisk.json()).resolves.toMatchObject({
+        error_code: "project_unavailable",
+      });
+
+      unlinkProject(firstProject, { harnessHome: home });
+      const unlinkedSingle = await fetch(`${dashboard.url}mcp`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${singleToken}`,
+          "Content-Type": "application/json",
+        },
+        body,
+      });
+      expect(unlinkedSingle.status).toBe(403);
+      await expect(unlinkedSingle.json()).resolves.toMatchObject({
+        error_code: "project_not_linked",
+      });
+    } finally {
+      await dashboard.close();
+    }
+  });
+
   it("protects the standalone harness mcp command with the same OAuth flow", async () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-oauth-cli-home-"));
     const project = fs.mkdtempSync(path.join(os.tmpdir(), "harness-oauth-cli-project-"));
@@ -291,7 +486,7 @@ describe("MCP OAuth HTTP integration", () => {
     for (const dir of ["docs/stories", "docs/decisions", "docs/intakes", "docs/backlog"]) {
       fs.mkdirSync(path.join(project, dir), { recursive: true });
     }
-    linkProject(project, { harnessHome: home });
+    const linked = linkProject(project, { harnessHome: home });
     const port = await freePort();
     const child = spawn(
       process.execPath,
@@ -307,7 +502,7 @@ describe("MCP OAuth HTTP integration", () => {
       const baseUrl = `http://127.0.0.1:${port}/`;
       const denied = await fetch(`${baseUrl}mcp`, { method: "POST", body: "{}" });
       expect(denied.status).toBe(401);
-      const token = await acquireToken(baseUrl);
+      const token = await acquireToken(baseUrl, "single", linked.entry.id);
       const health = await fetch(`${baseUrl}health`);
       await expect(health.json()).resolves.toMatchObject({
         status: "ok",
@@ -322,7 +517,7 @@ describe("MCP OAuth HTTP integration", () => {
       await expect(accepted.json()).resolves.toMatchObject({
         result: { serverInfo: { name: "harness-mcp" } },
       });
-      const unboundTool = await fetch(`${baseUrl}mcp`, {
+      const projectTool = await fetch(`${baseUrl}mcp`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -332,8 +527,8 @@ describe("MCP OAuth HTTP integration", () => {
           params: { name: "harness_status", arguments: {} },
         }),
       });
-      await expect(unboundTool.json()).resolves.toMatchObject({
-        error: { code: -32001, message: expect.stringMatching(/unbound/i) },
+      await expect(projectTool.json()).resolves.toMatchObject({
+        result: { content: expect.any(Array) },
       });
       const initialized = await fetch(`${baseUrl}mcp`, {
         method: "POST",
@@ -342,6 +537,14 @@ describe("MCP OAuth HTTP integration", () => {
       });
       expect(initialized.status).toBe(202);
       expect(await initialized.text()).toBe("");
+      expect(listMcpCalls(project)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            project_id: linked.entry.id,
+            project_mode: "single",
+          }),
+        ]),
+      );
     } finally {
       child.kill();
       await new Promise<void>((resolve) => {

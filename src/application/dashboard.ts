@@ -16,9 +16,14 @@ import { isLoopbackBindHost } from "../domain/paths.js";
 import { listLinkedProjects } from "./registry.js";
 import { VERSION } from "../version.js";
 import { handleDashboardMutation } from "./dashboard-mutations.js";
-import { handleMcpRequest, mcpStreamableHttpStatus } from "./mcp-server.js";
+import { createMonitoredMcpHandler, mcpStreamableHttpStatus } from "./mcp-server.js";
 import { McpOAuthService } from "./mcp-oauth.js";
-import { handleMcpOAuthRoute, requireMcpBearer } from "./mcp-oauth-http.js";
+import {
+  handleMcpOAuthRoute,
+  requireMcpBearer,
+  sendMcpProjectError,
+} from "./mcp-oauth-http.js";
+import { resolveMcpProjectBinding } from "./mcp-project-binding.js";
 import { renderLoginPage, safeRedirectPath } from "./auth-pages.js";
 
 import { getMcpStats, listMcpCalls } from "./mcp-monitor.js";
@@ -255,16 +260,18 @@ function renderMcpMonitor(projectPath: string): string {
       <td style="white-space:nowrap">${new Date(c.timestamp).toLocaleString()}</td>
       <td><code>${htmlEscape(c.method)}</code></td>
       <td>${c.tool_name ? `<code>${htmlEscape(c.tool_name)}</code>` : '—'}</td>
+      <td>${c.project_id ? `<code>${htmlEscape(c.project_id)}</code>` : '—'}</td>
+      <td>${c.project_mode ?? '—'}</td>
       <td class="${statusClass}">${c.status}</td>
       <td>${c.duration_ms}ms</td>
       <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${htmlEscape(c.error_message ?? '')}">${htmlEscape(c.error_message ?? '') || '—'}</td>
     </tr>`;
-  }).join('\n') : '<tr><td colspan="6" class="muted">No MCP calls recorded yet.</td></tr>';
+  }).join('\n') : '<tr><td colspan="8" class="muted">No MCP calls recorded yet.</td></tr>';
 
   const logSection = `
   <h3>Call Log (last ${calls.length})</h3>
   <table>
-    <thead><tr><th>Time</th><th>Method</th><th>Tool</th><th>Status</th><th>Duration</th><th>Error</th></tr></thead>
+    <thead><tr><th>Time</th><th>Method</th><th>Tool</th><th>Project ID</th><th>Mode</th><th>Status</th><th>Duration</th><th>Error</th></tr></thead>
     <tbody>${logRows}</tbody>
   </table>`;
 
@@ -670,14 +677,33 @@ export function startDashboard(
 
       // MCP uses OAuth bearer tokens, never dashboard cookies.
       if (url.pathname === "/mcp" && req.method === "POST") {
-        if (!requireMcpBearer(req, res, oauth)) return;
+        const grant = requireMcpBearer(req, res, oauth);
+        if (!grant) return;
+        const headerValue = req.headers["x-harness-project"];
+        const resolved = resolveMcpProjectBinding(
+          grant,
+          listLinkedProjects({
+            env: dashOpts.env,
+            harnessHome: dashOpts.harnessHome,
+          }),
+          {
+            header: typeof headerValue === "string" ? headerValue : undefined,
+            query: url.searchParams.get("project") ?? undefined,
+          },
+        );
+        if (!resolved.ok) {
+          sendMcpProjectError(res, resolved);
+          return;
+        }
+        const { binding } = resolved;
+        const handle = createMonitoredMcpHandler(binding.projectRoot, binding);
         let body = "";
         req.on("data", (chunk: Buffer) => {
           body += chunk.toString();
         });
         req.on("end", () => {
           try {
-            const json = handleMcpRequest(body);
+            const json = handle(body);
             const status = mcpStreamableHttpStatus(json);
             if (status === 202) {
               // Notification-only (e.g. notifications/initialized): no body.
@@ -937,10 +963,22 @@ export function handleDashboardRequest(
       return { status: 404, contentType: "application/json", body: JSON.stringify({ error: "project not found" }) };
     }
     const limit = parseInt(url.searchParams.get("limit") ?? "50", 10);
+    const projectMode = url.searchParams.get("project_mode");
     return {
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(listMcpCalls(projectPath, { limit: isNaN(limit) ? 50 : limit }), null, 2),
+      body: JSON.stringify(
+        listMcpCalls(projectPath, {
+          limit: isNaN(limit) ? 50 : limit,
+          project_id: url.searchParams.get("project_id") ?? undefined,
+          project_mode:
+            projectMode === "single" || projectMode === "all"
+              ? projectMode
+              : undefined,
+        }),
+        null,
+        2,
+      ),
     };
   }
   if (url.pathname === "/api/mcp-stats") {

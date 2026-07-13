@@ -41,6 +41,8 @@ describe("dashboard MCP monitor API and page", () => {
       status: "success",
       error_message: null,
       project_root: project,
+      project_id: "project-test",
+      project_mode: "single",
     });
     appendMcpCall(project, {
       method: "tools/call",
@@ -83,6 +85,17 @@ describe("dashboard MCP monitor API and page", () => {
     expect(data[0]!.tool_name).toBe("harness_search");
     expect(data[1]!.method).toBe("tools/call");
     expect(data[2]!.method).toBe("initialize");
+    expect(data[2]).toMatchObject({
+      project_id: "project-test",
+      project_mode: "single",
+    });
+
+    const filtered = handleDashboardRequest(
+      "GET",
+      `/api/mcp-calls?project=${encodeURIComponent(project)}&project_id=project-test&project_mode=single`,
+      opts,
+    );
+    expect(JSON.parse(filtered.body)).toHaveLength(1);
   });
 
   it("serves MCP stats API", () => {

@@ -4,6 +4,7 @@ import {
   MCP_OAUTH_SCOPE,
   OAuthProtocolError,
   extractBearerToken,
+  type TokenValidation,
 } from "./mcp-oauth.js";
 import { renderApprovalPage } from "./auth-pages.js";
 
@@ -180,9 +181,9 @@ export function requireMcpBearer(
   req: IncomingMessage,
   res: ServerResponse,
   oauth: McpOAuthService,
-): boolean {
+): Extract<TokenValidation, { ok: true }> | null {
   const validation = oauth.validateAccessToken(extractBearerToken(req.headers.authorization));
-  if (validation.ok) return true;
+  if (validation.ok) return validation;
   const metadata = `${oauth.issuer}/.well-known/oauth-protected-resource/mcp`;
   const insufficient = validation.reason === "insufficient_scope";
   const status = insufficient ? 403 : 401;
@@ -195,5 +196,16 @@ export function requireMcpBearer(
     error: insufficient ? "insufficient_scope" : "invalid_token",
     error_description: validation.reason,
   });
-  return false;
+  return null;
+}
+
+export function sendMcpProjectError(
+  res: ServerResponse,
+  error: { code: string; message: string },
+): void {
+  sendJson(res, 403, {
+    error: "invalid_project",
+    error_code: error.code,
+    error_description: error.message,
+  });
 }
