@@ -55,7 +55,7 @@
   "homepage": "https://github.com/vantanminh/5harness#readme",
   "author": "vantanminh",
   "dependencies": {
-    "commander": "^14.0.0"
+    "commander": "^15.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
