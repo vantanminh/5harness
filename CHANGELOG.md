@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** standalone and dashboard-hosted MCP servers now start without a
+  cwd-selected project. OAuth-authenticated clients may negotiate the protocol,
+  but project tools fail closed until authorization supplies a project binding;
+  standalone `/health` reports `project_bound: false` (IN-012 / US-051).
 - npm update notices now refresh the `latest` dist-tag hourly, bypass
   intermediary caches, and retry transient registry failures after five
   minutes instead of preserving a stale result for a full day (IN-011 / US-049).

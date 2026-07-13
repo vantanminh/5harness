@@ -412,13 +412,14 @@ function summarizeInput(
 }
 
 function dispatch(
-  root: string,
+  root: string | undefined,
   req: RpcReq,
 ): { result: RpcRes | null; callInfo?: McpCallInput } {
   const { id, method, params } = req;
   if (id === undefined) return { result: null };
   const startMs = Date.now();
   const inputSum = summarizeInput(method, params);
+  const recordRoot = root ?? "";
   try {
     switch (method) {
       case "initialize":
@@ -439,7 +440,7 @@ function dispatch(
             duration_ms: Date.now() - startMs,
             status: "success",
             error_message: null,
-            project_root: root,
+            project_root: recordRoot,
           },
         };
       case "tools/list":
@@ -452,11 +453,27 @@ function dispatch(
             duration_ms: Date.now() - startMs,
             status: "success",
             error_message: null,
-            project_root: root,
+            project_root: recordRoot,
           },
         };
       case "tools/call": {
         const p = params as { name?: string; arguments?: Record<string, unknown> };
+        if (!root) {
+          const message =
+            "MCP project is unbound. Complete OAuth project authorization before calling tools.";
+          return {
+            result: err(id, -32001, message),
+            callInfo: {
+              method,
+              tool_name: p?.name ?? null,
+              input_summary: inputSum,
+              duration_ms: Date.now() - startMs,
+              status: "error",
+              error_message: message,
+              project_root: recordRoot,
+            },
+          };
+        }
         if (!p?.name) {
           return {
             result: err(id, -32602, "Missing tool name"),
@@ -467,7 +484,7 @@ function dispatch(
               duration_ms: Date.now() - startMs,
               status: "error",
               error_message: "Missing tool name",
-              project_root: root,
+              project_root: recordRoot,
             },
           };
         }
@@ -482,7 +499,7 @@ function dispatch(
               duration_ms: Date.now() - startMs,
               status: "success",
               error_message: null,
-              project_root: root,
+              project_root: recordRoot,
             },
           };
         } catch (e) {
@@ -496,7 +513,7 @@ function dispatch(
               duration_ms: Date.now() - startMs,
               status: "error",
               error_message: msg,
-              project_root: root,
+              project_root: recordRoot,
             },
           };
         }
@@ -511,7 +528,7 @@ function dispatch(
             duration_ms: Date.now() - startMs,
             status: "error",
             error_message: `Method not found: ${method}`,
-            project_root: root,
+            project_root: recordRoot,
           },
         };
     }
@@ -526,7 +543,7 @@ function dispatch(
         duration_ms: Date.now() - startMs,
         status: "error",
         error_message: msg,
-        project_root: root,
+        project_root: recordRoot,
       },
     };
   }
@@ -553,7 +570,7 @@ export function handleMcpRequest(
   projectRoot?: string,
   onCall?: (info: McpCallInput) => void,
 ): string {
-  const root = projectRoot ?? process.cwd();
+  const recordRoot = projectRoot ?? "";
   let req: RpcReq;
   try {
     req = JSON.parse(body) as RpcReq;
@@ -567,7 +584,7 @@ export function handleMcpRequest(
         duration_ms: 0,
         status: "error",
         error_message: "Parse error",
-        project_root: root,
+        project_root: recordRoot,
       });
     return resp;
   }
@@ -581,11 +598,11 @@ export function handleMcpRequest(
         duration_ms: 0,
         status: "error",
         error_message: "Invalid Request",
-        project_root: root,
+        project_root: recordRoot,
       });
     return resp;
   }
-  const { result, callInfo } = dispatch(root, req);
+  const { result, callInfo } = dispatch(projectRoot, req);
   if (callInfo && onCall) onCall(callInfo);
   return result ? JSON.stringify(result) : "";
 }

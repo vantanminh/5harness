@@ -1,6 +1,6 @@
 import http from "node:http";
 import { resolveTargetFromOptions, type TargetOptions } from "../infrastructure/context.js";
-import { createMonitoredMcpHandler, mcpStreamableHttpStatus } from "../application/mcp-server.js";
+import { handleMcpRequest, mcpStreamableHttpStatus } from "../application/mcp-server.js";
 import { isLoopbackBindHost } from "../domain/paths.js";
 import { McpOAuthService } from "../application/mcp-oauth.js";
 import { handleMcpOAuthRoute, requireMcpBearer } from "../application/mcp-oauth-http.js";
@@ -30,8 +30,6 @@ export function executeMcp(options: McpCliOptions): void {
       "warning: binding MCP outside loopback requires an HTTPS reverse proxy; OAuth credentials and tokens must not cross plaintext networks. See docs/SECURITY.md.",
     );
   }
-  // Always persist call records for this project (decision 0015)
-  const handle = createMonitoredMcpHandler(targetDir);
   ensureDefaultAuth();
   let oauth: McpOAuthService | undefined;
   const bindHostForUrl = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
@@ -102,7 +100,7 @@ export function executeMcp(options: McpCliOptions): void {
       req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
       req.on("end", () => {
         try {
-          const json = handle(body);
+          const json = handleMcpRequest(body);
           const status = mcpStreamableHttpStatus(json);
           if (status === 202) {
             // Notification-only (e.g. notifications/initialized): no body.
@@ -122,7 +120,13 @@ export function executeMcp(options: McpCliOptions): void {
 
     if (req.method === "GET" && (req.url === "/" || req.url === "/health")) {
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "ok", name: "harness-mcp", project: targetDir }));
+      res.end(
+        JSON.stringify({
+          status: "ok",
+          name: "harness-mcp",
+          project_bound: false,
+        }),
+      );
       return;
     }
 
@@ -146,8 +150,10 @@ export function executeMcp(options: McpCliOptions): void {
     const actualPort = typeof address === "object" && address ? address.port : port;
     console.log(`MCP endpoint: http://${host}:${actualPort}/mcp`);
     console.log(`OAuth discovery: http://${host}:${actualPort}/.well-known/oauth-protected-resource/mcp`);
-    console.log(`Project: ${targetDir}`);
-    console.log(`Monitor log: ${targetDir}/.5harness/local/mcp-calls.jsonl`);
+    console.log("Project binding: unbound (selected during OAuth authorization)");
+    if (options.dir || options.directory) {
+      console.log(`Project hint: ${targetDir}`);
+    }
     console.log("Press Ctrl+C to stop.");
   });
 }

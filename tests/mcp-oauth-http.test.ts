@@ -202,7 +202,29 @@ describe("MCP OAuth HTTP integration", () => {
       await expect(accepted.json()).resolves.toMatchObject({
         result: { serverInfo: { name: "harness-mcp" } },
       });
-      expect(listMcpCalls(project).some((call) => call.method === "initialize")).toBe(true);
+      expect(listMcpCalls(project)).toHaveLength(0);
+
+      const unboundTool = await fetch(
+        `${dashboard.url}mcp?project=${encodeURIComponent(project)}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 2,
+            method: "tools/call",
+            params: { name: "harness_status", arguments: {} },
+          }),
+        },
+      );
+      expect(unboundTool.status).toBe(200);
+      await expect(unboundTool.json()).resolves.toMatchObject({
+        error: { code: -32001, message: expect.stringMatching(/unbound/i) },
+      });
+      expect(listMcpCalls(project)).toHaveLength(0);
 
       // Streamable HTTP: notification-only POSTs must be 202 with empty body.
       // Codex CLI (rmcp) fails handshake if this is 200 + empty application/json.
@@ -271,6 +293,11 @@ describe("MCP OAuth HTTP integration", () => {
       const denied = await fetch(`${baseUrl}mcp`, { method: "POST", body: "{}" });
       expect(denied.status).toBe(401);
       const token = await acquireToken(baseUrl);
+      const health = await fetch(`${baseUrl}health`);
+      await expect(health.json()).resolves.toMatchObject({
+        status: "ok",
+        project_bound: false,
+      });
       const accepted = await fetch(`${baseUrl}mcp`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -279,6 +306,19 @@ describe("MCP OAuth HTTP integration", () => {
       expect(accepted.status).toBe(200);
       await expect(accepted.json()).resolves.toMatchObject({
         result: { serverInfo: { name: "harness-mcp" } },
+      });
+      const unboundTool = await fetch(`${baseUrl}mcp`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 2,
+          method: "tools/call",
+          params: { name: "harness_status", arguments: {} },
+        }),
+      });
+      await expect(unboundTool.json()).resolves.toMatchObject({
+        error: { code: -32001, message: expect.stringMatching(/unbound/i) },
       });
       const initialized = await fetch(`${baseUrl}mcp`, {
         method: "POST",

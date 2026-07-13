@@ -56,6 +56,22 @@ function toolText(res: {
 }
 
 describe("MCP mutation tools (US-041)", () => {
+  it("fails closed instead of falling back to cwd when unbound", () => {
+    const raw = handleMcpRequest(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "harness_status", arguments: {} },
+      }),
+    );
+    const response = JSON.parse(raw) as {
+      error?: { code: number; message: string };
+    };
+    expect(response.error?.code).toBe(-32001);
+    expect(response.error?.message).toMatch(/project is unbound/i);
+  });
+
   it("lists mutation tools alongside reads", () => {
     const names = MCP_TOOLS.map((t) => t.name);
     expect(names).toContain("harness_get");

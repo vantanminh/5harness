@@ -16,7 +16,7 @@ import { isLoopbackBindHost } from "../domain/paths.js";
 import { listLinkedProjects } from "./registry.js";
 import { VERSION } from "../version.js";
 import { handleDashboardMutation } from "./dashboard-mutations.js";
-import { createMonitoredMcpHandler, mcpStreamableHttpStatus } from "./mcp-server.js";
+import { handleMcpRequest, mcpStreamableHttpStatus } from "./mcp-server.js";
 import { McpOAuthService } from "./mcp-oauth.js";
 import { handleMcpOAuthRoute, requireMcpBearer } from "./mcp-oauth-http.js";
 import { renderLoginPage, safeRedirectPath } from "./auth-pages.js";
@@ -180,39 +180,6 @@ function findProjectPath(idOrPath: string, options: DashboardOptions): string | 
       proj.name === idOrPath,
   );
   return p && !p.missing ? p.path : null;
-}
-
-/**
- * Resolve which project root MCP calls should bind to.
- * Priority: explicit preferred id/path → cwd match among linked projects → first healthy linked project → cwd.
- */
-export function resolveMcpProjectRoot(
-  options: DashboardOptions = {},
-  preferred?: string | null,
-): string {
-  const projects = listProjectSummaries(options).filter(
-    (p) => !p.missing && !p.error,
-  );
-  if (preferred) {
-    const hit = projects.find(
-      (p) =>
-        p.id === preferred ||
-        p.path === preferred ||
-        p.name === preferred ||
-        path.resolve(p.path) === path.resolve(preferred),
-    );
-    if (hit) return hit.path;
-  }
-  const cwd = path.resolve(process.cwd());
-  let best: ProjectSummary | null = null;
-  for (const p of projects) {
-    const pp = path.resolve(p.path);
-    if (cwd === pp || cwd.startsWith(pp + path.sep)) {
-      if (!best || pp.length > path.resolve(best.path).length) best = p;
-    }
-  }
-  if (best) return best.path;
-  return projects[0]?.path ?? process.cwd();
 }
 
 function renderMcpMonitor(projectPath: string): string {
@@ -706,13 +673,7 @@ export function startDashboard(
         });
         req.on("end", () => {
           try {
-            const preferred =
-              url.searchParams.get("project") ??
-              (req.headers["x-harness-project"] as string | undefined) ??
-              null;
-            const projectRoot = resolveMcpProjectRoot(dashOpts, preferred);
-            const handle = createMonitoredMcpHandler(projectRoot);
-            const json = handle(body);
+            const json = handleMcpRequest(body);
             const status = mcpStreamableHttpStatus(json);
             if (status === 202) {
               // Notification-only (e.g. notifications/initialized): no body.
