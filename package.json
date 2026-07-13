@@ -1,6 +1,6 @@
 {
   "name": "5harness",
-  "version": "0.15.1",
+  "version": "0.15.2",
   "description": "Agent-ready repository harness — global CLI with markdown durable SoT",
   "type": "module",
   "bin": {
