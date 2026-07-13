@@ -16,6 +16,8 @@ import { listLinkedProjects } from "./registry.js";
 import { VERSION } from "../version.js";
 import { handleDashboardMutation } from "./dashboard-mutations.js";
 import { createMonitoredMcpHandler } from "./mcp-server.js";
+import { McpOAuthService } from "./mcp-oauth.js";
+import { handleMcpOAuthRoute, requireMcpBearer } from "./mcp-oauth-http.js";
 
 import { getMcpStats, listMcpCalls } from "./mcp-monitor.js";
 import {
@@ -704,11 +706,52 @@ export function startDashboard(
     harnessHome: options.harnessHome,
   };
 
-  const server = http.createServer((req, res) => {
+  let oauth: McpOAuthService | undefined;
+  const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", `http://${host}:${port}`);
       const authHomeOpts = dashOpts.harnessHome ? { harnessHome: dashOpts.harnessHome } : undefined;
       ensureDefaultAuth(authHomeOpts);
+
+      const address = server.address();
+      const actualPort = typeof address === "object" && address ? address.port : port;
+      oauth ??= new McpOAuthService({
+        issuer: `http://${host}:${actualPort}`,
+        resource: `http://${host}:${actualPort}/mcp`,
+      });
+      if (await handleMcpOAuthRoute(req, res, url, oauth, {
+        authenticateUser: (username, password) => verifyCredentials(username, password, authHomeOpts),
+        isUserAuthenticated: (request) => {
+          const token = extractSessionToken(request.headers.cookie);
+          return Boolean(token && validateSession(token));
+        },
+      })) return;
+
+      // MCP uses OAuth bearer tokens, never dashboard cookies.
+      if (url.pathname === "/mcp" && req.method === "POST") {
+        if (!requireMcpBearer(req, res, oauth)) return;
+        let body = "";
+        req.on("data", (chunk: Buffer) => {
+          body += chunk.toString();
+        });
+        req.on("end", () => {
+          try {
+            const preferred =
+              url.searchParams.get("project") ??
+              (req.headers["x-harness-project"] as string | undefined) ??
+              null;
+            const projectRoot = resolveMcpProjectRoot(dashOpts, preferred);
+            const handle = createMonitoredMcpHandler(projectRoot);
+            const json = handle(body);
+            res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+            res.end(json);
+          } catch (err) {
+            res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+            res.end(err instanceof Error ? err.message : String(err));
+          }
+        });
+        return;
+      }
 
       // Auth: public paths (login, auth API) skip auth check
       const publicPaths = ["/login", "/api/auth/login", "/api/auth/logout"];
@@ -812,32 +855,6 @@ export function startDashboard(
       if (url.pathname === "/settings") {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         res.end(renderSettings());
-        return;
-      }
-
-
-      // MCP JSON-RPC (monitored) — project from ?project= or cwd-linked project
-      if (url.pathname === "/mcp" && req.method === "POST") {
-        let body = "";
-        req.on("data", (chunk: Buffer) => {
-          body += chunk.toString();
-        });
-        req.on("end", () => {
-          try {
-            const preferred =
-              url.searchParams.get("project") ??
-              (req.headers["x-harness-project"] as string | undefined) ??
-              null;
-            const projectRoot = resolveMcpProjectRoot(dashOpts, preferred);
-            const handle = createMonitoredMcpHandler(projectRoot);
-            const json = handle(body);
-            res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
-            res.end(json);
-          } catch (err) {
-            res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
-            res.end(err instanceof Error ? err.message : String(err));
-          }
-        });
         return;
       }
 

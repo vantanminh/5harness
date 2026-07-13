@@ -194,7 +194,7 @@ describe("dashboard MCP monitor API and page", () => {
     }
   });
 
-  it("POST /mcp on live dashboard records calls for the project", async () => {
+  it("POST /mcp on live dashboard requires OAuth rather than a dashboard cookie", async () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dash-mcp-live-h-"));
     const project = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dash-mcp-live-p-"));
     tempDirs.push(home, project);
@@ -219,13 +219,9 @@ describe("dashboard MCP monitor API and page", () => {
         body,
         cookie,
       );
-      expect(res.status).toBe(200);
-      const rpc = JSON.parse(res.body) as { result?: { serverInfo?: { name: string } } };
-      expect(rpc.result?.serverInfo?.name).toBe("harness-mcp");
-
-      const recorded = listMcpCalls(project, { limit: 10 });
-      expect(recorded.length).toBeGreaterThanOrEqual(1);
-      expect(recorded.some((c) => c.method === "initialize")).toBe(true);
+      expect(res.status).toBe(401);
+      expect(JSON.parse(res.body)).toMatchObject({ error: "invalid_token" });
+      expect(listMcpCalls(project, { limit: 10 })).toHaveLength(0);
     } finally {
       await dash.close();
     }
