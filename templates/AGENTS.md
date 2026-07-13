@@ -1,7 +1,7 @@
 # Agent Instructions
 
 <!-- HARNESS:BEGIN -->
-<!-- harness-version: 0.16.1 -->
+<!-- harness-version: 0.17.0 -->
 ## Harness
 
 This repo uses **Harness** (`5harness`, bin `harness`).
