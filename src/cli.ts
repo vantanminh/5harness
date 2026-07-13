@@ -45,6 +45,8 @@ import {
   executeProjects,
   executeUnlink,
 } from "./commands/link.js";
+import { executeRemove, executeRm } from "./commands/remove.js";
+
 import { executeImportSqlite } from "./commands/import-sqlite.js";
 import { executeMigrate } from "./commands/migrate.js";
 import { executePropose } from "./commands/propose.js";
@@ -206,6 +208,49 @@ async function main(argv: string[] = process.argv): Promise<void> {
       .argument("[directory]", "project root (default: cwd)")
       .action((directory: string | undefined, opts) => {
         withErrors(() => executeUnlink(directory, opts));
+      }),
+  );
+
+
+  // "remove" as primary command
+  addDirOptions(
+    program
+      .command("remove")
+      .description(
+        "Completely remove 5harness from a project (unlink + delete state + strip AGENTS.md)",
+      )
+      .argument("[directory]", "project root (default: cwd)")
+      .option("--force", "skip confirmation prompt")
+      .option("--keep-entities", "keep entity directories under docs/")
+      .action((directory: string | undefined, opts) => {
+        withErrors(() => {
+          void executeRemove({
+            dir: opts.dir ?? opts.directory ?? directory,
+            force: opts.force,
+            keepEntities: opts.keepEntities,
+          }).catch(fail);
+        });
+      }),
+  );
+
+  // "rm" alias — same behavior
+  addDirOptions(
+    program
+      .command("rm")
+      .description(
+        "Alias for `harness remove` — completely remove 5harness from a project",
+      )
+      .argument("[directory]", "project root (default: cwd)")
+      .option("--force", "skip confirmation prompt")
+      .option("--keep-entities", "keep entity directories under docs/")
+      .action((directory: string | undefined, opts) => {
+        withErrors(() => {
+          void executeRm({
+            dir: opts.dir ?? opts.directory ?? directory,
+            force: opts.force,
+            keepEntities: opts.keepEntities,
+          }).catch(fail);
+        });
       }),
   );
 

@@ -115,6 +115,20 @@ export function replaceHarnessBlock(
  * Check if the repo needs a harness upgrade.
  * Returns the repo version when an upgrade is available, null otherwise.
  */
+/**
+ * Remove the harness-managed block from AGENTS.md text, leaving user content intact.
+ * Returns the cleaned text with the block stripped and extra blank lines trimmed.
+ * If no block is found, returns the original text unchanged.
+ */
+export function removeHarnessBlock(agentsText: string): string {
+  const extracted = extractHarnessBlock(agentsText);
+  if (!extracted) return agentsText;
+
+  // Join before + after, and clean up excessive blank lines where the block was
+  const joined = extracted.before.trimEnd() + "\n" + extracted.after.trimStart();
+  // Collapse 3+ consecutive newlines into 2 (max one blank line gap)
+  return joined.replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
+}
 export function needsUpgrade(
   repoVersion: string | null,
   cliVersion: string,

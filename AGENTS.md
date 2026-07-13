@@ -77,6 +77,20 @@ harness --help
 harness link
 ```
 
+### Project identity for MCP
+
+Each harnessed clone has a durable random project id in this managed block.
+Discover it from `<!-- harness-project-id: ... -->` or run:
+
+```bash
+harness project id
+```
+
+For a single-project OAuth grant, MCP tools are forced to the project selected
+at consent. For an all-projects grant, send that target id on every MCP request
+as `X-Harness-Project: <id>` (preferred) or `?project=<id>`. Never rely on cwd or
+registry order to select a project; a missing or invalid id fails closed.
+
 ### Before work — read
 
 - `README.md` (if present)

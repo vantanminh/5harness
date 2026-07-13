@@ -51,6 +51,23 @@ export const BUILTIN_TOOLS: ToolEntry[] = [
     source: "compiled",
   },
   {
+    name: "remove",
+    kind: "builtin",
+    capability: "scaffold",
+    responsibility: "Completely delete 5harness from a project",
+    status: "present",
+    source: "compiled",
+  },
+  {
+    name: "rm",
+    kind: "builtin",
+    capability: "scaffold",
+    responsibility: "Alias for remove — completely delete 5harness from a project",
+    status: "present",
+    source: "compiled",
+  },
+
+  {
     name: "projects",
     kind: "builtin",
     capability: "scaffold",
