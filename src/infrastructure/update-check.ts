@@ -29,9 +29,21 @@ export function readUpdateCheckCache(
     const raw = fs.readFileSync(file, "utf8");
     if (!raw.trim()) return null;
     const data = JSON.parse(raw) as UpdateCheckCache;
-    if (typeof data.checked_at !== "string") return null;
+    if (data.checked_at !== null && typeof data.checked_at !== "string") {
+      return null;
+    }
+    if (
+      data.last_attempted_at !== undefined &&
+      typeof data.last_attempted_at !== "string"
+    ) {
+      return null;
+    }
     if (data.latest !== null && typeof data.latest !== "string") return null;
-    return { checked_at: data.checked_at, latest: data.latest ?? null };
+    return {
+      checked_at: data.checked_at ?? null,
+      last_attempted_at: data.last_attempted_at,
+      latest: data.latest ?? null,
+    };
   } catch {
     return null;
   }
@@ -71,6 +83,8 @@ export async function fetchLatestVersionFromNpm(options?: {
       signal: controller.signal,
       headers: {
         Accept: "application/json",
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
         "User-Agent": `${packageName}-update-check`,
       },
     });

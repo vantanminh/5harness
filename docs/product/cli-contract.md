@@ -19,6 +19,7 @@ Package name: **`5harness`**. Bin name: **`harness`**.
 | --- | --- |
 | `harness --version` / `-V` | Print CLI version from package |
 | `harness --help` / `-h` | Top-level help |
+| `harness update` | Install the npm `latest` dist-tag globally; normal commands recheck that tag hourly and retry failed checks after five minutes |
 | `harness init [options]` | Scaffold operating files + (MVP: SQLite; **target 0011:** markdown + registry) |
 | `harness migrate` | MVP only: apply SQL migrations (retired when markdown SoT ships) |
 

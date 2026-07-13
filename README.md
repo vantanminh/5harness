@@ -174,8 +174,9 @@ Details: [docs/product/distribution.md](docs/product/distribution.md).
 
 ## Update notices
 
-The CLI may print a one-line notice on stderr when a newer npm version exists
-(cached at most once per day under `~/.5harness/`). Disable with
+The CLI may print a one-line notice on stderr when a newer npm version exists.
+Successful checks are cached for one hour under `~/.5harness/`; transient npm
+errors retry after five minutes. Disable with
 `HARNESS_NO_UPDATE_CHECK=1` (also auto-disabled when `CI=true`).
 
 ```bash

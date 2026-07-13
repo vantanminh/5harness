@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- npm update notices now refresh the `latest` dist-tag hourly, bypass
+  intermediary caches, and retry transient registry failures after five
+  minutes instead of preserving a stale result for a full day (IN-011 / US-049).
+
 ## [0.15.1] - 2026-07-13
 
 ### Fixed

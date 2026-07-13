@@ -8,9 +8,11 @@ import {
   isCacheFresh,
   isNewerVersion,
   isUpdateCheckDisabled,
+  isUpdateRetryBackoffActive,
   shouldSkipUpdateCheckForArgv,
 } from "../src/domain/update-check.js";
 import {
+  fetchLatestVersionFromNpm,
   readUpdateCheckCache,
   writeUpdateCheckCache,
 } from "../src/infrastructure/update-check.js";
@@ -57,7 +59,7 @@ describe("domain update-check", () => {
 
   it("formats notice", () => {
     expect(formatUpdateNotice("0.9.1", "0.9.2")).toContain("0.9.1 → 0.9.2");
-    expect(formatUpdateNotice("0.9.1", "0.9.2")).toContain("npm i -g");
+    expect(formatUpdateNotice("0.9.1", "0.9.2")).toContain("harness update");
   });
 
   it("cache freshness", () => {
@@ -76,6 +78,48 @@ describe("domain update-check", () => {
         24 * 60 * 60 * 1000,
       ),
     ).toBe(false);
+  });
+
+  it("backs off briefly after a registry attempt", () => {
+    const now = Date.parse("2026-07-10T12:00:00.000Z");
+    const cache = {
+      checked_at: null,
+      last_attempted_at: "2026-07-10T11:58:00.000Z",
+      latest: null,
+    };
+    expect(isUpdateRetryBackoffActive(cache, now)).toBe(true);
+    expect(isUpdateRetryBackoffActive(cache, now + 5 * 60 * 1000)).toBe(false);
+    expect(
+      isUpdateRetryBackoffActive(
+        {
+          checked_at: "2026-07-10T11:58:00.000Z",
+          last_attempted_at: "2026-07-10T11:58:00.000Z",
+          latest: "0.9.2",
+        },
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it("requests the npm latest dist-tag without intermediary caching", async () => {
+    let requestedUrl = "";
+    let requestInit: RequestInit | undefined;
+    const latest = await fetchLatestVersionFromNpm({
+      fetchImpl: (async (url, init) => {
+        requestedUrl = String(url);
+        requestInit = init;
+        return new Response(JSON.stringify({ version: "1.2.3" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }) as typeof fetch,
+    });
+
+    expect(requestedUrl).toBe("https://registry.npmjs.org/5harness/latest");
+    expect(new Headers(requestInit?.headers).get("cache-control")).toBe(
+      "no-cache",
+    );
+    expect(latest).toBe("1.2.3");
   });
 });
 
@@ -112,7 +156,7 @@ describe("maybeNotifyUpdateAvailable", () => {
       harnessHome: home,
       env: {},
       argv: ["node", "cli.js", "projects"],
-      nowMs: Date.parse("2026-07-10T13:00:00.000Z"),
+      nowMs: Date.parse("2026-07-10T12:30:00.000Z"),
       fetchLatest: async () => {
         fetches += 1;
         return "9.9.9";
@@ -157,31 +201,68 @@ describe("maybeNotifyUpdateAvailable", () => {
     expect(fetches).toBe(0);
   });
 
-  it("fail-open when fetch fails and still marks checked_at", async () => {
+  it("fail-open when fetch fails and retries after a short backoff", async () => {
     const home = tempHome();
     const logs: string[] = [];
+    let fetches = 0;
+    const firstAttempt = Date.parse("2026-07-10T12:00:00.000Z");
 
     await maybeNotifyUpdateAvailable({
       currentVersion: "0.9.1",
       harnessHome: home,
       env: { HARNESS_UPDATE_CHECK_INTERVAL_MS: "0" },
       argv: ["node", "cli.js", "init"],
-      nowMs: Date.parse("2026-07-10T12:00:00.000Z"),
-      fetchLatest: async () => null,
+      nowMs: firstAttempt,
+      fetchLatest: async () => {
+        fetches += 1;
+        return null;
+      },
       log: (m) => logs.push(m),
     });
 
     expect(logs).toHaveLength(0);
-    const cache = readUpdateCheckCache({ harnessHome: home });
-    expect(cache?.checked_at).toBeTruthy();
-    expect(cache?.latest).toBeNull();
+    expect(fetches).toBe(1);
+    expect(readUpdateCheckCache({ harnessHome: home })).toMatchObject({
+      checked_at: null,
+      last_attempted_at: "2026-07-10T12:00:00.000Z",
+      latest: null,
+    });
+
+    await maybeNotifyUpdateAvailable({
+      currentVersion: "0.9.1",
+      harnessHome: home,
+      env: { HARNESS_UPDATE_CHECK_INTERVAL_MS: "0" },
+      argv: ["node", "cli.js", "init"],
+      nowMs: firstAttempt + 4 * 60 * 1000,
+      fetchLatest: async () => {
+        fetches += 1;
+        return "0.9.2";
+      },
+      log: (m) => logs.push(m),
+    });
+    expect(fetches).toBe(1);
+
+    await maybeNotifyUpdateAvailable({
+      currentVersion: "0.9.1",
+      harnessHome: home,
+      env: { HARNESS_UPDATE_CHECK_INTERVAL_MS: "0" },
+      argv: ["node", "cli.js", "init"],
+      nowMs: firstAttempt + 5 * 60 * 1000,
+      fetchLatest: async () => {
+        fetches += 1;
+        return "0.9.2";
+      },
+      log: (m) => logs.push(m),
+    });
+    expect(fetches).toBe(2);
+    expect(logs.at(-1)).toContain("0.9.2");
   });
 
   it("does not notify when latest equals current", async () => {
     const home = tempHome();
     writeUpdateCheckCache(
       {
-        checked_at: "2026-07-10T11:00:00.000Z",
+        checked_at: "2026-07-10T11:30:00.000Z",
         latest: "0.9.1",
       },
       { harnessHome: home },

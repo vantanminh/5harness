@@ -152,7 +152,7 @@ npm registry for a newer `5harness` version.
 
 | Behavior | Detail |
 | --- | --- |
-| Frequency | At most one registry fetch per 24h (cache: `~/.5harness/update-check.json`) |
+| Frequency | Successful results are fresh for 1h; transient failures retry after 5m (cache: `~/.5harness/update-check.json`) |
 | Effect | One-line **stderr** notice only; never blocks or changes exit codes |
 | Fail-open | Network/errors are silent |
 | Disable | `HARNESS_NO_UPDATE_CHECK=1`, or when `CI=true` / `CONTINUOUS_INTEGRATION` |

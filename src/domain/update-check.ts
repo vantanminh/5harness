@@ -1,11 +1,17 @@
 /** npm package name used for update checks (decision 0016 / US-040). */
 export const PACKAGE_NAME = "5harness";
 
-/** Default minimum interval between registry fetches. */
-export const DEFAULT_UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+/** Default minimum interval between successful registry checks. */
+export const DEFAULT_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+
+/** Retry transient registry failures sooner than the normal freshness window. */
+export const DEFAULT_UPDATE_CHECK_RETRY_MS = 5 * 60 * 1000;
 
 export type UpdateCheckCache = {
-  checked_at: string;
+  /** Last successful registry lookup. Null when no lookup has succeeded yet. */
+  checked_at: string | null;
+  /** Last attempted lookup, successful or not. */
+  last_attempted_at?: string;
   latest: string | null;
 };
 
@@ -88,7 +94,7 @@ export function formatUpdateNotice(
 ): string {
   return (
     `Notice: ${packageName} ${current} → ${latest} available. ` +
-    `Update: npm i -g ${packageName}`
+    "Run: harness update"
   );
 }
 
@@ -111,4 +117,19 @@ export function isCacheFresh(
   const t = Date.parse(cache.checked_at);
   if (!Number.isFinite(t)) return false;
   return nowMs - t < intervalMs;
+}
+
+export function isUpdateRetryBackoffActive(
+  cache: UpdateCheckCache | null,
+  nowMs: number,
+  retryMs: number = DEFAULT_UPDATE_CHECK_RETRY_MS,
+): boolean {
+  if (!cache?.last_attempted_at) return false;
+  const attemptedAt = Date.parse(cache.last_attempted_at);
+  if (!Number.isFinite(attemptedAt)) return false;
+  const checkedAt = cache.checked_at ? Date.parse(cache.checked_at) : NaN;
+  // A successful attempt is governed by the normal freshness interval. The
+  // retry backoff is only for attempts newer than the last successful check.
+  if (Number.isFinite(checkedAt) && attemptedAt <= checkedAt) return false;
+  return nowMs - attemptedAt < retryMs;
 }

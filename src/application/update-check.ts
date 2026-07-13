@@ -2,6 +2,7 @@ import {
   formatUpdateNotice,
   isCacheFresh,
   isNewerVersion,
+  isUpdateRetryBackoffActive,
   isUpdateCheckDisabled,
   parseUpdateCheckIntervalMs,
   shouldSkipUpdateCheckForArgv,
@@ -28,7 +29,8 @@ export type NotifyUpdateOptions = UpdateCheckIoOptions & {
  * Optionally print a one-line stderr notice when a newer npm version exists.
  *
  * - Fail-open (never throws to callers; network errors are silent)
- * - At most one registry fetch per interval (default 24h)
+ * - At most one successful registry fetch per interval (default 1h)
+ * - Transient failures retry after a short backoff (default 5m)
  * - Disabled when CI=true or HARNESS_NO_UPDATE_CHECK=1
  * - Skipped for bare help/version invocations
  * - Does not change process exit codes
@@ -60,14 +62,20 @@ async function runUpdateCheck(options: NotifyUpdateOptions): Promise<void> {
   let cache = readUpdateCheckCache(io);
   let latest: string | null = cache?.latest ?? null;
 
-  if (!isCacheFresh(cache, nowMs, intervalMs)) {
+  if (
+    !isCacheFresh(cache, nowMs, intervalMs) &&
+    !isUpdateRetryBackoffActive(cache, nowMs)
+  ) {
     const fetchLatest =
       options.fetchLatest ??
       (() => fetchLatestVersionFromNpm({ packageName: PACKAGE_NAME }));
     const fetched = await fetchLatest();
-    // Always refresh checked_at so a failed fetch does not hammer the network.
+    const attemptedAt = new Date(nowMs).toISOString();
+    // Only a successful lookup refreshes checked_at. A failed lookup records a
+    // short retry backoff so stale data cannot suppress checks for a full TTL.
     const next: UpdateCheckCache = {
-      checked_at: new Date(nowMs).toISOString(),
+      checked_at: fetched ? attemptedAt : (cache?.checked_at ?? null),
+      last_attempted_at: attemptedAt,
       latest: fetched ?? cache?.latest ?? null,
     };
     try {
