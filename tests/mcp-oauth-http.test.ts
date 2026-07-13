@@ -74,7 +74,10 @@ async function loginAsAdmin(baseUrl: string, redirect = "/"): Promise<string> {
   return sessionCookie(login.headers.get("set-cookie"));
 }
 
-async function acquireToken(baseUrl: string): Promise<string> {
+async function acquireToken(
+  baseUrl: string,
+  projectMode: "single" | "all" = "single",
+): Promise<string> {
   const redirectUri = "http://127.0.0.1:4567/callback";
   const resource = `${baseUrl}mcp`;
   const verifier = "p".repeat(64);
@@ -123,6 +126,8 @@ async function acquireToken(baseUrl: string): Promise<string> {
   expect(html).not.toMatch(/name="password"/);
   const requestId = /name="request_id" value="([^"]+)"/.exec(html)?.[1];
   expect(requestId).toBeTruthy();
+  const projectId = /name="project_id" type="radio" value="([^"]+)"/.exec(html)?.[1];
+  if (projectMode === "single") expect(projectId).toBeTruthy();
 
   const approval = await fetch(`${baseUrl}authorize`, {
     method: "POST",
@@ -134,6 +139,8 @@ async function acquireToken(baseUrl: string): Promise<string> {
     body: new URLSearchParams({
       request_id: requestId!,
       action: "approve",
+      project_mode: projectMode,
+      ...(projectId ? { project_id: projectId } : {}),
     }),
   });
   expect(approval.status).toBe(302);
@@ -154,8 +161,15 @@ async function acquireToken(baseUrl: string): Promise<string> {
   });
   expect(tokenResponse.status).toBe(200);
   expect(tokenResponse.headers.get("cache-control")).toBe("no-store");
-  const token = await tokenResponse.json() as { access_token: string; token_type: string };
+  const token = await tokenResponse.json() as {
+    access_token: string;
+    token_type: string;
+    project_mode: string;
+    project_ids: string[];
+  };
   expect(token.token_type).toBe("Bearer");
+  expect(token.project_mode).toBe(projectMode);
+  expect(token.project_ids).toHaveLength(projectMode === "single" ? 1 : 0);
   return token.access_token;
 }
 
@@ -277,6 +291,7 @@ describe("MCP OAuth HTTP integration", () => {
     for (const dir of ["docs/stories", "docs/decisions", "docs/intakes", "docs/backlog"]) {
       fs.mkdirSync(path.join(project, dir), { recursive: true });
     }
+    linkProject(project, { harnessHome: home });
     const port = await freePort();
     const child = spawn(
       process.execPath,

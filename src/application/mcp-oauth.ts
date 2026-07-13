@@ -37,16 +37,21 @@ type PendingAuthorization = {
   expiresAt: number;
 };
 
-type AuthorizationCode = PendingAuthorization & { used: boolean };
+export type McpProjectGrant = {
+  projectMode: "single" | "all";
+  projectIds: string[];
+};
+
+type AuthorizationCode = PendingAuthorization & McpProjectGrant & { used: boolean };
 type AccessGrant = {
   clientId: string;
   resource: string;
   scope: string;
   expiresAt: number;
-};
+} & McpProjectGrant;
 
 export type TokenValidation =
-  | { ok: true; clientId: string; resource: string; scope: string; expiresAt: number }
+  | ({ ok: true; clientId: string; resource: string; scope: string; expiresAt: number } & McpProjectGrant)
   | { ok: false; reason: "missing" | "invalid" | "expired" | "wrong_audience" | "insufficient_scope" };
 
 function opaque(bytes = 32): string {
@@ -238,10 +243,40 @@ export class McpOAuthService {
     };
   }
 
-  approveAuthorization(requestId: string): string {
+  approveAuthorization(
+    requestId: string,
+    selection: {
+      projectMode: string;
+      projectId?: string;
+      availableProjectIds: string[];
+    },
+  ): string {
+    let projectGrant: McpProjectGrant;
+    if (selection.projectMode === "single") {
+      if (
+        !selection.projectId ||
+        !selection.availableProjectIds.includes(selection.projectId)
+      ) {
+        throw new OAuthProtocolError(
+          "invalid_request",
+          "Select one currently linked healthy project",
+        );
+      }
+      projectGrant = {
+        projectMode: "single",
+        projectIds: [selection.projectId],
+      };
+    } else if (selection.projectMode === "all") {
+      projectGrant = { projectMode: "all", projectIds: [] };
+    } else {
+      throw new OAuthProtocolError(
+        "invalid_request",
+        "project_mode must be single or all",
+      );
+    }
     const pending = this.takePending(requestId);
     const code = opaque();
-    this.codes.set(code, { ...pending, used: false });
+    this.codes.set(code, { ...pending, ...projectGrant, used: false });
     const redirect = new URL(pending.redirectUri);
     redirect.searchParams.set("code", code);
     if (pending.state) redirect.searchParams.set("state", pending.state);
@@ -288,12 +323,16 @@ export class McpOAuthService {
       resource: grant.resource,
       scope: grant.scope,
       expiresAt,
+      projectMode: grant.projectMode,
+      projectIds: [...grant.projectIds],
     });
     return {
       access_token: token,
       token_type: "Bearer",
       expires_in: Math.floor(TOKEN_TTL_MS / 1000),
       scope: grant.scope,
+      project_mode: grant.projectMode,
+      project_ids: [...grant.projectIds],
     };
   }
 
@@ -311,7 +350,7 @@ export class McpOAuthService {
     if (!grant.scope.split(/\s+/).includes(requiredScope)) {
       return { ok: false, reason: "insufficient_scope" };
     }
-    return { ok: true, ...grant };
+    return { ok: true, ...grant, projectIds: [...grant.projectIds] };
   }
 
   private takePending(requestId: string): PendingAuthorization {

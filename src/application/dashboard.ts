@@ -662,6 +662,10 @@ export function startDashboard(
           const token = extractSessionToken(request.headers.cookie);
           return Boolean(token && validateSession(token));
         },
+        listProjects: () =>
+          listProjectSummaries(dashOpts)
+            .filter((project) => !project.missing && !project.error)
+            .map(({ id, name, path }) => ({ id, name, path })),
       })) return;
 
       // MCP uses OAuth bearer tokens, never dashboard cookies.

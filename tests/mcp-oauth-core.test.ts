@@ -37,7 +37,13 @@ function authorizationParams(clientId: string): Record<string, string> {
 
 function issueCode(oauth: McpOAuthService, clientId: string): string {
   const pending = oauth.beginAuthorization(authorizationParams(clientId));
-  const redirect = new URL(oauth.approveAuthorization(pending.requestId));
+  const redirect = new URL(
+    oauth.approveAuthorization(pending.requestId, {
+      projectMode: "single",
+      projectId: "project-1",
+      availableProjectIds: ["project-1"],
+    }),
+  );
   expect(redirect.searchParams.get("state")).toBe("state-123");
   return redirect.searchParams.get("code")!;
 }
@@ -84,7 +90,12 @@ describe("MCP OAuth 2.1 core", () => {
     });
     expect(result).toMatchObject({ token_type: "Bearer", expires_in: 3600, scope: MCP_OAUTH_SCOPE });
     const token = result.access_token as string;
-    expect(oauth.validateAccessToken(token)).toMatchObject({ ok: true, resource });
+    expect(oauth.validateAccessToken(token)).toMatchObject({
+      ok: true,
+      resource,
+      projectMode: "single",
+      projectIds: ["project-1"],
+    });
     expect(oauth.validateAccessToken(token, "http://127.0.0.1:9999/mcp")).toEqual({
       ok: false,
       reason: "wrong_audience",
@@ -97,6 +108,39 @@ describe("MCP OAuth 2.1 core", () => {
       code_verifier: verifier,
       resource,
     })).toThrow(/already used/);
+  });
+
+  it("issues all-project grants and rejects forged single-project choices", () => {
+    const { oauth, client } = setup();
+    const pending = oauth.beginAuthorization(authorizationParams(client.client_id));
+    expect(() =>
+      oauth.approveAuthorization(pending.requestId, {
+        projectMode: "single",
+        projectId: "not-linked",
+        availableProjectIds: ["project-1"],
+      }),
+    ).toThrow(/currently linked/);
+
+    const redirect = new URL(
+      oauth.approveAuthorization(pending.requestId, {
+        projectMode: "all",
+        availableProjectIds: ["project-1"],
+      }),
+    );
+    const result = oauth.exchangeAuthorizationCode({
+      grant_type: "authorization_code",
+      code: redirect.searchParams.get("code")!,
+      client_id: client.client_id,
+      redirect_uri: client.redirect_uris[0],
+      code_verifier: verifier,
+      resource,
+    });
+    expect(result).toMatchObject({ project_mode: "all", project_ids: [] });
+    expect(oauth.validateAccessToken(result.access_token as string)).toMatchObject({
+      ok: true,
+      projectMode: "all",
+      projectIds: [],
+    });
   });
 
   it("rejects PKCE downgrade, redirect mismatch, wrong verifier, and wrong resource", () => {

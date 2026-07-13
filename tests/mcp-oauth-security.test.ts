@@ -101,7 +101,9 @@ describe("MCP OAuth security boundaries", () => {
           Cookie: cookie,
         },
         body: new URLSearchParams({
-          request_id: requestId!, action: "approve",
+          request_id: requestId!,
+          action: "approve",
+          project_mode: "all",
         }),
       });
       const code = new URL(approval.headers.get("location")!).searchParams.get("code")!;

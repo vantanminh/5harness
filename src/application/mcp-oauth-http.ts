@@ -12,6 +12,8 @@ const MAX_BODY_BYTES = 1024 * 1024;
 export type OAuthHttpOptions = {
   /** Session cookie (or equivalent) — required to show/approve consent. */
   isUserAuthenticated: (req: IncomingMessage) => boolean;
+  /** Healthy linked projects eligible for an authorization grant. */
+  listProjects: () => Array<{ id: string; name: string; path: string }>;
 };
 
 function securityHeaders(res: ServerResponse, callbackOrigin?: string): void {
@@ -111,7 +113,12 @@ export async function handleMcpOAuthRoute(
       // leave /authorize without broadening form submission destinations.
       securityHeaders(res, pending.redirectOrigin);
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      res.end(renderApprovalPage(pending));
+      res.end(
+        renderApprovalPage({
+          ...pending,
+          projects: options.listProjects(),
+        }),
+      );
     } catch (error) {
       sendOAuthError(res, error);
     }
@@ -134,7 +141,20 @@ export async function handleMcpOAuthRoute(
         res.end();
         return true;
       }
-      res.writeHead(302, { Location: oauth.approveAuthorization(requestId), "Cache-Control": "no-store" });
+      if (form.get("action") !== "approve") {
+        throw new OAuthProtocolError(
+          "invalid_request",
+          "action must be approve or deny",
+        );
+      }
+      res.writeHead(302, {
+        Location: oauth.approveAuthorization(requestId, {
+          projectMode: form.get("project_mode") ?? "",
+          projectId: form.get("project_id") ?? undefined,
+          availableProjectIds: options.listProjects().map((project) => project.id),
+        }),
+        "Cache-Control": "no-store",
+      });
       res.end();
     } catch (error) {
       sendOAuthError(res, error);

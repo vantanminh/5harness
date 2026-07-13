@@ -223,6 +223,36 @@ const AUTH_CSS = `
     font-size: 0.88rem;
     color: var(--muted);
   }
+  fieldset {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    display: grid;
+    gap: 0.65rem;
+  }
+  legend {
+    margin-bottom: 0.45rem;
+    font-size: 0.78rem;
+    font-weight: 750;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .choice {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.65rem;
+    align-items: start;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 0.7rem;
+    background: var(--bg);
+  }
+  .choice input { margin-top: 0.25rem; }
+  .choice strong { display: block; font-size: 0.9rem; }
+  .choice span { display: block; font-size: 0.78rem; color: var(--muted); }
+  .choice code { font-size: 0.72rem; word-break: break-all; }
+  .risk { color: var(--danger-fg) !important; font-weight: 650; }
 `;
 
 export function htmlEscape(value: string): string {
@@ -302,6 +332,7 @@ export function renderApprovalPage(input: {
   clientName: string;
   scope: string;
   resource: string;
+  projects: Array<{ id: string; name: string; path: string }>;
   error?: string;
 }): string {
   const errorHtml = input.error
@@ -312,6 +343,19 @@ export function renderApprovalPage(input: {
     .filter(Boolean)
     .map((scope) => `<span class="chip">${htmlEscape(scope)}</span>`)
     .join(" ");
+  const projectChoices = input.projects
+    .map(
+      (project, index) => `
+        <label class="choice">
+          <input name="project_id" type="radio" value="${htmlEscape(project.id)}"${index === 0 ? " checked" : ""} />
+          <span>
+            <strong>${htmlEscape(project.name)}</strong>
+            <code>${htmlEscape(project.id)}</code>
+            <span>${htmlEscape(project.path)}</span>
+          </span>
+        </label>`,
+    )
+    .join("");
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -351,6 +395,18 @@ export function renderApprovalPage(input: {
       <p class="session-note">You are signed in with the local administrator session. Approving issues a short-lived MCP access token to the client — not your dashboard password.</p>
       <form method="post" action="/authorize">
         <input type="hidden" name="request_id" value="${htmlEscape(input.requestId)}" />
+        <fieldset>
+          <legend>Project access</legend>
+          <label class="choice">
+            <input name="project_mode" type="radio" value="single"${input.projects.length > 0 ? " checked" : ""} />
+            <span><strong>One project</strong><span>Recommended. Limit this client to the selected repository.</span></span>
+          </label>
+          ${projectChoices || `<p class="alert">No healthy linked projects. Run <code>harness link</code> in a project before authorizing single-project access.</p>`}
+          <label class="choice">
+            <input name="project_mode" type="radio" value="all"${input.projects.length === 0 ? " checked" : ""} />
+            <span><strong>All linked projects</strong><span class="risk">Powerful access. Each MCP call may target any currently linked healthy project.</span></span>
+          </label>
+        </fieldset>
         <div class="actions">
           <button class="primary" name="action" value="approve" type="submit">Authorize</button>
           <button class="secondary" name="action" value="deny" type="submit">Deny</button>

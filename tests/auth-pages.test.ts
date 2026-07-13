@@ -34,11 +34,18 @@ describe("auth pages", () => {
       clientName: "Codex CLI",
       scope: "mcp:access",
       resource: "http://127.0.0.1:3927/mcp",
+      projects: [
+        { id: "project-1", name: "Demo", path: "/projects/demo" },
+      ],
     });
     expect(html).toMatch(/Authorize access/);
     expect(html).toMatch(/Codex CLI/);
     expect(html).toMatch(/mcp:access/);
     expect(html).toMatch(/name="request_id" value="req_1"/);
+    expect(html).toMatch(/name="project_mode" type="radio" value="single" checked/);
+    expect(html).toMatch(/name="project_id" type="radio" value="project-1" checked/);
+    expect(html).toMatch(/All linked projects/);
+    expect(html).toMatch(/Powerful access/);
     expect(html).not.toMatch(/name="username"/);
     expect(html).not.toMatch(/name="password"/);
   });

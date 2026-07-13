@@ -12,6 +12,7 @@ import {
   validateSession,
   verifyCredentials,
 } from "../infrastructure/dashboard-auth.js";
+import { listLinkedProjects } from "../application/registry.js";
 
 export type McpCliOptions = TargetOptions & { port?: string; host?: string; publicUrl?: string };
 
@@ -53,7 +54,15 @@ export function executeMcp(options: McpCliOptions): void {
       resource: `${(options.publicUrl ?? `http://${bindHostForUrl}:${actualPort}`).replace(/\/$/, "")}/mcp`,
     });
     const url = new URL(req.url ?? "/", oauth.issuer);
-    if (await handleMcpOAuthRoute(req, res, url, oauth, { isUserAuthenticated })) return;
+    if (
+      await handleMcpOAuthRoute(req, res, url, oauth, {
+        isUserAuthenticated,
+        listProjects: () =>
+          listLinkedProjects()
+            .filter((project) => !project.missing)
+            .map(({ id, name, path }) => ({ id, name, path })),
+      })
+    ) return;
 
     // Shared login surface (same as dashboard) so OAuth consent can redirect here.
     if (url.pathname === "/login" && (req.method === "GET" || req.method === "HEAD")) {
