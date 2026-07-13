@@ -17,7 +17,6 @@ import { Command } from "../src/infrastructure/cli-parser.js";
 function captureExit(fn: () => void): { called: boolean; code: number | undefined } {
   const result = { called: false, code: undefined as number | undefined };
   const orig = process.exit;
-  // @ts-expect-error mock
   process.exit = vi.fn((code?: number) => {
     result.called = true;
     result.code = code;
@@ -51,7 +50,6 @@ afterEach(() => {
 
 async function runParse(cmd: Command, argv: string[]): Promise<void> {
   const origExit = process.exit;
-  // @ts-expect-error mock
   process.exit = vi.fn((code?: number) => {
     throw new Error(`process.exit(${code})`);
   }) as unknown as typeof process.exit;
@@ -450,5 +448,320 @@ describe("real-world CLI patterns", () => {
     await runParse(cmd, ["node", "cli", "US-001", "--evidence", "tests pass"]);
     expect(cmd.args).toEqual(["US-001"]);
     expect(cmd.opts()).toEqual({ evidence: "tests pass" });
+  });
+});
+
+
+// ===========================================================================
+// US-057: Subcommand nesting, action dispatch, hooks
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// command() — subcommand creation
+// ---------------------------------------------------------------------------
+
+describe("command() — subcommands", () => {
+  it("creates a child command and returns it for chaining", () => {
+    const root = new Command();
+    const child = root.command("init");
+    expect(child).toBeInstanceOf(Command);
+  });
+
+  it("child command can have its own options and action", async () => {
+    const root = new Command();
+    const called: string[] = [];
+    root.command("init")
+      .description("Initialize a project")
+      .option("-y, --yes", "non-interactive")
+      .action((opts: Record<string, unknown>) => {
+        called.push(`init:yes=${opts.yes}`);
+      });
+    await runParse(root, ["node", "cli", "init", "-y"]);
+    expect(called).toEqual(["init:yes=true"]);
+  });
+
+  it("delegates to the correct subcommand", async () => {
+    const root = new Command();
+    const called: string[] = [];
+    root.command("add").action(() => { called.push("add"); });
+    root.command("remove").action(() => { called.push("remove"); });
+    await runParse(root, ["node", "cli", "remove"]);
+    expect(called).toEqual(["remove"]);
+  });
+
+  it("errors on unknown subcommand", () => {
+    const root = new Command();
+    root.command("init");
+    root.command("link");
+    captureExit(() => {
+      root.parseAsync(["node", "cli", "unknown"]).catch(() => {});
+    });
+  });
+
+  it("shows subcommands in help output", () => {
+    const root = new Command();
+    root.name("harness").description("A CLI tool");
+    root.command("init").description("Initialize a project");
+    root.command("link").description("Register a project");
+    const info = root.helpInformation();
+    expect(info).toContain("Usage: harness [command]");
+    expect(info).toContain("Commands:");
+
+// ---------------------------------------------------------------------------
+// Nested subcommand routing
+// ---------------------------------------------------------------------------
+
+describe("nested subcommands", () => {
+  it("routes through two levels of nesting", async () => {
+    const root = new Command();
+    const called: string[] = [];
+    const story = root.command("story").description("Story commands");
+    story.command("add")
+      .description("Add a story")
+      .requiredOption("--id <id>", "story id")
+      .requiredOption("--title <text>", "story title")
+      .action((opts: Record<string, unknown>) => {
+        called.push(`story add: ${opts.id} / ${opts.title}`);
+      });
+    story.command("update")
+      .description("Update a story")
+      .action(() => { called.push("story update"); });
+
+    await runParse(root, [
+      "node", "cli", "story", "add",
+      "--id", "US-001",
+      "--title", "My Story",
+    ]);
+    expect(called).toEqual(["story add: US-001 / My Story"]);
+  });
+
+  it("routes to leaf command in 3-level nesting", async () => {
+    const root = new Command();
+    const called: string[] = [];
+    const a = root.command("a");
+    const b = a.command("b");
+    b.command("c").action(() => { called.push("a b c"); });
+    await runParse(root, ["node", "cli", "a", "b", "c"]);
+    expect(called).toEqual(["a b c"]);
+  });
+
+  it("subcommand help shows only that subcommand's details", () => {
+    const root = new Command();
+    root.name("harness");
+    const story = root.command("story").description("Story commands");
+    story.command("add").description("Add a story");
+    const info = story.helpInformation();
+    expect(info).toContain("Usage: story");
+    expect(info).toContain("Commands:");
+
+// ---------------------------------------------------------------------------
+// action() — arity-based dispatch
+// ---------------------------------------------------------------------------
+
+describe("action() arity dispatch", () => {
+  it("arity 0: calls action with no arguments", async () => {
+    const cmd = new Command();
+    let called = false;
+    cmd.action(() => { called = true; });
+    await runParse(cmd, ["node", "cli"]);
+    expect(called).toBe(true);
+  });
+
+  it("arity 1 with no positional args: passes opts", async () => {
+    const cmd = new Command();
+    let received: unknown;
+    cmd.option("--json", "JSON output");
+    cmd.action((opts: unknown) => { received = opts; });
+    await runParse(cmd, ["node", "cli", "--json"]);
+    expect(received).toEqual({ json: true });
+  });
+
+  it("arity 1 with positional args: passes first arg", async () => {
+    const cmd = new Command();
+    let received: unknown;
+    cmd.argument("<id>", "entity id");
+    cmd.action((arg: unknown) => { received = arg; });
+    await runParse(cmd, ["node", "cli", "US-001"]);
+    expect(received).toBe("US-001");
+  });
+
+  it("arity 2 with 1 positional arg: passes arg + opts", async () => {
+    const cmd = new Command();
+    let receivedArgs: unknown[] = [];
+    cmd.argument("<id>", "entity id");
+    cmd.option("--json", "JSON output");
+    cmd.action((id: unknown, opts: unknown) => {
+      receivedArgs = [id, opts];
+    });
+    await runParse(cmd, ["node", "cli", "US-001", "--json"]);
+    expect(receivedArgs[0]).toBe("US-001");
+    expect(receivedArgs[1]).toEqual({ json: true });
+  });
+
+  it("arity 2 with positional arg before option", async () => {
+    const cmd = new Command();
+    let receivedArgs: unknown[] = [];
+    cmd.argument("[directory]", "target directory");
+    cmd.option("-y, --yes", "yes flag");
+    cmd.action((dir: unknown, opts: unknown) => {
+      receivedArgs = [dir, opts];
+    });
+    await runParse(cmd, ["node", "cli", "/tmp", "-y"]);
+    expect(receivedArgs[0]).toBe("/tmp");
+    expect(receivedArgs[1]).toEqual({ yes: true });
+  });
+
+  it("arity 1 with no positional args and no opts: passes empty opts", async () => {
+    const cmd = new Command();
+    let received: unknown;
+    cmd.action((opts: unknown) => { received = opts; });
+    await runParse(cmd, ["node", "cli"]);
+
+// ---------------------------------------------------------------------------
+// hook() — preAction hooks
+// ---------------------------------------------------------------------------
+
+describe("hook() preAction", () => {
+  it("runs preAction hook before the action", async () => {
+    const cmd = new Command();
+    const order: string[] = [];
+    cmd.hook("preAction", () => { order.push("hook"); });
+    cmd.action(() => { order.push("action"); });
+    await runParse(cmd, ["node", "cli"]);
+    expect(order).toEqual(["hook", "action"]);
+  });
+
+  it("runs parent preAction hooks before subcommand action", async () => {
+    const root = new Command();
+    const order: string[] = [];
+    root.hook("preAction", () => { order.push("root-hook"); });
+    const child = root.command("init");
+    child.action(() => { order.push("child-action"); });
+    await runParse(root, ["node", "cli", "init"]);
+    expect(order).toEqual(["root-hook", "child-action"]);
+  });
+
+  it("runs multiple preAction hooks in registration order", async () => {
+    const cmd = new Command();
+    const order: string[] = [];
+    cmd.hook("preAction", () => { order.push("hook1"); });
+    cmd.hook("preAction", () => { order.push("hook2"); });
+    cmd.action(() => { order.push("action"); });
+    await runParse(cmd, ["node", "cli"]);
+    expect(order).toEqual(["hook1", "hook2", "action"]);
+  });
+
+  it("runs root hooks → parent hooks → child hooks → child action", async () => {
+    const root = new Command();
+    const order: string[] = [];
+    root.hook("preAction", () => { order.push("root-hook"); });
+    const parent = root.command("story");
+    parent.hook("preAction", () => { order.push("parent-hook"); });
+    const child = parent.command("add");
+    child.action(() => { order.push("child-action"); });
+    await runParse(root, ["node", "cli", "story", "add"]);
+    expect(order).toEqual(["root-hook", "parent-hook", "child-action"]);
+  });
+
+  it("preAction hooks are async and awaited", async () => {
+    const cmd = new Command();
+    const order: string[] = [];
+    cmd.hook("preAction", async () => {
+      await new Promise((r) => setTimeout(r, 10));
+      order.push("hook");
+    });
+    cmd.action(() => { order.push("action"); });
+    await runParse(cmd, ["node", "cli"]);
+    expect(order).toEqual(["hook", "action"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Real-world patterns: cli.ts scenarios
+// ---------------------------------------------------------------------------
+
+describe("cli.ts scenario patterns", () => {
+  it("harness story add with required options", async () => {
+    const root = new Command();
+    root.name("harness");
+    root.hook("preAction", async () => { /* update check */ });
+    const story = root.command("story").description("Story commands");
+    let captured: Record<string, unknown> = {};
+    story.command("add")
+      .requiredOption("--id <id>", "story id")
+      .requiredOption("--title <text>", "story title")
+      .requiredOption("--lane <lane>", "risk lane")
+      .action((opts: Record<string, unknown>) => { captured = opts; });
+    await runParse(root, [
+      "node", "cli", "story", "add",
+      "--id", "US-001",
+      "--title", "Test Story",
+      "--lane", "normal",
+    ]);
+    expect(captured).toEqual({
+      id: "US-001",
+      title: "Test Story",
+      lane: "normal",
+    });
+  });
+
+  it("harness get with argument + option + action arity 2", async () => {
+    const root = new Command();
+    let capturedId: unknown;
+    let capturedOpts: unknown;
+    root.command("get")
+      .argument("<idOrPath>", "entity id or path")
+      .option("--summary", "frontmatter only")
+      .action((idOrPath: unknown, opts: unknown) => {
+        capturedId = idOrPath;
+        capturedOpts = opts;
+      });
+    await runParse(root, [
+      "node", "cli", "get", "US-001", "--summary",
+    ]);
+    expect(capturedId).toBe("US-001");
+    expect(capturedOpts).toEqual({ summary: true });
+  });
+
+  it("harness dashboard (default action) with no subcommand", async () => {
+    const root = new Command();
+    root.name("harness");
+    let dashCalled = false;
+    const dash = root.command("dashboard");
+    dash.option("--port <n>", "port", "3927");
+    dash.action(() => { dashCalled = true; });
+    await runParse(root, ["node", "cli", "dashboard", "--port", "8080"]);
+    expect(dashCalled).toBe(true);
+  });
+
+  it("root action when no subcommand matches (dashboard default)", async () => {
+    const root = new Command();
+    let rootCalled = false;
+    root.action(() => { rootCalled = true; });
+    root.command("init").action(() => {});
+    await runParse(root, ["node", "cli"]);
+    expect(rootCalled).toBe(true);
+  });
+});
+
+    expect(received).toEqual({});
+  });
+});
+
+    expect(info).toContain("add");
+  });
+});
+
+    expect(info).toContain("init");
+    expect(info).toContain("Register a project");
+  });
+
+  it("delegates to root action when no subcommand given", async () => {
+    const root = new Command();
+    const called: string[] = [];
+    root.action(() => { called.push("root"); });
+    root.command("init").action(() => { called.push("init"); });
+    await runParse(root, ["node", "cli"]);
+    expect(called).toEqual(["root"]);
   });
 });

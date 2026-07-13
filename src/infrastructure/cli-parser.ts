@@ -57,6 +57,15 @@ export class Command {
   /** Populated after parseAsync(). */
   private _parsedArgs: string[] = [];
 
+  // US-057: subcommand nesting, action dispatch, hooks
+  private _parent: Command | null = null;
+  private _subcommands: Map<string, Command> = new Map();
+  private _actionFn: Function | null = null;
+  private _hooks: Map<string, Function[]> = new Map();
+
+  /** The subcommand name that was matched during parse (set by the parent). */
+  private _matchedName: string | null = null;
+
 
   // ------------------------------------------------------------------
   // Metadata
@@ -134,7 +143,57 @@ export class Command {
   }
 
   // ------------------------------------------------------------------
-  // Parse
+  // Subcommands (US-057)
+  // ------------------------------------------------------------------
+
+  /**
+   * Create a subcommand. Returns the child Command for chaining.
+   * The child inherits nothing except the reference to its parent.
+   */
+  command(name: string): Command {
+    const child = new Command();
+    child._parent = this;
+    child._matchedName = name;
+    child.name(name);
+    this._subcommands.set(name, child);
+    return child;
+  }
+
+  // ------------------------------------------------------------------
+  // Action dispatch (US-057)
+  // ------------------------------------------------------------------
+
+  /**
+   * Register the action handler for this command.
+   *
+   * Arity detection (matching Commander):
+   *   fn.length === 0  → call with no arguments
+   *   fn.length === 1  → if positional args registered: pass first arg
+   *                      if no positional args: pass opts object
+   *   fn.length >= 2   → pass positional args (up to fn.length-1), then opts
+   */
+  action(fn: Function): this {
+    this._actionFn = fn;
+    return this;
+  }
+
+  // ------------------------------------------------------------------
+  // Hooks (US-057)
+  // ------------------------------------------------------------------
+
+  /**
+   * Register a hook. Supported events: "preAction".
+   * preAction hooks on parent commands fire before subcommand actions.
+   */
+  hook(event: string, fn: Function): this {
+    const list = this._hooks.get(event) ?? [];
+    list.push(fn);
+    this._hooks.set(event, list);
+    return this;
+  }
+
+  // ------------------------------------------------------------------
+  // Parse (extended for US-057)
   // ------------------------------------------------------------------
 
   /**
@@ -144,7 +203,7 @@ export class Command {
    * In US-056 this only does option/argument parsing — no action dispatch.
    * US-057 adds subcommand routing and action calls.
    */
-  async parseAsync(argv: string[]): Promise<void> {
+  async parseAsync(argv: string[], _fromSubcommand = false): Promise<void> {
     const tokens = argv.slice(2); // skip node executable + script path
     this._parsedOpts = {};
     this._parsedArgs = [];
@@ -257,6 +316,21 @@ export class Command {
       }
 
       // Positional argument
+
+      // US-057: subcommand routing — if token matches a subcommand, delegate
+      if (this._subcommands.has(token)) {
+        const child = this._subcommands.get(token)!;
+        const rem = tokens.slice(i + 1);
+        await child.parseAsync(["node", "cli", ...rem], true);
+        return;
+      }
+
+      // US-057: unknown command at root with subcommands available
+      if (this._subcommands.size > 0 && !this._actionFn && !_fromSubcommand) {
+        const subNames = [...this._subcommands.keys()].join(", ");
+        this._error(`unknown command '${token}'. Available: ${subNames}`);
+      }
+
       this._parsedArgs.push(token);
       i++;
     }
@@ -278,6 +352,14 @@ export class Command {
         this._error(`missing required argument '${argSpec.name}'`);
       }
     }
+
+    // US-057: run preAction hooks (root-first chain)
+    await this._runPreActionHooks();
+
+    // US-057: dispatch action if registered
+    if (this._actionFn) {
+      await this._dispatchAction();
+    }
   }
 
   /**
@@ -296,6 +378,58 @@ export class Command {
   }
 
   // ------------------------------------------------------------------
+  // Hooks + dispatch helpers (US-057)
+  // ------------------------------------------------------------------
+
+  /**
+   * Run preAction hooks from root to this command.
+   */
+  private async _runPreActionHooks(): Promise<void> {
+    const chain: Command[] = [];
+    let node: Command | null = this;
+    while (node) {
+      chain.unshift(node);
+      node = node._parent;
+    }
+    for (const cmd of chain) {
+      const hooks = cmd._hooks.get("preAction") ?? [];
+      for (const fn of hooks) {
+        await fn();
+      }
+    }
+  }
+
+  /**
+   * Dispatch the stored action using arity-based argument mapping.
+   */
+  private async _dispatchAction(): Promise<void> {
+    const fn = this._actionFn!;
+    const arity = fn.length;
+    if (arity === 0) {
+      await fn();
+      return;
+    }
+    if (arity === 1) {
+      if (this._args.length > 0) {
+        await fn(this._parsedArgs[0]);
+      } else {
+        await fn(this.opts());
+      }
+      return;
+    }
+    // arity >= 2: positional args (up to arity-1), then opts
+    const args: unknown[] = [];
+    for (let i = 0; i < Math.min(arity - 1, this._parsedArgs.length); i++) {
+      args.push(this._parsedArgs[i]);
+    }
+    while (args.length < arity - 1) {
+      args.push(undefined);
+    }
+    args.push(this.opts());
+    await fn(...args);
+  }
+
+  // ------------------------------------------------------------------
   // Help
   // ------------------------------------------------------------------
 
@@ -310,6 +444,7 @@ export class Command {
     let usage = "Usage:";
     if (this._name) usage += ` ${this._name}`;
     if (this._options.length > 0) usage += " [options]";
+    if (this._subcommands.size > 0) usage += " [command]";
     for (const arg of this._args) {
       usage += arg.required ? ` <${arg.name}>` : ` [${arg.name}]`;
     }
@@ -338,6 +473,16 @@ export class Command {
       for (const opt of this._options) {
         const flagLabel = this._optionFlagLabel(opt);
         lines.push(`  ${flagLabel.padEnd(22)} ${opt.description}`);
+      }
+    }
+
+    // Subcommands (US-057)
+    if (this._subcommands.size > 0) {
+      lines.push("");
+      lines.push("Commands:");
+      for (const [name, child] of this._subcommands) {
+        const desc = (child as Command)._description || "";
+        lines.push(`  ${name.padEnd(24)} ${desc}`);
       }
     }
 
