@@ -30,7 +30,7 @@ describe("dashboard MCP monitor API and page", () => {
       { projectRoot: project },
       { id: "US-MCP", title: "MCP story", lane: "tiny" },
     );
-    linkProject(project, { env: { ...process.env, HARNESS_HOME: home } });
+    linkProject(project, { harnessHome: home });
 
     // Add some MCP call records
     appendMcpCall(project, {
@@ -64,7 +64,7 @@ describe("dashboard MCP monitor API and page", () => {
     return {
       home,
       project,
-      opts: { env: { ...process.env, HARNESS_HOME: home } },
+      opts: { harnessHome: home },
     };
   }
 
@@ -146,8 +146,8 @@ describe("dashboard MCP monitor API and page", () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dash-mcp-empty-"));
     const project = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dash-mcp-empty-proj-"));
     tempDirs.push(home, project);
-    linkProject(project, { env: { ...process.env, HARNESS_HOME: home } });
-    const opts = { env: { ...process.env, HARNESS_HOME: home } };
+    linkProject(project, { harnessHome: home });
+    const opts = { harnessHome: home };
 
     const res = handleDashboardRequest(
       "GET",
@@ -163,11 +163,13 @@ describe("dashboard MCP monitor API and page", () => {
     const dash = await startDashboard({
       host: "127.0.0.1",
       port: 0,
-      env: opts.env,
+      harnessHome: opts.harnessHome,
     });
     try {
+      const cookie = await loginToDashboard(dash.url);
       const monitor = await httpGet(
         `${dash.url}monitor?id=${encodeURIComponent(project)}`,
+        cookie,
       );
       expect(monitor.status).toBe(200);
       expect(monitor.body).toMatch(/MCP Monitor/);
@@ -175,6 +177,7 @@ describe("dashboard MCP monitor API and page", () => {
 
       const stats = await httpGet(
         `${dash.url}api/mcp-stats?project=${encodeURIComponent(project)}`,
+        cookie,
       );
       expect(stats.status).toBe(200);
       const parsed = JSON.parse(stats.body) as { total_calls: number };
@@ -182,6 +185,7 @@ describe("dashboard MCP monitor API and page", () => {
 
       const calls = await httpGet(
         `${dash.url}api/mcp-calls?project=${encodeURIComponent(project)}`,
+        cookie,
       );
       expect(calls.status).toBe(200);
       expect(JSON.parse(calls.body)).toHaveLength(3);
@@ -194,14 +198,15 @@ describe("dashboard MCP monitor API and page", () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dash-mcp-live-h-"));
     const project = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dash-mcp-live-p-"));
     tempDirs.push(home, project);
-    linkProject(project, { env: { ...process.env, HARNESS_HOME: home } });
+    linkProject(project, { harnessHome: home });
 
     const dash = await startDashboard({
       host: "127.0.0.1",
       port: 0,
-      env: { ...process.env, HARNESS_HOME: home },
+      harnessHome: home,
     });
     try {
+      const cookie = await loginToDashboard(dash.url);
       const body = JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
@@ -212,6 +217,7 @@ describe("dashboard MCP monitor API and page", () => {
       const res = await httpPost(
         `${dash.url}mcp?project=${encodeURIComponent(project)}`,
         body,
+        cookie,
       );
       expect(res.status).toBe(200);
       const rpc = JSON.parse(res.body) as { result?: { serverInfo?: { name: string } } };
@@ -226,10 +232,12 @@ describe("dashboard MCP monitor API and page", () => {
   });
 });
 
-function httpGet(url: string): Promise<{ status: number; body: string }> {
+function httpGet(url: string, cookie?: string): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
+    const opts: http.RequestOptions = {};
+    if (cookie) opts.headers = { Cookie: cookie };
     http
-      .get(url, (res) => {
+      .get(url, opts, (res) => {
         const chunks: Buffer[] = [];
         res.on("data", (c) => chunks.push(c));
         res.on("end", () =>
@@ -246,20 +254,23 @@ function httpGet(url: string): Promise<{ status: number; body: string }> {
 function httpPost(
   url: string,
   body: string,
-): Promise<{ status: number; body: string }> {
+  cookie?: string,
+): Promise<{ status: number; body: string; headers?: http.IncomingHttpHeaders }> {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
-    const req = http.request(
-      {
-        hostname: u.hostname,
-        port: u.port,
-        path: u.pathname + u.search,
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Content-Length": Buffer.byteLength(body),
-        },
+    const opts: http.RequestOptions = {
+      hostname: u.hostname,
+      port: u.port,
+      path: u.pathname + u.search,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(body),
       },
+    };
+    if (cookie) (opts.headers as Record<string, string>)["Cookie"] = cookie;
+    const req = http.request(
+      opts,
       (res) => {
         const chunks: Buffer[] = [];
         res.on("data", (c) => chunks.push(c));
@@ -267,6 +278,7 @@ function httpPost(
           resolve({
             status: res.statusCode ?? 0,
             body: Buffer.concat(chunks).toString("utf8"),
+            headers: res.headers,
           }),
         );
       },
@@ -275,4 +287,33 @@ function httpPost(
     req.write(body);
     req.end();
   });
+}
+
+async function loginToDashboard(baseUrl: string): Promise<string> {
+  const urlObj = new URL(baseUrl.replace(/\/$/, "") + "/api/auth/login");
+  const loginBody = "username=admin&password=admin";
+  const res = await new Promise<{ status: number; body: string; headers?: http.IncomingHttpHeaders }>((resolve, reject) => {
+    const req = http.request({
+      hostname: urlObj.hostname,
+      port: urlObj.port,
+      path: urlObj.pathname,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Length": Buffer.byteLength(loginBody),
+      },
+    }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8"), headers: res.headers }));
+    });
+    req.on("error", reject);
+    req.write(loginBody);
+    req.end();
+  });
+  const setCookie = res.headers?.["set-cookie"];
+  const cookieStr = Array.isArray(setCookie) ? setCookie[0] : String(setCookie ?? "");
+  const match = cookieStr.match(/harness_session=([^;]+)/);
+  if (!match) throw new Error("No harness_session cookie");
+  return `harness_session=${match[1]}`;
 }

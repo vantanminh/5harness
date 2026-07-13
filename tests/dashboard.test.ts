@@ -38,6 +38,49 @@ function get(url: string): Promise<{ status: number; body: string }> {
   });
 }
 
+function postForm(url: string, body: string): Promise<{ status: number; body: string; headers?: http.IncomingHttpHeaders }> {
+  return new Promise((resolve, reject) => {
+    const urlObj = new URL(url);
+    const req = http.request({
+      hostname: urlObj.hostname,
+      port: urlObj.port,
+      path: urlObj.pathname + urlObj.search,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Length": Buffer.byteLength(body),
+      },
+    }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8"), headers: res.headers }));
+    });
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
+}
+
+function getWithCookie(url: string, cookie: string): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    http.get(url, { headers: { Cookie: cookie } }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }));
+    }).on("error", reject);
+  });
+}
+
+async function loginAsAdmin(baseUrl: string): Promise<string> { const base = baseUrl.replace(/\/$/, "");
+  const res = await postForm(`${base}/api/auth/login`, "username=admin&password=admin");
+  const setCookie = res.headers?.["set-cookie"];
+  const cookieStr = Array.isArray(setCookie) ? setCookie[0] : String(setCookie ?? "");
+  const match = cookieStr.match(/harness_session=([^;]+)/);
+  if (!match) throw new Error("No harness_session cookie");
+  return `harness_session=${match[1]}`;
+}
+
+
 describe("dashboard (US-014)", () => {
   it("serializes registry projects and project matrix via handlers", () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dash-home-"));
@@ -49,18 +92,18 @@ describe("dashboard (US-014)", () => {
       { id: "US-D1", title: "Dashboard story", lane: "normal" },
     );
     linkProject(project, {
-      env: { ...process.env, HARNESS_HOME: home },
+      harnessHome: home,
     });
 
     const summaries = listProjectSummaries({
-      env: { ...process.env, HARNESS_HOME: home },
+      harnessHome: home,
     });
     expect(summaries.length).toBeGreaterThanOrEqual(1);
     const mine = summaries.find((s) => s.path === project);
     expect(mine?.stats?.stories).toBe(1);
 
     const api = handleDashboardRequest("GET", "/api/projects", {
-      env: { ...process.env, HARNESS_HOME: home },
+      harnessHome: home,
     });
     expect(api.status).toBe(200);
     expect(api.body).toMatch(/US-D1|Dashboard story|stories/);
@@ -70,7 +113,7 @@ describe("dashboard (US-014)", () => {
     );
 
     const homeHtml = handleDashboardRequest("GET", "/", {
-      env: { ...process.env, HARNESS_HOME: home },
+      harnessHome: home,
     });
     expect(homeHtml.status).toBe(200);
     expect(homeHtml.contentType).toContain("html");
@@ -86,21 +129,22 @@ describe("dashboard (US-014)", () => {
       { id: "US-D2", title: "HTTP story", lane: "tiny" },
     );
     linkProject(project, {
-      env: { ...process.env, HARNESS_HOME: home },
+      harnessHome: home,
     });
 
     const dash = await startDashboard({
       host: "127.0.0.1",
       port: 0,
-      env: { ...process.env, HARNESS_HOME: home },
+      harnessHome: home,
     });
     try {
       expect(dash.host).toBe("127.0.0.1");
-      const homeRes = await get(dash.url);
+      const cookie = await loginAsAdmin(dash.url);
+      const homeRes = await getWithCookie(dash.url, cookie);
       expect(homeRes.status).toBe(200);
       expect(homeRes.body).toMatch(/Harness Dashboard/);
 
-      const apiRes = await get(`${dash.url}api/projects`);
+      const apiRes = await getWithCookie(`${dash.url}api/projects`, cookie);
       expect(apiRes.status).toBe(200);
       const data = JSON.parse(apiRes.body) as unknown[];
       expect(Array.isArray(data)).toBe(true);
@@ -110,7 +154,7 @@ describe("dashboard (US-014)", () => {
         (p) => p.path === project,
       )?.id;
       expect(id).toBeTruthy();
-      const detail = await get(`${dash.url}api/project?id=${encodeURIComponent(id!)}`);
+      const detail = await getWithCookie(`${dash.url}api/project?id=${encodeURIComponent(id!)}`, cookie);
       expect(detail.status).toBe(200);
       expect(detail.body).toMatch(/US-D2|HTTP story/);
     } finally {
@@ -128,10 +172,10 @@ describe("dashboard (US-014)", () => {
       { id: "US-D3", title: "Full detail story", lane: "normal" },
     );
     linkProject(project, {
-      env: { ...process.env, HARNESS_HOME: home },
+      harnessHome: home,
     });
 
-    const opts = { env: { ...process.env, HARNESS_HOME: home } };
+    const opts = { harnessHome: home };
     const detail = getProjectDetail(project, opts);
     expect(detail).not.toBeNull();
     expect(detail!.intakes).toBeDefined();
@@ -166,10 +210,10 @@ describe("dashboard (US-014)", () => {
       { id: "US-D4", title: "Entity detail story", lane: "tiny" },
     );
     linkProject(project, {
-      env: { ...process.env, HARNESS_HOME: home },
+      harnessHome: home,
     });
 
-    const opts = { env: { ...process.env, HARNESS_HOME: home } };
+    const opts = { harnessHome: home };
 
     // entity detail via handler
     const entDetail = getEntityDetail(project, "US-D4", opts);
@@ -204,18 +248,21 @@ describe("dashboard (US-014)", () => {
     const dash = await startDashboard({
       host: "127.0.0.1",
       port: 0,
-      env: { ...process.env, HARNESS_HOME: home },
+      harnessHome: home,
     });
     try {
-      const entRes = await get(
+      const cookie = await loginAsAdmin(dash.url);
+      const entRes = await getWithCookie(
         `${dash.url}api/entity?project=${encodeURIComponent(project)}&id=US-D4`,
+        cookie,
       );
       expect(entRes.status).toBe(200);
       expect(entRes.body).toMatch(/US-D4/);
 
       // 404 for unknown entity
-      const notFound = await get(
+      const notFound = await getWithCookie(
         `${dash.url}api/entity?project=${encodeURIComponent(project)}&id=NONEXISTENT`,
+        cookie,
       );
       expect(notFound.status).toBe(404);
     } finally {
@@ -228,7 +275,7 @@ describe("dashboard (US-014)", () => {
     tempDirs.push(home);
 
     const html = handleDashboardRequest("GET", "/", {
-      env: { ...process.env, HARNESS_HOME: home },
+      harnessHome: home,
     });
     expect(html.status).toBe(200);
     expect(html.body).toMatch(/Harness v\d+\.\d+\.\d+/);
