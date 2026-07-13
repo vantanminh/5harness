@@ -60,7 +60,7 @@ needs discussion, feature intake, docs, or story shaping. The skill is
 project-scoped; do not use a global copy as the source of truth.
 
 <!-- HARNESS:BEGIN -->
-<!-- harness-version: 0.17.0 -->
+<!-- harness-version: 0.18.0 -->
 <!-- harness-project-id: 2155089a1e379d9ebae4b4ac654e7360 -->
 ## Harness
 
