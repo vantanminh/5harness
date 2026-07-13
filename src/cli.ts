@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { executeDashboard } from "./commands/dashboard.js";
+import { executeDashboard, executeSetPassword } from "./commands/dashboard.js";
 import { executeAudit } from "./commands/audit.js";
 import {
   executeDocsSearch,
@@ -215,20 +215,34 @@ async function main(argv: string[] = process.argv): Promise<void> {
       withErrors(() => executeProjects());
     });
 
-  program
+
+  const dashboardCmd = program
     .command("dashboard")
     .description(
-      "Start local read-only multi-project dashboard (localhost)",
+      "Start local multi-project dashboard (localhost) or manage settings",
     )
     .option("--port <n>", "port (default 3927)", "3927")
-    .option("--host <addr>", "bind address (default 127.0.0.1)", "127.0.0.1")
+    .option("--host <addr>", "bind address (default 127.0.0.1)", "127.0.0.1");
+
+  dashboardCmd
+    .command("set-password")
+    .description("Change the dashboard authentication password")
+    .option("--password <p>", "new password (will prompt interactively if omitted)")
     .action((opts) => {
       withErrors(() => {
-        void executeDashboard(opts).catch((error: unknown) => {
+        void executeSetPassword(opts).catch((error: unknown) => {
           fail(error);
         });
       });
     });
+
+  dashboardCmd.action((opts) => {
+    withErrors(() => {
+      void executeDashboard(opts).catch((error: unknown) => {
+        fail(error);
+      });
+    });
+  });
 
   // Docs command group
   const docsCmd = program
