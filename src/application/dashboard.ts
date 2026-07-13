@@ -16,7 +16,7 @@ import { isLoopbackBindHost } from "../domain/paths.js";
 import { listLinkedProjects } from "./registry.js";
 import { VERSION } from "../version.js";
 import { handleDashboardMutation } from "./dashboard-mutations.js";
-import { createMonitoredMcpHandler } from "./mcp-server.js";
+import { createMonitoredMcpHandler, mcpStreamableHttpStatus } from "./mcp-server.js";
 import { McpOAuthService } from "./mcp-oauth.js";
 import { handleMcpOAuthRoute, requireMcpBearer } from "./mcp-oauth-http.js";
 
@@ -751,6 +751,13 @@ export function startDashboard(
             const projectRoot = resolveMcpProjectRoot(dashOpts, preferred);
             const handle = createMonitoredMcpHandler(projectRoot);
             const json = handle(body);
+            const status = mcpStreamableHttpStatus(json);
+            if (status === 202) {
+              // Notification-only (e.g. notifications/initialized): no body.
+              res.writeHead(202);
+              res.end();
+              return;
+            }
             res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
             res.end(json);
           } catch (err) {

@@ -13,6 +13,7 @@ import {
 import {
   createMonitoredMcpHandler,
   handleMcpRequest,
+  mcpStreamableHttpStatus,
 } from "../src/application/mcp-server.js";
 
 const tempDirs: string[] = [];
@@ -209,5 +210,22 @@ describe("MCP server monitoring instrumentation", () => {
       root,
     );
     expect(listMcpCalls(root)).toHaveLength(0);
+  });
+
+  it("maps notification responses to Streamable HTTP 202 and requests to 200", () => {
+    const root = tmp();
+    const note = handleMcpRequest(
+      JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
+      root,
+    );
+    expect(note).toBe("");
+    expect(mcpStreamableHttpStatus(note)).toBe(202);
+
+    const init = handleMcpRequest(
+      JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }),
+      root,
+    );
+    expect(init.length).toBeGreaterThan(0);
+    expect(mcpStreamableHttpStatus(init)).toBe(200);
   });
 });

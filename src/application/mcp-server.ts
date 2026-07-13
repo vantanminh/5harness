@@ -532,6 +532,21 @@ function dispatch(
   }
 }
 
+/**
+ * Streamable HTTP status for a `handleMcpRequest` result body.
+ *
+ * MCP Streamable HTTP requires notification-only POSTs (no JSON-RPC response)
+ * to return **202 Accepted with no body**. Returning `200` + empty
+ * `application/json` body breaks strict clients such as Codex CLI (rmcp),
+ * which try to deserialize the empty body and fail at
+ * `notifications/initialized`.
+ *
+ * Spec: https://modelcontextprotocol.io/specification/2025-03-26/basic/transports
+ */
+export function mcpStreamableHttpStatus(responseBody: string): 200 | 202 {
+  return responseBody.length === 0 ? 202 : 200;
+}
+
 /** Handle a JSON-RPC body string, return the response string (or "" for notifications). */
 export function handleMcpRequest(
   body: string,

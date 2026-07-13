@@ -1,6 +1,6 @@
 import http from "node:http";
 import { resolveTargetFromOptions, type TargetOptions } from "../infrastructure/context.js";
-import { createMonitoredMcpHandler } from "../application/mcp-server.js";
+import { createMonitoredMcpHandler, mcpStreamableHttpStatus } from "../application/mcp-server.js";
 import { isLoopbackBindHost } from "../domain/paths.js";
 import { McpOAuthService } from "../application/mcp-oauth.js";
 import { handleMcpOAuthRoute, requireMcpBearer } from "../application/mcp-oauth-http.js";
@@ -54,6 +54,13 @@ export function executeMcp(options: McpCliOptions): void {
       req.on("end", () => {
         try {
           const json = handle(body);
+          const status = mcpStreamableHttpStatus(json);
+          if (status === 202) {
+            // Notification-only (e.g. notifications/initialized): no body.
+            res.writeHead(202);
+            res.end();
+            return;
+          }
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(json);
         } catch (err) {

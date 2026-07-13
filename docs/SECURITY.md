@@ -61,6 +61,8 @@ Implementation: `src/infrastructure/verify.ts`.
 | Tokens | Opaque, one-hour, in-memory, Bearer header only, bound to the canonical `/mcp` resource |
 | Mutation surface | Reads and controlled durable mutations; agents still follow AGENTS hard-fail rules |
 | Call log | `.5harness/local/mcp-calls.jsonl` under the project (machine-local) |
+| Notification POSTs | `202 Accepted` with no body (Streamable HTTP; required by Codex CLI / rmcp) |
+| JSON-RPC request POSTs | `200` + `application/json` response body |
 
 Authorization codes are valid for five minutes and redeemable once. Redirect
 URIs must match registration exactly and use HTTPS or a localhost loopback URI.

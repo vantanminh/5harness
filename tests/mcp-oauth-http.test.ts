@@ -168,6 +168,23 @@ describe("MCP OAuth HTTP integration", () => {
         result: { serverInfo: { name: "harness-mcp" } },
       });
       expect(listMcpCalls(project).some((call) => call.method === "initialize")).toBe(true);
+
+      // Streamable HTTP: notification-only POSTs must be 202 with empty body.
+      // Codex CLI (rmcp) fails handshake if this is 200 + empty application/json.
+      const initialized = await fetch(`${dashboard.url}mcp?project=${encodeURIComponent(project)}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "notifications/initialized",
+          params: {},
+        }),
+      });
+      expect(initialized.status).toBe(202);
+      expect(await initialized.text()).toBe("");
     } finally {
       await dashboard.close();
     }
@@ -228,6 +245,13 @@ describe("MCP OAuth HTTP integration", () => {
       await expect(accepted.json()).resolves.toMatchObject({
         result: { serverInfo: { name: "harness-mcp" } },
       });
+      const initialized = await fetch(`${baseUrl}mcp`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
+      });
+      expect(initialized.status).toBe(202);
+      expect(await initialized.text()).toBe("");
     } finally {
       child.kill();
       await new Promise<void>((resolve) => {
