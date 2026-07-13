@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-07-13
+
 ### Fixed
 
 - OAuth approval pages now allow the exact registered callback origin in their

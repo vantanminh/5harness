@@ -60,7 +60,7 @@ needs discussion, feature intake, docs, or story shaping. The skill is
 project-scoped; do not use a global copy as the source of truth.
 
 <!-- HARNESS:BEGIN -->
-<!-- harness-version: 0.15.0 -->
+<!-- harness-version: 0.15.1 -->
 ## Harness
 
 This repo uses **Harness** (`5harness`, bin `harness`).
