@@ -6,12 +6,18 @@ import { McpOAuthService } from "../application/mcp-oauth.js";
 import { handleMcpOAuthRoute, requireMcpBearer } from "../application/mcp-oauth-http.js";
 import { ensureDefaultAuth, verifyCredentials } from "../infrastructure/dashboard-auth.js";
 
-export type McpCliOptions = TargetOptions & { port?: string; host?: string };
+export type McpCliOptions = TargetOptions & { port?: string; host?: string; publicUrl?: string };
 
 export function executeMcp(options: McpCliOptions): void {
   const { targetDir } = resolveTargetFromOptions(options);
   const host = options.host ?? "127.0.0.1";
   const port = options.port ? Number(options.port) : 3928;
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`Invalid --port "${options.port}"`);
+  }
+  if (!isLoopbackBindHost(host) && !options.publicUrl) {
+    throw new Error("Non-loopback MCP binds require --public-url https://<public-host> behind a TLS reverse proxy");
+  }
   if (!isLoopbackBindHost(host)) {
     console.log(
       "warning: binding MCP outside loopback requires an HTTPS reverse proxy; OAuth credentials and tokens must not cross plaintext networks. See docs/SECURITY.md.",
@@ -21,6 +27,7 @@ export function executeMcp(options: McpCliOptions): void {
   const handle = createMonitoredMcpHandler(targetDir);
   ensureDefaultAuth();
   let oauth: McpOAuthService | undefined;
+  const bindHostForUrl = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 
   const server = http.createServer(async (req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -32,8 +39,8 @@ export function executeMcp(options: McpCliOptions): void {
     const address = server.address();
     const actualPort = typeof address === "object" && address ? address.port : port;
     oauth ??= new McpOAuthService({
-      issuer: `http://${host}:${actualPort}`,
-      resource: `http://${host}:${actualPort}/mcp`,
+      issuer: options.publicUrl ?? `http://${bindHostForUrl}:${actualPort}`,
+      resource: `${(options.publicUrl ?? `http://${bindHostForUrl}:${actualPort}`).replace(/\/$/, "")}/mcp`,
     });
     const url = new URL(req.url ?? "/", oauth.issuer);
     if (await handleMcpOAuthRoute(req, res, url, oauth, {

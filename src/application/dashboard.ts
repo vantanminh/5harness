@@ -12,6 +12,7 @@ import {
 } from "./md-query.js";
 import { queryTracesMd } from "./local-traces.js";
 import type { ListedProject } from "../domain/registry.js";
+import { isLoopbackBindHost } from "../domain/paths.js";
 import { listLinkedProjects } from "./registry.js";
 import { VERSION } from "../version.js";
 import { handleDashboardMutation } from "./dashboard-mutations.js";
@@ -33,6 +34,7 @@ import {
 export type DashboardOptions = {
   host?: string;
   port?: number;
+  publicUrl?: string;
   env?: NodeJS.ProcessEnv;
   harnessHome?: string;
 };
@@ -701,10 +703,16 @@ export function startDashboard(
 ): Promise<DashboardServer> {
   const host = options.host ?? "127.0.0.1";
   const port = options.port ?? 3927;
+  if (!isLoopbackBindHost(host) && !options.publicUrl) {
+    return Promise.reject(new Error(
+      "Non-loopback dashboard binds require --public-url https://<public-host> behind a TLS reverse proxy",
+    ));
+  }
   const dashOpts: DashboardOptions = {
     env: options.env,
     harnessHome: options.harnessHome,
   };
+  const bindHostForUrl = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 
   let oauth: McpOAuthService | undefined;
   const server = http.createServer(async (req, res) => {
@@ -716,8 +724,8 @@ export function startDashboard(
       const address = server.address();
       const actualPort = typeof address === "object" && address ? address.port : port;
       oauth ??= new McpOAuthService({
-        issuer: `http://${host}:${actualPort}`,
-        resource: `http://${host}:${actualPort}/mcp`,
+        issuer: options.publicUrl ?? `http://${bindHostForUrl}:${actualPort}`,
+        resource: `${(options.publicUrl ?? `http://${bindHostForUrl}:${actualPort}`).replace(/\/$/, "")}/mcp`,
       });
       if (await handleMcpOAuthRoute(req, res, url, oauth, {
         authenticateUser: (username, password) => verifyCredentials(username, password, authHomeOpts),

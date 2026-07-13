@@ -115,6 +115,9 @@ Declared via harness CLI (decision **0014**, intake **IN-003**). Packets live un
 | [US-028](../stories/US-028.md) | E14 | Export changelog | — | **done** |
 | [US-029](../stories/US-029.md) | E14 | `harness watch` reindex | US-009 | **done** |
 | [US-030](../stories/US-030.md) | E14 | `harness handoff` | US-019, US-024 | **done** |
+| [US-045](../stories/US-045.md) | E15 | OAuth 2.1 authorization core + PKCE S256 | US-027, US-042 | **done** |
+| [US-046](../stories/US-046.md) | E15 | OAuth enforcement on MCP HTTP surfaces | US-045 | **done** |
+| [US-047](../stories/US-047.md) | E15 | MCP OAuth hardening + interoperability docs | US-046 | **done** |
 
 ## Versioning intent
 

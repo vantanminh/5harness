@@ -28,6 +28,7 @@ count as the Harness decision log.
 | 0009 | Standalone product repository | Accepted |
 | 0010 | TypeScript CLI toolchain | Accepted |
 | **0011** | **Global tool, markdown durable, agent index** | **Accepted** (active pivot) |
+| **0019** | **Embedded OAuth 2.1 and PKCE boundary for MCP** | **Accepted** |
 
 Add a decision when:
 

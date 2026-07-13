@@ -4,6 +4,7 @@ export const MCP_OAUTH_SCOPE = "mcp:access";
 const CODE_TTL_MS = 5 * 60_000;
 const TOKEN_TTL_MS = 60 * 60_000;
 const PKCE_VALUE = /^[A-Za-z0-9._~-]{43,128}$/;
+const MAX_IN_MEMORY_RECORDS = 1_000;
 
 export class OAuthProtocolError extends Error {
   constructor(
@@ -112,6 +113,19 @@ export class McpOAuthService {
   constructor(options: { issuer: string; resource: string; now?: () => number }) {
     this.issuer = normalizeBaseUri(options.issuer, "issuer");
     this.resource = normalizeBaseUri(options.resource, "resource");
+    const issuer = new URL(this.issuer);
+    const resource = new URL(this.resource);
+    if (issuer.pathname !== "/") {
+      throw new Error("embedded OAuth issuer must be an origin URL without a path");
+    }
+    const loopback = issuer.hostname === "localhost" || issuer.hostname === "127.0.0.1" ||
+      issuer.hostname === "[::1]" || issuer.hostname === "::1";
+    if (issuer.protocol !== "https:" && !(issuer.protocol === "http:" && loopback)) {
+      throw new Error("OAuth issuer must use HTTPS unless it is a localhost loopback URI");
+    }
+    if (issuer.origin !== resource.origin) {
+      throw new Error("embedded OAuth issuer and MCP resource must use the same origin");
+    }
     this.now = options.now ?? Date.now;
   }
 
@@ -128,6 +142,7 @@ export class McpOAuthService {
       token_endpoint_auth_methods_supported: ["none"],
       code_challenge_methods_supported: ["S256"],
       scopes_supported: [MCP_OAUTH_SCOPE],
+      resource_indicators_supported: true,
     };
   }
 
@@ -141,6 +156,9 @@ export class McpOAuthService {
   }
 
   registerClient(input: Record<string, unknown>): OAuthClient {
+    if (this.clients.size >= MAX_IN_MEMORY_RECORDS) {
+      throw new OAuthProtocolError("temporarily_unavailable", "client registration capacity reached", 429);
+    }
     if (!Array.isArray(input.redirect_uris) || input.redirect_uris.length === 0) {
       throw new OAuthProtocolError("invalid_client_metadata", "redirect_uris must be a non-empty array");
     }
@@ -175,6 +193,9 @@ export class McpOAuthService {
     scope: string;
     resource: string;
   } {
+    if (this.pending.size >= MAX_IN_MEMORY_RECORDS) {
+      throw new OAuthProtocolError("temporarily_unavailable", "authorization request capacity reached", 429);
+    }
     if (readParam(params, "response_type") !== "code") {
       throw new OAuthProtocolError("unsupported_response_type", "response_type must be code");
     }
@@ -190,7 +211,7 @@ export class McpOAuthService {
       throw new OAuthProtocolError("invalid_request", "PKCE S256 is required");
     }
     const resource = requireString(readParam(params, "resource"), "resource");
-    if (normalizeBaseUri(resource, "resource") !== this.resource) {
+    if (resource !== this.resource) {
       throw new OAuthProtocolError("invalid_target", "resource does not identify this MCP server");
     }
     const scope = readParam(params, "scope") ?? MCP_OAUTH_SCOPE;
@@ -247,7 +268,7 @@ export class McpOAuthService {
     if (
       clientId !== grant.clientId ||
       redirectUri !== grant.redirectUri ||
-      normalizeBaseUri(resource, "resource") !== grant.resource ||
+      resource !== grant.resource ||
       !PKCE_VALUE.test(verifier) ||
       !safeEqual(sha256Base64Url(verifier), grant.codeChallenge)
     ) {
@@ -277,7 +298,7 @@ export class McpOAuthService {
       this.tokens.delete(token);
       return { ok: false, reason: "expired" };
     }
-    if (normalizeBaseUri(resource, "resource") !== grant.resource) {
+    if (resource !== grant.resource) {
       return { ok: false, reason: "wrong_audience" };
     }
     if (!grant.scope.split(/\s+/).includes(requiredScope)) {

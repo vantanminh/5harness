@@ -73,6 +73,24 @@ harness dashboard            # or bare: harness
 | **Dashboard** | Localhost multi-project UI + optional MCP monitoring |
 | **Releases** | CI multi-OS matrix, OIDC publish, GitHub Releases, SBOM |
 
+### MCP authentication
+
+Both `harness mcp` and the dashboard's `/mcp` endpoint are OAuth 2.1 protected
+resources. MCP clients discover the embedded authorization server through RFC
+9728, dynamically register as public clients, and use Authorization Code with
+mandatory PKCE S256. Access tokens are short-lived, opaque, and bound to the
+canonical MCP resource URI.
+
+```bash
+harness dashboard              # MCP resource: http://127.0.0.1:3927/mcp
+harness mcp                    # MCP resource: http://127.0.0.1:3928/mcp
+harness dashboard set-password # replace the initial administrator password
+```
+
+Plain HTTP is accepted only on loopback. A non-loopback bind requires an HTTPS
+reverse proxy and its canonical URL, for example
+`harness mcp --host 0.0.0.0 --public-url https://mcp.example.com`.
+
 Product pivot: [decision 0011](docs/decisions/0011-global-tool-markdown-durable-index.md).
 
 ## Agent rules (summary)

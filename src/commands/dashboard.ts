@@ -6,6 +6,7 @@ import readline from "node:readline";
 export type DashboardCliOptions = {
   port?: string;
   host?: string;
+  publicUrl?: string;
 };
 
 export async function executeDashboard(
@@ -18,11 +19,11 @@ export async function executeDashboard(
   const host = options.host ?? "127.0.0.1";
   if (!isLoopbackBindHost(host)) {
     console.log(
-      "warning: binding outside loopback exposes the dashboard on the network (no multi-tenant auth). See docs/SECURITY.md.",
+      "warning: binding outside loopback requires --public-url and an HTTPS reverse proxy. See docs/SECURITY.md.",
     );
   }
 
-  const dash = await startDashboard({ host, port });
+  const dash = await startDashboard({ host, port, publicUrl: options.publicUrl });
   console.log(`Harness dashboard`);
   console.log(`  ${dash.url}`);
   console.log(`  MCP: ${dash.url}mcp`);

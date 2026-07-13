@@ -15,7 +15,7 @@ and CI. Implementation references point into `src/` where useful.
 | `verify` frontmatter commands | Project-authored shell | Local cwd = project |
 | Machine registry (`~/.5harness`) | Local user | Paths on this machine |
 | Dashboard | Loopback HTTP | `127.0.0.1` by default |
-| MCP server | Loopback / stdio as configured | Local only by default |
+| MCP server | OAuth 2.1 protected resource | Loopback HTTP by default |
 | npm update check | Public registry read | Advisory stderr only |
 | npm publish / Releases | Maintainer CI (OIDC) | Provenance when configured |
 
@@ -54,16 +54,32 @@ Implementation: `src/infrastructure/verify.ts`.
 
 | Aspect | Detail |
 | --- | --- |
-| Auth model | **Local only** — no remote multi-user auth layer |
+| Auth model | OAuth 2.1 Authorization Code with mandatory PKCE S256 |
 | Default bind | `127.0.0.1` (see `harness mcp` / dashboard `--host`) |
-| Mutation surface | Read-oriented tools today; agents should still follow AGENTS hard-fail rules |
+| Discovery | RFC 9728 protected-resource metadata + RFC 8414 authorization-server metadata |
+| Client model | Dynamic registration of public clients; no client secret |
+| Tokens | Opaque, one-hour, in-memory, Bearer header only, bound to the canonical `/mcp` resource |
+| Mutation surface | Reads and controlled durable mutations; agents still follow AGENTS hard-fail rules |
 | Call log | `.5harness/local/mcp-calls.jsonl` under the project (machine-local) |
 
-Binding MCP or the dashboard to a non-loopback address exposes project paths,
-index data, and tool responses to anyone who can reach that host:port. Keep
-defaults unless you have an explicit network model.
+Authorization codes are valid for five minutes and redeemable once. Redirect
+URIs must match registration exactly and use HTTPS or a localhost loopback URI.
+PKCE `plain`, implicit flow, password flow, query-string access tokens, and
+cross-audience tokens are rejected. Dashboard cookies never authorize MCP calls.
 
-Implementation: `src/application/mcp-server.ts`, `src/application/dashboard.ts`.
+The administrator approves a client in the browser. Set a non-default password
+with `harness dashboard set-password` before authorizing clients. Client
+registrations, pending codes, and access tokens are process-local; restarting the
+server revokes them.
+
+Plain HTTP is supported only for loopback native-client interoperability. A
+non-loopback bind hard-fails unless `--public-url https://...` is supplied; that
+mode assumes a correctly configured TLS reverse proxy and remains a single-user
+operator boundary, not multi-tenant authorization.
+
+Implementation: `src/application/mcp-oauth.ts`,
+`src/application/mcp-oauth-http.ts`, `src/application/mcp-server.ts`, and
+`src/application/dashboard.ts`.
 
 ---
 

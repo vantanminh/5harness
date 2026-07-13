@@ -222,7 +222,8 @@ async function main(argv: string[] = process.argv): Promise<void> {
       "Start local multi-project dashboard (localhost) or manage settings",
     )
     .option("--port <n>", "port (default 3927)", "3927")
-    .option("--host <addr>", "bind address (default 127.0.0.1)", "127.0.0.1");
+    .option("--host <addr>", "bind address (default 127.0.0.1)", "127.0.0.1")
+    .option("--public-url <https-url>", "canonical HTTPS URL when served through a TLS reverse proxy");
 
   dashboardCmd
     .command("set-password")
@@ -855,10 +856,11 @@ async function main(argv: string[] = process.argv): Promise<void> {
     program
       .command("mcp")
       .description(
-        "Start MCP (Model Context Protocol) server over HTTP (default port 3928). Call records land in .5harness/local/mcp-calls.jsonl. For dashboard + MCP, run `harness` (dashboard embeds /mcp).",
+        "Start OAuth-protected MCP over HTTP (default port 3928). Calls land in .5harness/local/mcp-calls.jsonl. For dashboard + MCP, run `harness`.",
       )
       .option("--port <n>", "port (default 3928)", "3928")
       .option("--host <addr>", "bind address (default 127.0.0.1)", "127.0.0.1")
+      .option("--public-url <https-url>", "canonical HTTPS URL when served through a TLS reverse proxy")
       .action((opts) => {
         withErrors(() => executeMcp(opts));
       }),

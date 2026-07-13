@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- OAuth 2.1 authentication for standalone and dashboard-hosted MCP: RFC 9728
+  and RFC 8414 discovery, dynamic public-client registration, Authorization
+  Code with mandatory PKCE S256, and short-lived resource-bound Bearer tokens
+  (IN-009 / US-045–US-047 / decision 0019).
+
+### Security
+
+- MCP calls now require an OAuth access token; dashboard session cookies do not
+  grant MCP access. Plain HTTP is loopback-only, while non-loopback binds require
+  an explicit canonical HTTPS `--public-url` behind a TLS reverse proxy.
+
 ## [0.12.6] - 2026-07-12
 
 ### Changed

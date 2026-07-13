@@ -17,6 +17,9 @@ function securityHeaders(res: ServerResponse): void {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("X-Frame-Options", "DENY");
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
@@ -153,6 +156,9 @@ export async function handleMcpOAuthRoute(
   }
   if (req.method === "POST" && url.pathname === "/token") {
     try {
+      if (req.headers.authorization) {
+        throw new OAuthProtocolError("invalid_client", "public clients must not use client authentication", 401);
+      }
       const params = new URLSearchParams(await readBody(req));
       sendJson(res, 200, oauth.exchangeAuthorizationCode(params));
     } catch (error) {
@@ -175,7 +181,8 @@ export function requireMcpBearer(
   const status = insufficient ? 403 : 401;
   const parameters = insufficient
     ? `error="insufficient_scope", scope="${MCP_OAUTH_SCOPE}"`
-    : `resource_metadata="${metadata}", scope="${MCP_OAUTH_SCOPE}"`;
+    : `${validation.reason === "missing" ? "" : "error=\"invalid_token\", "}` +
+      `resource_metadata="${metadata}", scope="${MCP_OAUTH_SCOPE}"`;
   res.setHeader("WWW-Authenticate", `Bearer ${parameters}`);
   sendJson(res, status, {
     error: insufficient ? "insufficient_scope" : "invalid_token",
