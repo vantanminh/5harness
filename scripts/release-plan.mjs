@@ -4,7 +4,8 @@
  *
  * Avoids the divergence class of bugs where:
  * - package.json is already ahead of the last git tag (no extra bump commit needed)
- * - tag for current version already exists (skip release entirely)
+ * - tag for current version exists but new commits are present (bump anyway)
+ * - tag for current version exists and no new commits (true skip)
  *
  * Usage (CI):
  *   node scripts/release-plan.mjs [--kind patch|minor|major]
@@ -39,31 +40,40 @@ function cmp(a, b) {
   return a.patch - b.patch;
 }
 
-function git(args) {
-  const r = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+function git(args, cwd = root) {
+  const r = spawnSync("git", args, { cwd, encoding: "utf8" });
   if (r.status !== 0) return { ok: false, out: (r.stdout || "") + (r.stderr || "") };
   return { ok: true, out: (r.stdout || "").trim() };
 }
 
-function tagExists(tag) {
-  const r = git(["rev-parse", "-q", "--verify", `refs/tags/${tag}`]);
+function tagExists(tag, cwd) {
+  const r = git(["rev-parse", "-q", "--verify", `refs/tags/${tag}`], cwd);
   return r.ok;
 }
 
-function lastVersionTag() {
-  const r = git(["describe", "--tags", "--abbrev=0", "--match", "v*"]);
+function lastVersionTag(cwd) {
+  const r = git(["describe", "--tags", "--abbrev=0", "--match", "v*"], cwd);
   if (!r.ok || !r.out) return null;
   return r.out;
 }
 
+function commitsSince(ref, cwd) {
+  const r = git(["rev-list", "--count", `${ref}..HEAD`], cwd);
+  if (!r.ok) return 0;
+  const n = parseInt(r.out.trim(), 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function parseArgs(argv) {
   let kind = "patch";
+  let rootDir = root;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--kind") kind = argv[++i] || "patch";
+    else if (argv[i] === "--root") rootDir = path.resolve(argv[++i] || ".");
     else if (["patch", "minor", "major"].includes(argv[i])) kind = argv[i];
   }
   if (!["patch", "minor", "major"].includes(kind)) kind = "patch";
-  return { kind };
+  return { kind, rootDir };
 }
 
 function emit(plan) {
@@ -74,25 +84,39 @@ function emit(plan) {
   console.log(plan.version || "");
 }
 
-const { kind } = parseArgs(process.argv.slice(2));
-const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+const { kind, rootDir } = parseArgs(process.argv.slice(2));
+const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, "package.json"), "utf8"));
 const current = parseSemver(pkg.version);
 if (!current) {
   console.error(`release-plan: invalid package.json version: ${pkg.version}`);
   process.exit(1);
 }
 
-const lastTag = lastVersionTag();
+const lastTag = lastVersionTag(rootDir);
 const last = lastTag ? parseSemver(lastTag) : null;
 const tagForCurrent = `v${current.raw}`;
 
-if (tagExists(tagForCurrent)) {
+if (tagExists(tagForCurrent, rootDir)) {
+  // Tag exists, but check for new commits since that tag.
+  // If the developer pushed new work without bumping locally,
+  // we must bump here or the release never goes out.
+  const newCommits = commitsSince(tagForCurrent, rootDir);
+  if (newCommits === 0) {
+    emit({
+      skip: "true",
+      mode: "skip",
+      version: current.raw,
+      kind,
+      reason: `tag ${tagForCurrent} already exists and no new commits — nothing to release`,
+    });
+    process.exit(0);
+  }
   emit({
-    skip: "true",
-    mode: "skip",
+    skip: "false",
+    mode: "bump",
     version: current.raw,
     kind,
-    reason: `tag ${tagForCurrent} already exists — nothing to release`,
+    reason: `tag ${tagForCurrent} exists but ${newCommits} new commit(s) since — bump ${kind}`,
   });
   process.exit(0);
 }
