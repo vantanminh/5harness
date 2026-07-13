@@ -18,6 +18,15 @@ import { handleDashboardMutation } from "./dashboard-mutations.js";
 import { createMonitoredMcpHandler } from "./mcp-server.js";
 
 import { getMcpStats, listMcpCalls } from "./mcp-monitor.js";
+import {
+  ensureDefaultAuth,
+  verifyCredentials,
+  changePassword,
+  createSession,
+  validateSession,
+  destroySession,
+  extractSessionToken,
+} from "../infrastructure/dashboard-auth.js";
 
 export type DashboardOptions = {
   host?: string;
@@ -359,6 +368,7 @@ const CSS = `
   .status-error { color: var(--status-error); font-weight: 600; }
   .nav { margin-bottom: 1.5rem; }
   .nav a { margin-right: 1rem; }
+  .link-btn { background: none; border: none; color: var(--link); font: inherit; cursor: pointer; padding: 0; text-decoration: underline; }
   .badge { display: inline-block; background: var(--th-bg); border: 1px solid var(--border); border-radius: 4px; padding: 0.15em 0.5em; font-size: 0.8rem; margin-right: 0.3rem; }
   .section-tabs { display: flex; gap: 0.25rem; margin: 1.5rem 0 1rem; flex-wrap: wrap; }
   .section-tabs a { padding: 0.35rem 0.75rem; border: 1px solid var(--border); border-radius: 4px 4px 0 0; font-size: 0.85rem; background: var(--th-bg); }
@@ -377,6 +387,109 @@ function renderFooter(): string {
   <p>Harness v${htmlEscape(VERSION)} &mdash; <a href="https://github.com/vantanminh/5harness">github.com/vantanminh/5harness</a></p>
 </div>`;
 }
+
+function renderLoginPage(error?: string): string {
+  const errorHtml = error
+    ? `<p style="color:var(--status-missing);margin-bottom:1rem">${htmlEscape(error)}</p>`
+    : "";
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login — Harness Dashboard</title>
+  <style>${CSS}
+    .login-box { max-width: 360px; margin: 5rem auto; padding: 2rem; border: 1px solid var(--border); border-radius: 8px; background: var(--th-bg); }
+    .login-box h1 { margin-top: 0; font-size: 1.3rem; text-align: center; }
+    .login-box label { display: block; margin-top: 0.75rem; font-weight: 600; font-size: 0.85rem; }
+    .login-box input[type="text"],
+    .login-box input[type="password"] { width: 100%; padding: 0.5rem; margin-top: 0.25rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--fg); font-size: 0.95rem; }
+    .login-box button { width: 100%; margin-top: 1.25rem; padding: 0.6rem; background: var(--link); color: #fff; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; }
+    .login-box button:hover { opacity: 0.9; }
+    .login-box .hint { margin-top: 1rem; font-size: 0.8rem; color: var(--muted); text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <h1>Harness Dashboard</h1>
+    ${errorHtml}
+    <form method="post" action="/api/auth/login">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" value="admin" autocomplete="username" />
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" />
+      <button type="submit">Sign in</button>
+    </form>
+    <p class="hint">Default: admin / admin &mdash; change via <code>harness dashboard set-password</code></p>
+  </div>
+</body>
+</html>`;
+}
+
+function renderSettings(
+  success?: string,
+  error?: string,
+): string {
+  const msgHtml = success
+    ? `<p style="color:var(--status-ok);margin-bottom:1rem">${htmlEscape(success)}</p>`
+    : error
+      ? `<p style="color:var(--status-missing);margin-bottom:1rem">${htmlEscape(error)}</p>`
+      : "";
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Settings — Harness Dashboard</title>
+  <style>${CSS}
+    .settings-box { max-width: 420px; margin: 2rem auto; padding: 2rem; border: 1px solid var(--border); border-radius: 8px; background: var(--th-bg); }
+    .settings-box h1 { margin-top: 0; font-size: 1.3rem; }
+    .settings-box label { display: block; margin-top: 0.75rem; font-weight: 600; font-size: 0.85rem; }
+    .settings-box input[type="password"] { width: 100%; padding: 0.5rem; margin-top: 0.25rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--fg); font-size: 0.95rem; }
+    .settings-box button { margin-top: 1.25rem; padding: 0.6rem 1.5rem; background: var(--link); color: #fff; border: none; border-radius: 4px; font-size: 0.95rem; cursor: pointer; }
+    .settings-box button:hover { opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <div class="nav">
+    <a href="/">&larr; Dashboard</a>
+    <a href="/settings">Settings</a>
+  </div>
+  <div class="settings-box">
+    <h1>Change Password</h1>
+    ${msgHtml}
+    <form method="post" action="/api/auth/change-password">
+      <label for="currentPassword">Current password</label>
+      <input type="password" id="currentPassword" name="currentPassword" autocomplete="current-password" required />
+      <label for="newPassword">New password</label>
+      <input type="password" id="newPassword" name="newPassword" autocomplete="new-password" required minlength="1" />
+      <button type="submit">Update password</button>
+    </form>
+  </div>
+  ${renderFooter()}
+</body>
+</html>`;
+}
+
+function renderLoggedOut(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Logged out — Harness Dashboard</title>
+  <style>${CSS}</style>
+</head>
+<body>
+  <h1>Logged out</h1>
+  <p>You have been signed out of the dashboard.</p>
+  <p><a href="/login">Sign in again</a></p>
+  ${renderFooter()}
+</body>
+</html>`;
+}
+
+
 
 function renderHome(projects: ProjectSummary[]): string {
   const totalStories = projects.reduce((s, p) => s + (p.stats?.stories ?? 0), 0);
@@ -412,6 +525,13 @@ function renderHome(projects: ProjectSummary[]): string {
   <style>${CSS}</style>
 </head>
 <body>
+  <div class="nav">
+    <a href="/settings">Settings</a>
+    <form method="post" action="/api/auth/logout" style="display:inline">
+      <button type="submit" class="link-btn">Logout</button>
+    </form>
+  </div>
+
   <h1>Harness Dashboard</h1>
   <p class="muted">Local read-only view of registry projects (markdown SoT).</p>
   <p><a href="/api/projects">JSON /api/projects</a></p>
@@ -493,7 +613,14 @@ function renderProject(detail: ProjectDetail): string {
   <style>${CSS}</style>
 </head>
 <body>
-  <div class="nav"><a href="/">← Projects</a></div>
+  <div class="nav">
+    <a href="/">← Projects</a>
+    <a href="/settings">Settings</a>
+    <form method="post" action="/api/auth/logout" style="display:inline">
+      <button type="submit" class="link-btn">Logout</button>
+    </form>
+  </div>
+
   <h1>${htmlEscape(p.name)}</h1>
   <p class="muted"><code>${htmlEscape(p.path)}</code></p>
   <p>
@@ -534,6 +661,10 @@ function renderEntity(detail: EntityDetail): string {
   <div class="nav">
     <a href="/">← Projects</a>
     <a href="/project?id=${encodeURIComponent(p.id)}">← ${htmlEscape(p.name)}</a>
+    <a href="/settings">Settings</a>
+    <form method="post" action="/api/auth/logout" style="display:inline">
+      <button type="submit" class="link-btn">Logout</button>
+    </form>
   </div>
   <h1>${htmlEscape(detail.id)} <span class="badge">${htmlEscape(detail.type)}</span></h1>
   <p class="muted"><code>${htmlEscape(detail.path)}</code> &mdash; ${htmlEscape(detail.title)}</p>
@@ -576,6 +707,114 @@ export function startDashboard(
   const server = http.createServer((req, res) => {
     try {
       const url = new URL(req.url ?? "/", `http://${host}:${port}`);
+      const authHomeOpts = dashOpts.harnessHome ? { harnessHome: dashOpts.harnessHome } : undefined;
+      ensureDefaultAuth(authHomeOpts);
+
+      // Auth: public paths (login, auth API) skip auth check
+      const publicPaths = ["/login", "/api/auth/login", "/api/auth/logout"];
+      const isPublic = publicPaths.includes(url.pathname);
+
+      // Auth: session check for protected paths
+      if (!isPublic) {
+        const cookieHeader = (req.headers.cookie ?? req.headers["cookie"]) as string | undefined;
+        const token = extractSessionToken(cookieHeader);
+        if (!token || !validateSession(token)) {
+          if (url.pathname.startsWith("/api/")) {
+            res.writeHead(401, { "Content-Type": "application/json; charset=utf-8" });
+            res.end(JSON.stringify({ error: "Unauthorized" }));
+            return;
+          }
+          res.writeHead(302, { "Location": "/login?redirect=" + encodeURIComponent(req.url ?? "/") });
+          res.end();
+          return;
+        }
+      }
+
+      // Auth routes
+      if (url.pathname === "/api/auth/login" && req.method === "POST") {
+        let body = "";
+        req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+        req.on("end", () => {
+          try {
+            const params = new URLSearchParams(body);
+            const username = params.get("username") ?? "";
+            const password = params.get("password") ?? "";
+            const isValid = verifyCredentials(username, password, authHomeOpts);
+            if (isValid) {
+              const session = createSession();
+              const redirect = new URL(url.searchParams.get("redirect") ?? "/", `http://${host}:${port}`).pathname;
+              res.writeHead(302, {
+                "Location": redirect,
+                "Set-Cookie": `harness_session=${session.token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${Math.floor((session.expiresAt - Date.now()) / 1000)}`,
+              });
+              res.end();
+            } else {
+              res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+              res.end(renderLoginPage("Invalid username or password"));
+            }
+          } catch (err) {
+            res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+            res.end(err instanceof Error ? err.message : String(err));
+          }
+        });
+        return;
+      }
+
+      if (url.pathname === "/api/auth/logout" && req.method === "POST") {
+        const cookieHeader = (req.headers.cookie ?? req.headers["cookie"]) as string | undefined;
+        const token = extractSessionToken(cookieHeader);
+        if (token) destroySession(token);
+        res.writeHead(302, {
+          "Location": "/login",
+          "Set-Cookie": "harness_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0"
+        });
+        res.end();
+        return;
+      }
+
+      if (url.pathname === "/api/auth/change-password" && req.method === "POST") {
+        let body = "";
+        req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+        req.on("end", () => {
+          try {
+            const params = new URLSearchParams(body);
+            const currentPassword = params.get("currentPassword") ?? "";
+            const newPassword = params.get("newPassword") ?? "";
+            if (!newPassword) {
+              res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+              res.end(renderSettings(undefined, "New password must not be empty"));
+              return;
+            }
+            const ok = changePassword("admin", currentPassword, newPassword, authHomeOpts);
+            if (ok) {
+              res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+              res.end(renderSettings("Password updated successfully."));
+            } else {
+              res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+              res.end(renderSettings(undefined, "Current password is incorrect"));
+            }
+          } catch (err) {
+            res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+            res.end(err instanceof Error ? err.message : String(err));
+          }
+        });
+        return;
+      }
+
+      // Login page
+      if (url.pathname === "/login") {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderLoginPage());
+        return;
+      }
+
+      // Settings page
+      if (url.pathname === "/settings") {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderSettings());
+        return;
+      }
+
 
       // MCP JSON-RPC (monitored) — project from ?project= or cwd-linked project
       if (url.pathname === "/mcp" && req.method === "POST") {
@@ -809,6 +1048,10 @@ export function handleDashboardRequest(
   <div class="nav">
     <a href="/">&larr; Dashboard</a>
     <a href="/project?id=${encodeURIComponent(projectId)}">${escapedId}</a>
+    <a href="/settings">Settings</a>
+    <form method="post" action="/api/auth/logout" style="display:inline">
+      <button type="submit" class="link-btn">Logout</button>
+    </form>
   </div>
   <h1>MCP Monitor &mdash; ${escapedId}</h1>
   <p class="muted">Real-time monitoring of MCP server calls from AI agents.</p>
@@ -819,5 +1062,23 @@ export function handleDashboardRequest(
 </html>`,
     };
   }
+
+  // Auth HTML routes (for unit-test handler parity with startDashboard)
+  if (url.pathname === "/login") {
+    return {
+      status: 200,
+      contentType: "text/html",
+      body: renderLoginPage(),
+    };
+  }
+  if (url.pathname === "/settings") {
+    return {
+      status: 200,
+      contentType: "text/html",
+      body: renderSettings(),
+    };
+  }
+
+
   return { status: 404, contentType: "text/plain", body: "Not found" };
 }
