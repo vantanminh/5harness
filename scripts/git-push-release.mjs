@@ -59,14 +59,16 @@ function must(cmd, args, label) {
 function parseArgs(argv) {
   let tag = null;
   let message = null;
+  let sign = false;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--tag") tag = argv[++i];
     else if (argv[i] === "--message" || argv[i] === "-m") message = argv[++i];
+    else if (argv[i] === "--sign") sign = true;
   }
-  return { tag, message };
+  return { tag, message, sign };
 }
 
-const { tag, message } = parseArgs(process.argv.slice(2));
+const { tag, message, sign } = parseArgs(process.argv.slice(2));
 
 // Ensure identity (CI sets these; local may already have them)
 run("git", ["config", "user.name", "github-actions[bot]"]);
@@ -88,8 +90,11 @@ const hasCommit = staged.stdout.trim().length > 0;
 
 if (hasCommit) {
   const msg = message || (tag ? `chore(release): ${tag.replace(/^v/, "")}` : "chore(release)");
-  must("git", ["commit", "-m", msg], "git commit");
-  console.log(`Created commit: ${msg}`);
+  const commitArgs = ["commit"];
+  if (sign) commitArgs.push("-S");
+  commitArgs.push("-m", msg);
+  must("git", commitArgs, "git commit");
+  console.log(`Created commit: ${msg}${sign ? " (GPG-signed)" : ""}`);
 } else {
   console.log("No release file changes to commit (tag-only or already committed).");
 }
@@ -100,8 +105,11 @@ if (tag) {
   if (exists.status === 0) {
     console.log(`Tag ${tag} already exists locally.`);
   } else {
-    must("git", ["tag", "-a", tag, "-m", `Release ${tag}`], "git tag");
-    console.log(`Created tag ${tag}`);
+    const tagArgs = ["tag"];
+    if (sign) tagArgs.push("-s");
+    tagArgs.push("-a", tag, "-m", `Release ${tag}`);
+    must("git", tagArgs, "git tag");
+    console.log(`Created tag ${tag}${sign ? " (GPG-signed)" : ""}`);
   }
 }
 

@@ -213,14 +213,43 @@ jobs:
         if: steps.plan.outputs.skip != 'true'
         run: npm run release:check
 
+      # GPG-sign commits and tags so GitHub displays the Verified badge.
+      # Requires GPG_PRIVATE_KEY secret (armored private key) and the
+      # corresponding public key registered on the GitHub account.
+      # Gracefully skips signing when the secret is not configured.
+      - name: Set up GPG signing
+        id: gpg
+        if: steps.plan.outputs.skip != 'true'
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -n "${GPG_PRIVATE_KEY:-}" ]; then
+            echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+            KEY_ID="$(gpg --list-secret-keys --keyid-format LONG | grep ^sec | head -1 | sed 's/.*\/\([^ ]*\).*/\1/')"
+            echo "GPG key imported: $KEY_ID"
+            git config user.signingkey "$KEY_ID"
+            git config commit.gpgsign true
+            git config tag.gpgSign true
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "GPG_PRIVATE_KEY secret not set — signing skipped"
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Commit, tag, and push (rebase-retry)
         if: steps.plan.outputs.skip != 'true'
         run: |
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
           TAG="v${VERSION}"
+          SIGN_FLAG=""
+          if [ "${{ steps.gpg.outputs.signed }}" = "true" ]; then
+            SIGN_FLAG="--sign"
+          fi
           # Rebase-retry push permanently avoids non-fast-forward races on main.
           node scripts/git-push-release.mjs \
+            $SIGN_FLAG \
             --tag "$TAG" \
             --message "chore(release): ${VERSION}"
           echo "Pushed release $TAG"
