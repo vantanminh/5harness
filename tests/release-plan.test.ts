@@ -2,11 +2,11 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const root = path.resolve(import.meta.dirname ?? __dirname, "..");
 const script = path.join(root, "scripts", "release-plan.mjs");
+
 const tempDirs: string[] = [];
 
 afterEach(() => {
@@ -15,59 +15,122 @@ afterEach(() => {
   }
 });
 
-function parsePlan(stdout: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const line of stdout.split(/\r?\n/)) {
-    const m = line.match(/^(skip|mode|version|kind|reason)=(.*)$/);
-    if (m) out[m[1]!] = m[2]!;
-  }
-  return out;
+function runPlan(dir: string, args: string[] = []): { status: number; stdout: string; stderr: string } {
+  const r = spawnSync("node", ["--no-warnings", script, "--root", dir, ...args], {
+    encoding: "utf8",
+    env: { ...process.env, GIT_CONFIG_NOSYSTEM: "1", HOME: dir, XDG_CONFIG_HOME: dir },
+  });
+  return { status: r.status ?? 1, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
 
-describe("scripts/release-plan.mjs", () => {
-  it("runs in this repo and emits plan keys", () => {
-    const r = spawnSync(process.execPath, [script, "--kind", "patch"], {
-      cwd: root,
-      encoding: "utf8",
-    });
-    expect(r.status, r.stdout + r.stderr).toBe(0);
-    const plan = parsePlan(r.stdout);
-    expect(plan.skip).toMatch(/true|false/);
-    expect(plan.mode).toMatch(/skip|tag-only|bump/);
-    expect(plan.version).toMatch(/^\d+\.\d+\.\d+/);
-    expect(plan.reason).toBeTruthy();
+function git(dir: string, args: string[]): { ok: boolean; out: string } {
+  const r = spawnSync("git", ["-c", "user.name=test", "-c", "user.email=test@test.com", ...args], {
+    cwd: dir,
+    encoding: "utf8",
+    env: { ...process.env, GIT_CONFIG_NOSYSTEM: "1", HOME: dir, XDG_CONFIG_HOME: dir },
+  });
+  return { ok: r.status === 0, out: (r.stdout ?? "") + (r.stderr ?? "") };
+}
+
+function setupRepo(): { dir: string } {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-relplan-"));
+  tempDirs.push(dir);
+  git(dir, ["init", "-b", "main"]);
+  git(dir, ["config", "user.name", "test"]);
+  git(dir, ["config", "user.email", "test@test.com"]);
+  return { dir };
+}
+
+function writePkg(dir: string, version: string) {
+  fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "test", version }, null, 2), "utf8");
+}
+
+function commitAndTag(dir: string, message: string, tag?: string) {
+  fs.writeFileSync(path.join(dir, "readme.md"), message, "utf8");
+  git(dir, ["add", "."]);
+  git(dir, ["commit", "-m", message]);
+  if (tag) git(dir, ["tag", "-a", tag, "-m", tag]);
+}
+
+describe("release-plan.mjs", () => {
+  it("returns skip when tag exists and no new commits", () => {
+    const { dir } = setupRepo();
+    writePkg(dir, "0.1.0");
+    commitAndTag(dir, "initial", "v0.1.0");
+    const res = runPlan(dir, ["--kind", "patch"]);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/skip=true/);
+    expect(res.stdout).toMatch(/mode=skip/);
+    expect(res.stdout).toMatch(/no new commits/);
   });
 
-  it("tag-only when package version is ahead of last tag (isolated git)", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-rp-"));
-    tempDirs.push(dir);
-    // minimal package + git history
-    fs.writeFileSync(
-      path.join(dir, "package.json"),
-      JSON.stringify({ name: "tmp", version: "1.2.3" }, null, 2) + "\n",
-    );
-    const git = (args: string[]) =>
-      spawnSync("git", args, { cwd: dir, encoding: "utf8" });
-    git(["init"]);
-    git(["config", "user.email", "t@example.com"]);
-    git(["config", "user.name", "t"]);
-    git(["add", "package.json"]);
-    git(["commit", "-m", "init"]);
-    git(["tag", "-a", "v1.2.0", "-m", "v1.2.0"]);
+  it("returns bump when tag exists but new commits are present", () => {
+    const { dir } = setupRepo();
+    writePkg(dir, "0.1.0");
+    commitAndTag(dir, "initial", "v0.1.0");
+    commitAndTag(dir, "feat: something new");
+    const res = runPlan(dir, ["--kind", "minor"]);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/skip=false/);
+    expect(res.stdout).toMatch(/mode=bump/);
+    expect(res.stdout).toMatch(/new commit/);
+    expect(res.stdout).toContain("version=0.1.0");
+  });
 
-    // Copy script into temp? Run from root but with cwd package? release-plan uses its own root via import.meta.
-    // Instead spawn with env and patch: run node -e requiring logic — simpler: copy script deps by running
-    // against a modified approach: invoke via node with WORKING by rewriting — actually script root is fixed
-    // to repo root. So this test only checks real-repo behavior above; for isolated, duplicate the cmp logic:
+  it("returns bump when no tags exist", () => {
+    const { dir } = setupRepo();
+    writePkg(dir, "0.2.0");
+    commitAndTag(dir, "initial");
+    const res = runPlan(dir, ["major"]);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/skip=false/);
+    expect(res.stdout).toMatch(/mode=bump/);
+    expect(res.stdout).toMatch(/no v\* tag/);
+    expect(res.stdout).toContain("kind=major");
+  });
 
-    const current = { major: 1, minor: 2, patch: 3 };
-    const last = { major: 1, minor: 2, patch: 0 };
-    const cmp =
-      current.major !== last.major
-        ? current.major - last.major
-        : current.minor !== last.minor
-          ? current.minor - last.minor
-          : current.patch - last.patch;
-    expect(cmp).toBeGreaterThan(0);
+  it("returns tag-only when package.json is ahead of last tag", () => {
+    const { dir } = setupRepo();
+    writePkg(dir, "0.3.0");
+    commitAndTag(dir, "initial", "v0.2.0");
+    const res = runPlan(dir, ["--kind", "patch"]);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/skip=false/);
+    expect(res.stdout).toMatch(/mode=tag-only/);
+    expect(res.stdout).toMatch(/> last tag/);
+    expect(res.stdout).toContain("version=0.3.0");
+  });
+
+  it("returns tag-only when version was bumped locally ahead of last tag", () => {
+    const { dir } = setupRepo();
+    writePkg(dir, "0.1.0");
+    commitAndTag(dir, "initial", "v0.1.0");
+    writePkg(dir, "0.1.1");
+    commitAndTag(dir, "chore: prep");
+    const res = runPlan(dir, ["patch"]);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/tag-only/);
+  });
+
+  it("defaults kind to patch when not specified", () => {
+    const { dir } = setupRepo();
+    writePkg(dir, "0.1.0");
+    commitAndTag(dir, "initial");
+    const res = runPlan(dir);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain("kind=patch");
+  });
+
+  it("counts multiple new commits", () => {
+    const { dir } = setupRepo();
+    writePkg(dir, "1.0.0");
+    commitAndTag(dir, "release", "v1.0.0");
+    commitAndTag(dir, "fix: bug");
+    commitAndTag(dir, "feat: feature");
+    commitAndTag(dir, "docs: readme");
+    const res = runPlan(dir, ["--kind", "minor"]);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toMatch(/mode=bump/);
+    expect(res.stdout).toMatch(/3 new commit/);
   });
 });
