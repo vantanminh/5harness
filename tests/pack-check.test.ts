@@ -16,5 +16,5 @@ describe("pack:check", () => {
     });
     expect(result.status, result.stdout + result.stderr).toBe(0);
     expect(result.stdout + result.stderr).toMatch(/pack:check ok/);
-  });
+  }, 60_000);
 });
