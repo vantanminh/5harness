@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import {
   emptyToolRegistry,
   normalizeCapability,
@@ -132,14 +131,26 @@ export function removeTool(
 
 function probeCliPresence(command: string): boolean {
   const cmd = command.split(/\s+/)[0] ?? command;
-  // On Windows, check with where; else with which
-  const whichCmd = process.platform === "win32" ? "where" : "which";
-  const result = spawnSync(whichCmd, [cmd], {
-    encoding: "utf8",
-    windowsHide: true,
-    timeout: 5000,
-  });
-  return result.status === 0 && result.stdout.trim().length > 0;
+  if (path.isAbsolute(cmd) || cmd.includes("/") || cmd.includes("\\")) {
+    return isExecutableFile(cmd);
+  }
+  const pathValue = process.env.PATH ?? process.env.Path ?? "";
+  const extensions = process.platform === "win32" && !path.extname(cmd)
+    ? (process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";")
+    : [""];
+  return pathValue.split(path.delimiter).some((directory) =>
+    extensions.some((extension) => isExecutableFile(path.join(directory, cmd + extension))),
+  );
+}
+
+function isExecutableFile(candidate: string): boolean {
+  try {
+    if (!fs.statSync(candidate).isFile()) return false;
+    fs.accessSync(candidate, process.platform === "win32" ? fs.constants.F_OK : fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function probeScan(scan: string): boolean {
