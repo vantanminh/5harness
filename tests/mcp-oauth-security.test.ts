@@ -44,7 +44,9 @@ describe("MCP OAuth security boundaries", () => {
       });
       expect(malformed.status).toBe(400);
       expect(malformed.headers.get("cache-control")).toBe("no-store");
-      expect(malformed.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
+      expect(malformed.headers.get("content-security-policy")).toContain(
+        "form-action 'self'; frame-ancestors 'none'",
+      );
       await expect(malformed.json()).resolves.toMatchObject({ error: "invalid_request" });
 
       const unsafe = await fetch(`${dashboard.url}register`, {

@@ -66,6 +66,9 @@ Authorization codes are valid for five minutes and redeemable once. Redirect
 URIs must match registration exactly and use HTTPS or a localhost loopback URI.
 PKCE `plain`, implicit flow, password flow, query-string access tokens, and
 cross-audience tokens are rejected. Dashboard cookies never authorize MCP calls.
+The approval page's CSP permits form navigation only to the server itself and
+the origin of that already validated, registered callback; it never uses a
+wildcard callback destination.
 
 The administrator approves a client in the browser. Set a non-default password
 with `harness dashboard set-password` before authorizing clients. Client

@@ -83,6 +83,9 @@ async function acquireToken(baseUrl: string): Promise<string> {
   const approvalPage = await fetch(authorization);
   expect(approvalPage.status).toBe(200);
   expect(approvalPage.headers.get("cache-control")).toBe("no-store");
+  expect(approvalPage.headers.get("content-security-policy")).toContain(
+    "form-action 'self' http://127.0.0.1:4567",
+  );
   const html = await approvalPage.text();
   const requestId = /name="request_id" value="([^"]+)"/.exec(html)?.[1];
   expect(requestId).toBeTruthy();

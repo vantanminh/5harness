@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- OAuth approval pages now allow the exact registered callback origin in their
+  `form-action` CSP, so the authorization endpoint's 302 can reach loopback
+  clients running on another port without permitting arbitrary form targets
+  (IN-010 / US-048).
+
 ## [0.15.0] - 2026-07-13
 
 ### Added

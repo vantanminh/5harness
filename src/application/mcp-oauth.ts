@@ -192,6 +192,7 @@ export class McpOAuthService {
     clientName: string;
     scope: string;
     resource: string;
+    redirectOrigin: string;
   } {
     if (this.pending.size >= MAX_IN_MEMORY_RECORDS) {
       throw new OAuthProtocolError("temporarily_unavailable", "authorization request capacity reached", 429);
@@ -228,7 +229,13 @@ export class McpOAuthService {
       state: readParam(params, "state"),
       expiresAt: this.now() + CODE_TTL_MS,
     });
-    return { requestId, clientName: client.client_name, scope, resource: this.resource };
+    return {
+      requestId,
+      clientName: client.client_name,
+      scope,
+      resource: this.resource,
+      redirectOrigin: new URL(redirectUri).origin,
+    };
   }
 
   approveAuthorization(requestId: string): string {

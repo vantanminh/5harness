@@ -13,11 +13,15 @@ export type OAuthHttpOptions = {
   isUserAuthenticated?: (req: IncomingMessage) => boolean;
 };
 
-function securityHeaders(res: ServerResponse): void {
+function securityHeaders(res: ServerResponse, callbackOrigin?: string): void {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'");
+  const formAction = callbackOrigin ? `'self' ${callbackOrigin}` : "'self'";
+  res.setHeader(
+    "Content-Security-Policy",
+    `default-src 'none'; style-src 'unsafe-inline'; form-action ${formAction}; frame-ancestors 'none'`,
+  );
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("X-Frame-Options", "DENY");
 }
@@ -123,7 +127,10 @@ export async function handleMcpOAuthRoute(
   if (req.method === "GET" && url.pathname === "/authorize") {
     try {
       const pending = oauth.beginAuthorization(url.searchParams);
-      securityHeaders(res);
+      // A browser applies form-action across redirects. Allow only the origin
+      // of the already validated, registered callback so the OAuth 302 can
+      // leave /authorize without broadening form submission destinations.
+      securityHeaders(res, pending.redirectOrigin);
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       res.end(renderApproval({
         ...pending,
