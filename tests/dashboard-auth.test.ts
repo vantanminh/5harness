@@ -212,8 +212,24 @@ describe("dashboard auth (US-042)", () => {
       try {
         const res = await getUrl(dash.url, "/login");
         expect(res.status).toBe(200);
-        expect(res.body).toMatch(/Login/);
+        expect(res.body).toMatch(/Sign in/);
         expect(res.body).toMatch(/username/);
+      } finally { await dash.close(); }
+    });
+
+    it("POST /api/auth/login preserves authorize redirect path and query", async () => {
+      const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-auth-"));
+      tempDirs.push(home);
+      const dash = await startDashboard({ host: "127.0.0.1", port: 0, harnessHome: home });
+      try {
+        const target = "/authorize?response_type=code&client_id=abc&state=s1";
+        const res = await postForm(
+          dash.url,
+          "/api/auth/login",
+          `username=admin&password=admin&redirect=${encodeURIComponent(target)}`,
+        );
+        expect(res.status).toBe(302);
+        expect(res.headers?.location).toBe(target);
       } finally { await dash.close(); }
     });
 
@@ -343,7 +359,7 @@ describe("dashboard auth (US-042)", () => {
     it("handler: /login returns login page", () => {
       const res = handleDashboardRequest("GET", "/login");
       expect(res.status).toBe(200);
-      expect(res.body).toMatch(/Login/);
+      expect(res.body).toMatch(/Sign in/);
       expect(res.body).toMatch(/admin/);
     });
 

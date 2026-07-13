@@ -5,12 +5,13 @@ import {
   OAuthProtocolError,
   extractBearerToken,
 } from "./mcp-oauth.js";
+import { renderApprovalPage } from "./auth-pages.js";
 
 const MAX_BODY_BYTES = 1024 * 1024;
 
 export type OAuthHttpOptions = {
-  authenticateUser: (username: string, password: string) => boolean;
-  isUserAuthenticated?: (req: IncomingMessage) => boolean;
+  /** Session cookie (or equivalent) — required to show/approve consent. */
+  isUserAuthenticated: (req: IncomingMessage) => boolean;
 };
 
 function securityHeaders(res: ServerResponse, callbackOrigin?: string): void {
@@ -58,46 +59,14 @@ async function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-function htmlEscape(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function renderApproval(input: {
-  requestId: string;
-  clientName: string;
-  scope: string;
-  resource: string;
-  authenticated: boolean;
-  error?: string;
-}): string {
-  const credentials = input.authenticated
-    ? "<p>Authenticated with the current dashboard session.</p>"
-    : `<label>Username <input name="username" autocomplete="username" required></label>
-       <label>Password <input name="password" type="password" autocomplete="current-password" required></label>`;
-  return `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>Authorize MCP client</title><style>
-body{font:16px system-ui;max-width:36rem;margin:3rem auto;padding:0 1rem;color:#18202a}code{word-break:break-all}
-form{display:grid;gap:1rem;padding:1.25rem;border:1px solid #ccd3dc;border-radius:.5rem}label{display:grid;gap:.35rem}
-input,button{font:inherit;padding:.65rem}.actions{display:flex;gap:.75rem}.error{color:#a11212}
-</style></head><body><h1>Authorize Harness MCP</h1>
-${input.error ? `<p class="error">${htmlEscape(input.error)}</p>` : ""}
-<p><strong>${htmlEscape(input.clientName)}</strong> requests <code>${htmlEscape(input.scope)}</code> access to:</p>
-<p><code>${htmlEscape(input.resource)}</code></p>
-<form method="post" action="/authorize">
-<input type="hidden" name="request_id" value="${htmlEscape(input.requestId)}">
-${credentials}<div class="actions"><button name="action" value="approve" type="submit">Authorize</button>
-<button name="action" value="deny" type="submit">Deny</button></div></form></body></html>`;
-}
-
 function isMetadataPath(pathname: string): boolean {
   return pathname === "/.well-known/oauth-protected-resource" ||
     pathname === "/.well-known/oauth-protected-resource/mcp";
+}
+
+function loginRedirectLocation(url: URL): string {
+  const target = `${url.pathname}${url.search}`;
+  return `/login?redirect=${encodeURIComponent(target)}`;
 }
 
 export async function handleMcpOAuthRoute(
@@ -126,16 +95,23 @@ export async function handleMcpOAuthRoute(
   }
   if (req.method === "GET" && url.pathname === "/authorize") {
     try {
+      // Validate OAuth params first so bad clients fail before login.
       const pending = oauth.beginAuthorization(url.searchParams);
+      if (!options.isUserAuthenticated(req)) {
+        securityHeaders(res);
+        res.writeHead(302, {
+          Location: loginRedirectLocation(url),
+          "Cache-Control": "no-store",
+        });
+        res.end();
+        return true;
+      }
       // A browser applies form-action across redirects. Allow only the origin
       // of the already validated, registered callback so the OAuth 302 can
       // leave /authorize without broadening form submission destinations.
       securityHeaders(res, pending.redirectOrigin);
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      res.end(renderApproval({
-        ...pending,
-        authenticated: options.isUserAuthenticated?.(req) ?? false,
-      }));
+      res.end(renderApprovalPage(pending));
     } catch (error) {
       sendOAuthError(res, error);
     }
@@ -145,14 +121,18 @@ export async function handleMcpOAuthRoute(
     try {
       const form = new URLSearchParams(await readBody(req));
       const requestId = form.get("request_id") ?? "";
+      if (!options.isUserAuthenticated(req)) {
+        // Consent posts must use the shared login session — no inline credentials.
+        throw new OAuthProtocolError(
+          "access_denied",
+          "Sign in at /login before approving MCP clients",
+          401,
+        );
+      }
       if (form.get("action") === "deny") {
         res.writeHead(302, { Location: oauth.denyAuthorization(requestId), "Cache-Control": "no-store" });
         res.end();
         return true;
-      }
-      const authenticated = options.isUserAuthenticated?.(req) ?? false;
-      if (!authenticated && !options.authenticateUser(form.get("username") ?? "", form.get("password") ?? "")) {
-        throw new OAuthProtocolError("access_denied", "Invalid administrator credentials", 401);
       }
       res.writeHead(302, { Location: oauth.approveAuthorization(requestId), "Cache-Control": "no-store" });
       res.end();

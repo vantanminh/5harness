@@ -19,6 +19,7 @@ import { handleDashboardMutation } from "./dashboard-mutations.js";
 import { createMonitoredMcpHandler, mcpStreamableHttpStatus } from "./mcp-server.js";
 import { McpOAuthService } from "./mcp-oauth.js";
 import { handleMcpOAuthRoute, requireMcpBearer } from "./mcp-oauth-http.js";
+import { renderLoginPage, safeRedirectPath } from "./auth-pages.js";
 
 import { getMcpStats, listMcpCalls } from "./mcp-monitor.js";
 import {
@@ -392,44 +393,6 @@ function renderFooter(): string {
 </div>`;
 }
 
-function renderLoginPage(error?: string): string {
-  const errorHtml = error
-    ? `<p style="color:var(--status-missing);margin-bottom:1rem">${htmlEscape(error)}</p>`
-    : "";
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Login — Harness Dashboard</title>
-  <style>${CSS}
-    .login-box { max-width: 360px; margin: 5rem auto; padding: 2rem; border: 1px solid var(--border); border-radius: 8px; background: var(--th-bg); }
-    .login-box h1 { margin-top: 0; font-size: 1.3rem; text-align: center; }
-    .login-box label { display: block; margin-top: 0.75rem; font-weight: 600; font-size: 0.85rem; }
-    .login-box input[type="text"],
-    .login-box input[type="password"] { width: 100%; padding: 0.5rem; margin-top: 0.25rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--fg); font-size: 0.95rem; }
-    .login-box button { width: 100%; margin-top: 1.25rem; padding: 0.6rem; background: var(--link); color: #fff; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; }
-    .login-box button:hover { opacity: 0.9; }
-    .login-box .hint { margin-top: 1rem; font-size: 0.8rem; color: var(--muted); text-align: center; }
-  </style>
-</head>
-<body>
-  <div class="login-box">
-    <h1>Harness Dashboard</h1>
-    ${errorHtml}
-    <form method="post" action="/api/auth/login">
-      <label for="username">Username</label>
-      <input type="text" id="username" name="username" value="admin" autocomplete="username" />
-      <label for="password">Password</label>
-      <input type="password" id="password" name="password" autocomplete="current-password" />
-      <button type="submit">Sign in</button>
-    </form>
-    <p class="hint">Default: admin / admin &mdash; change via <code>harness dashboard set-password</code></p>
-  </div>
-</body>
-</html>`;
-}
-
 function renderSettings(
   success?: string,
   error?: string,
@@ -728,7 +691,6 @@ export function startDashboard(
         resource: `${(options.publicUrl ?? `http://${bindHostForUrl}:${actualPort}`).replace(/\/$/, "")}/mcp`,
       });
       if (await handleMcpOAuthRoute(req, res, url, oauth, {
-        authenticateUser: (username, password) => verifyCredentials(username, password, authHomeOpts),
         isUserAuthenticated: (request) => {
           const token = extractSessionToken(request.headers.cookie);
           return Boolean(token && validateSession(token));
@@ -798,9 +760,11 @@ export function startDashboard(
             const username = params.get("username") ?? "";
             const password = params.get("password") ?? "";
             const isValid = verifyCredentials(username, password, authHomeOpts);
+            const redirect = safeRedirectPath(
+              params.get("redirect") ?? url.searchParams.get("redirect"),
+            );
             if (isValid) {
               const session = createSession();
-              const redirect = new URL(url.searchParams.get("redirect") ?? "/", `http://${host}:${port}`).pathname;
               res.writeHead(302, {
                 "Location": redirect,
                 "Set-Cookie": `harness_session=${session.token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${Math.floor((session.expiresAt - Date.now()) / 1000)}`,
@@ -808,7 +772,10 @@ export function startDashboard(
               res.end();
             } else {
               res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-              res.end(renderLoginPage("Invalid username or password"));
+              res.end(renderLoginPage({
+                error: "Invalid username or password",
+                redirect,
+              }));
             }
           } catch (err) {
             res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
@@ -859,10 +826,12 @@ export function startDashboard(
         return;
       }
 
-      // Login page
+      // Login page (shared with OAuth consent redirect)
       if (url.pathname === "/login") {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(renderLoginPage());
+        res.end(renderLoginPage({
+          redirect: safeRedirectPath(url.searchParams.get("redirect")),
+        }));
         return;
       }
 
@@ -1100,7 +1069,9 @@ export function handleDashboardRequest(
     return {
       status: 200,
       contentType: "text/html",
-      body: renderLoginPage(),
+      body: renderLoginPage({
+        redirect: safeRedirectPath(url.searchParams.get("redirect")),
+      }),
     };
   }
   if (url.pathname === "/settings") {

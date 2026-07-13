@@ -84,14 +84,24 @@ describe("MCP OAuth security boundaries", () => {
         resource: `${dashboard.url}mcp`,
         scope: MCP_OAUTH_SCOPE,
       }).toString();
-      const page = await fetch(authorize);
+      const login = await fetch(`${dashboard.url}api/auth/login`, {
+        method: "POST",
+        redirect: "manual",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "username=admin&password=admin&redirect=/",
+      });
+      const cookie = login.headers.get("set-cookie")!.split(";")[0]!;
+      const page = await fetch(authorize, { headers: { Cookie: cookie } });
       const requestId = /name="request_id" value="([^"]+)"/.exec(await page.text())?.[1];
       const approval = await fetch(`${dashboard.url}authorize`, {
         method: "POST",
         redirect: "manual",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Cookie: cookie,
+        },
         body: new URLSearchParams({
-          request_id: requestId!, username: "admin", password: "admin", action: "approve",
+          request_id: requestId!, action: "approve",
         }),
       });
       const code = new URL(approval.headers.get("location")!).searchParams.get("code")!;

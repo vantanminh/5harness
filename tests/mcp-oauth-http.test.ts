@@ -52,6 +52,28 @@ async function waitForOutput(child: ChildProcess, expected: string): Promise<voi
   });
 }
 
+function sessionCookie(setCookie: string | null): string {
+  expect(setCookie).toBeTruthy();
+  const part = setCookie!.split(";")[0];
+  expect(part).toMatch(/^harness_session=/);
+  return part!;
+}
+
+async function loginAsAdmin(baseUrl: string, redirect = "/"): Promise<string> {
+  const login = await fetch(`${baseUrl}api/auth/login`, {
+    method: "POST",
+    redirect: "manual",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      username: "admin",
+      password: "admin",
+      redirect,
+    }),
+  });
+  expect(login.status).toBe(302);
+  return sessionCookie(login.headers.get("set-cookie"));
+}
+
 async function acquireToken(baseUrl: string): Promise<string> {
   const redirectUri = "http://127.0.0.1:4567/callback";
   const resource = `${baseUrl}mcp`;
@@ -80,24 +102,37 @@ async function acquireToken(baseUrl: string): Promise<string> {
     scope: MCP_OAUTH_SCOPE,
     state: "http-state",
   }).toString();
-  const approvalPage = await fetch(authorization);
+
+  // Unauthenticated consent must bounce to the shared login page.
+  const unauth = await fetch(authorization, { redirect: "manual" });
+  expect(unauth.status).toBe(302);
+  const loginLoc = unauth.headers.get("location")!;
+  expect(loginLoc.startsWith("/login?redirect=")).toBe(true);
+  const returned = decodeURIComponent(loginLoc.slice("/login?redirect=".length));
+  expect(returned.startsWith("/authorize?")).toBe(true);
+
+  const cookie = await loginAsAdmin(baseUrl, returned);
+  const approvalPage = await fetch(authorization, { headers: { Cookie: cookie } });
   expect(approvalPage.status).toBe(200);
   expect(approvalPage.headers.get("cache-control")).toBe("no-store");
   expect(approvalPage.headers.get("content-security-policy")).toContain(
     "form-action 'self' http://127.0.0.1:4567",
   );
   const html = await approvalPage.text();
+  expect(html).toMatch(/Authorize access/);
+  expect(html).not.toMatch(/name="password"/);
   const requestId = /name="request_id" value="([^"]+)"/.exec(html)?.[1];
   expect(requestId).toBeTruthy();
 
   const approval = await fetch(`${baseUrl}authorize`, {
     method: "POST",
     redirect: "manual",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Cookie: cookie,
+    },
     body: new URLSearchParams({
       request_id: requestId!,
-      username: "admin",
-      password: "admin",
       action: "approve",
     }),
   });

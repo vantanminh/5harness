@@ -4,7 +4,14 @@ import { createMonitoredMcpHandler, mcpStreamableHttpStatus } from "../applicati
 import { isLoopbackBindHost } from "../domain/paths.js";
 import { McpOAuthService } from "../application/mcp-oauth.js";
 import { handleMcpOAuthRoute, requireMcpBearer } from "../application/mcp-oauth-http.js";
-import { ensureDefaultAuth, verifyCredentials } from "../infrastructure/dashboard-auth.js";
+import { renderLoginPage, safeRedirectPath } from "../application/auth-pages.js";
+import {
+  createSession,
+  ensureDefaultAuth,
+  extractSessionToken,
+  validateSession,
+  verifyCredentials,
+} from "../infrastructure/dashboard-auth.js";
 
 export type McpCliOptions = TargetOptions & { port?: string; host?: string; publicUrl?: string };
 
@@ -29,9 +36,14 @@ export function executeMcp(options: McpCliOptions): void {
   let oauth: McpOAuthService | undefined;
   const bindHostForUrl = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 
+  const isUserAuthenticated = (req: http.IncomingMessage): boolean => {
+    const token = extractSessionToken(req.headers.cookie);
+    return Boolean(token && validateSession(token));
+  };
+
   const server = http.createServer(async (req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
     if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
@@ -43,9 +55,46 @@ export function executeMcp(options: McpCliOptions): void {
       resource: `${(options.publicUrl ?? `http://${bindHostForUrl}:${actualPort}`).replace(/\/$/, "")}/mcp`,
     });
     const url = new URL(req.url ?? "/", oauth.issuer);
-    if (await handleMcpOAuthRoute(req, res, url, oauth, {
-      authenticateUser: (username, password) => verifyCredentials(username, password),
-    })) return;
+    if (await handleMcpOAuthRoute(req, res, url, oauth, { isUserAuthenticated })) return;
+
+    // Shared login surface (same as dashboard) so OAuth consent can redirect here.
+    if (url.pathname === "/login" && (req.method === "GET" || req.method === "HEAD")) {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(renderLoginPage({
+        redirect: safeRedirectPath(url.searchParams.get("redirect")),
+      }));
+      return;
+    }
+    if (url.pathname === "/api/auth/login" && req.method === "POST") {
+      let body = "";
+      req.on("data", (chunk: Buffer) => { body += chunk.toString(); });
+      req.on("end", () => {
+        try {
+          const params = new URLSearchParams(body);
+          const redirect = safeRedirectPath(
+            params.get("redirect") ?? url.searchParams.get("redirect"),
+          );
+          if (verifyCredentials(params.get("username") ?? "", params.get("password") ?? "")) {
+            const session = createSession();
+            res.writeHead(302, {
+              Location: redirect,
+              "Set-Cookie": `harness_session=${session.token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${Math.floor((session.expiresAt - Date.now()) / 1000)}`,
+            });
+            res.end();
+            return;
+          }
+          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+          res.end(renderLoginPage({
+            error: "Invalid username or password",
+            redirect,
+          }));
+        } catch (err) {
+          res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+          res.end(err instanceof Error ? err.message : String(err));
+        }
+      });
+      return;
+    }
 
     if (req.method === "POST" && (url.pathname === "/mcp" || url.pathname === "/")) {
       if (!requireMcpBearer(req, res, oauth)) return;
