@@ -7,6 +7,7 @@ import { runInit } from "../src/infrastructure/scaffold.js";
 import { migrateDatabase, schemaIsReadable } from "../src/infrastructure/db.js";
 import { VERSION } from "../src/version.js";
 import manifest from "../templates/manifest.json" with { type: "json" };
+import { extractProjectId } from "../src/domain/project-id.js";
 
 const packageRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -79,6 +80,8 @@ describe("runInit", () => {
     expect(agents).toMatch(
       new RegExp(`harness-version:\\s*${VERSION.replace(/\./g, "\\.")}`),
     );
+    const projectId = extractProjectId(agents);
+    expect(projectId).toMatch(/^[a-f0-9]{32}$/);
 
     const harnessDoc = fs.readFileSync(path.join(dir, "docs", "HARNESS.md"), "utf8");
     expect(harnessDoc).toMatch(/markdown/i);
@@ -86,6 +89,7 @@ describe("runInit", () => {
 
     const registry = fs.readFileSync(path.join(home, "registry.json"), "utf8");
     expect(registry).toMatch(/"projects"/);
+    expect(JSON.parse(registry).projects[0].id).toBe(projectId);
 
     // no platform binary scaffold
     expect(fs.existsSync(path.join(dir, "scripts", "bin", "harness-cli"))).toBe(
@@ -125,6 +129,30 @@ describe("runInit", () => {
     expect(fs.existsSync(backupRoot)).toBe(true);
   });
 
+  it("force re-init preserves an existing project id", () => {
+    const dir = tempDir();
+    runInit({
+      directory: dir,
+      packageRoot,
+      skipRegister: true,
+    });
+    const before = extractProjectId(
+      fs.readFileSync(path.join(dir, "AGENTS.md"), "utf8"),
+    );
+
+    runInit({
+      directory: dir,
+      force: true,
+      packageRoot,
+      skipRegister: true,
+    });
+
+    const after = extractProjectId(
+      fs.readFileSync(path.join(dir, "AGENTS.md"), "utf8"),
+    );
+    expect(after).toBe(before);
+  });
+
   it("optional legacy db create still migrates", () => {
     const dir = tempDir();
     runInit({
@@ -144,4 +172,3 @@ describe("runInit", () => {
     expect(first.currentVersion).toBe(2);
   });
 });
-

@@ -16,6 +16,8 @@ import {
 import { linkProject } from "../application/registry.js";
 import { ensureEntityDirs } from "./entities.js";
 import { migrateDatabase } from "./db.js";
+import { ensureProjectId } from "./project-id.js";
+import { extractProjectId } from "../domain/project-id.js";
 
 export type Manifest = {
   files: string[];
@@ -164,6 +166,10 @@ export function runInit(options: InitOptions): InitResult {
   const dbPath = resolveDbPath(targetDir, env);
   const migrationsDir = path.join(options.packageRoot, "migrations");
   const manifest = loadManifest(options.packageRoot);
+  const agentsPath = path.join(targetDir, "AGENTS.md");
+  const existingProjectId = fs.existsSync(agentsPath)
+    ? extractProjectId(fs.readFileSync(agentsPath, "utf8"))
+    : null;
 
   const plans: PlannedWrite[] = [];
   for (const relative of manifest.files) {
@@ -226,6 +232,7 @@ export function runInit(options: InitOptions): InitResult {
     fs.mkdirSync(targetDir, { recursive: true });
     ensureEntityDirs(targetDir);
     writeEntityDirReadmes(targetDir);
+    ensureProjectId(targetDir, existingProjectId ?? undefined);
     log("dirs     entity markdown directories ready");
 
     if (!skipDb) {

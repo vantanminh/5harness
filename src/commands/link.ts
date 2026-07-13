@@ -59,6 +59,7 @@ export function executeProjects(): void {
     return;
   }
   const rows = projects.map((p) => ({
+    id: p.id,
     name: p.name,
     path: p.path,
     linked_at: p.linked_at,
@@ -66,7 +67,7 @@ export function executeProjects(): void {
     status: p.missing ? "missing" : "ok",
   }));
   console.log(
-    formatTable(rows, ["name", "path", "status", "linked_at", "remote"]),
+    formatTable(rows, ["id", "name", "path", "status", "linked_at", "remote"]),
   );
   const missing = projects.filter((p) => p.missing).length;
   if (missing > 0) {

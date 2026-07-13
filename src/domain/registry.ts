@@ -71,10 +71,24 @@ export function upsertProject(
   now: string = new Date().toISOString(),
 ): { registry: ProjectRegistry; entry: RegistryProject; created: boolean } {
   const absolutePath = normalizeProjectPath(entry.path);
-  const existing = findProjectByPath(registry, absolutePath);
+  const existingByPath = findProjectByPath(registry, absolutePath);
+  const existingById = entry.id
+    ? registry.projects.find((project) => project.id === entry.id)
+    : undefined;
+  if (
+    existingByPath &&
+    existingById &&
+    existingByPath.id !== existingById.id
+  ) {
+    throw new Error(
+      `Registry conflict: ${absolutePath} and project id ${entry.id} identify different entries.`,
+    );
+  }
+  const existing = existingByPath ?? existingById;
   if (existing) {
     const updated: RegistryProject = {
       ...existing,
+      id: entry.id ?? existing.id,
       path: absolutePath,
       name: entry.name || existing.name,
       remote: entry.remote ?? existing.remote,

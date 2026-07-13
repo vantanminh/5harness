@@ -18,6 +18,7 @@ import {
   listLinkedProjects,
   unlinkProject,
 } from "../src/application/registry.js";
+import { extractProjectId } from "../src/domain/project-id.js";
 
 const tempDirs: string[] = [];
 
@@ -60,6 +61,45 @@ describe("domain registry helpers", () => {
     expect(r2.entry.name).toBe("b");
     expect(r2.entry.linked_at).toBe("t1");
     expect(r2.entry.updated_at).toBe("t2");
+  });
+
+  it("replaces a legacy path id with an explicit canonical id", () => {
+    const p = normalizeProjectPath(path.join(os.tmpdir(), "proj-canonical"));
+    const first = upsertProject(emptyRegistry(), {
+      path: p,
+      name: "canonical",
+      remote: null,
+    });
+    const canonicalId = "0123456789abcdef0123456789abcdef";
+    const second = upsertProject(first.registry, {
+      id: canonicalId,
+      path: p,
+      name: "canonical",
+      remote: null,
+    });
+    expect(second.created).toBe(false);
+    expect(second.entry.id).toBe(canonicalId);
+    expect(second.registry.projects).toHaveLength(1);
+  });
+
+  it("relocates a canonical id linked from another path", () => {
+    const id = "0123456789abcdef0123456789abcdef";
+    const secondPath = path.join(os.tmpdir(), "proj-two");
+    const first = upsertProject(emptyRegistry(), {
+      id,
+      path: path.join(os.tmpdir(), "proj-one"),
+      name: "one",
+      remote: null,
+    });
+    const relocated = upsertProject(first.registry, {
+      id,
+      path: secondPath,
+      name: "two",
+      remote: null,
+    });
+    expect(relocated.created).toBe(false);
+    expect(relocated.entry.path).toBe(normalizeProjectPath(secondPath));
+    expect(relocated.registry.projects).toHaveLength(1);
   });
 
   it("remove by path", () => {
@@ -123,6 +163,21 @@ describe("link/unlink application", () => {
     const listed = listLinkedProjects({ harnessHome: home });
     expect(listed).toHaveLength(1);
     expect(listed[0]!.missing).toBe(true);
+  });
+
+  it("link ensures a marker and uses it as the registry id", () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-home-id-"));
+    const project = fs.mkdtempSync(path.join(os.tmpdir(), "harness-proj-id-"));
+    tempDirs.push(home, project);
+    fs.writeFileSync(
+      path.join(project, "AGENTS.md"),
+      "<!-- HARNESS:BEGIN -->\n<!-- harness-version: 0.16.0 -->\n<!-- HARNESS:END -->\n",
+      "utf8",
+    );
+
+    const linked = linkProject(project, { harnessHome: home });
+    const agents = fs.readFileSync(path.join(project, "AGENTS.md"), "utf8");
+    expect(linked.entry.id).toBe(extractProjectId(agents));
   });
 
   it("rejects non-existent path on link", () => {

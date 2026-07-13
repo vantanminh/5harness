@@ -38,6 +38,7 @@ export const VALID_RESPONSIBILITIES = [
   "Register project in global registry",
   "Remove project from global registry",
   "List linked projects",
+  "Read or ensure durable project identity",
   "Local multi-project read-only dashboard",
   "Classify work before implementation",
   "Add story matrix row",

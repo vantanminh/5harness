@@ -37,6 +37,7 @@ import { executeExportChangelog } from "./commands/export-cmd.js";
 import { executeWatch } from "./commands/watch.js";
 import { executeHandoff } from "./commands/handoff.js";
 import { executeMcp } from "./commands/mcp.js";
+import { executeProjectId } from "./commands/project.js";
 
 
 import {
@@ -214,6 +215,20 @@ async function main(argv: string[] = process.argv): Promise<void> {
     .action(() => {
       withErrors(() => executeProjects());
     });
+
+  const projectCmd = program
+    .command("project")
+    .description("Inspect project-local Harness identity");
+  addDirOptions(
+    projectCmd
+      .command("id")
+      .description("Print the durable project id from AGENTS.md")
+      .option("--json", "print id, path, and name as JSON")
+      .option("--ensure", "create the project id marker when missing")
+      .action((opts) => {
+        withErrors(() => executeProjectId(opts));
+      }),
+  );
 
 
   const dashboardCmd = program

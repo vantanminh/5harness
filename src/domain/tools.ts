@@ -59,6 +59,14 @@ export const BUILTIN_TOOLS: ToolEntry[] = [
     source: "compiled",
   },
   {
+    name: "project id",
+    kind: "builtin",
+    capability: "scaffold",
+    responsibility: "Read or ensure durable project identity",
+    status: "present",
+    source: "compiled",
+  },
+  {
     name: "dashboard",
     kind: "builtin",
     capability: "scaffold",

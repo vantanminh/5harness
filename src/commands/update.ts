@@ -4,6 +4,7 @@ import {
   checkUpgradeAvailable,
   applyUpgrade,
 } from "../application/upgrade.js";
+import { getProjectIdentity } from "../application/project-id.js";
 import {
   resolveTargetFromOptions,
   type TargetOptions,
@@ -118,6 +119,9 @@ export function executeRepoUpgrade(options: TargetOptions = {}): void {
   const { targetDir } = resolveTargetFromOptions(options);
   const packageRoot = resolvePackageRoot();
 
+  // Upgrade also migrates legacy harness blocks to durable project identity.
+  getProjectIdentity(targetDir, { ensure: true });
+
   const check = checkUpgradeAvailable(targetDir, packageRoot);
 
   if (!check.repoVersion) {
@@ -159,4 +163,3 @@ export function executeRepoUpgrade(options: TargetOptions = {}): void {
   // Auto-reindex after upgrade so any new template changes are indexed
   maybeReindex(targetDir);
 }
-

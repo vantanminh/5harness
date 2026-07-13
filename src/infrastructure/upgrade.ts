@@ -6,6 +6,11 @@ import {
   readTemplateBlock,
   replaceHarnessBlock,
 } from "../domain/upgrade.js";
+import {
+  extractProjectId,
+  generateProjectId,
+  insertProjectIdMarker,
+} from "../domain/project-id.js";
 
 export type ReadAgentsResult = {
   /** Absolute path to AGENTS.md in the project. */
@@ -65,12 +70,15 @@ export function applyHarnessBlockUpgrade(
   }
 
   const targetText = fs.readFileSync(targetPath, "utf8");
-  const newBlock = readTemplateBlock(templateText);
-  if (!newBlock) {
+  const templateBlock = readTemplateBlock(templateText);
+  if (!templateBlock) {
     throw new Error(
       "Template AGENTS.md is missing the HARNESS:BEGIN/END block.",
     );
   }
+
+  const projectId = extractProjectId(targetText) ?? generateProjectId();
+  const newBlock = insertProjectIdMarker(templateBlock, projectId);
 
   const updated = replaceHarnessBlock(targetText, newBlock);
   if (updated === targetText) {

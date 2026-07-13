@@ -15,6 +15,10 @@ import {
   writeRegistry,
   type RegistryIoOptions,
 } from "../infrastructure/registry.js";
+import {
+  ensureProjectId,
+  hasProjectAgents,
+} from "../infrastructure/project-id.js";
 
 export type LinkResult = {
   entry: RegistryProject;
@@ -46,7 +50,11 @@ export function linkProject(
   const registry = readRegistry(io);
   const name = detectProjectName(absolutePath);
   const remote = detectGitRemote(absolutePath);
+  const projectId = hasProjectAgents(absolutePath)
+    ? ensureProjectId(absolutePath).id
+    : undefined;
   const { registry: next, entry, created } = upsertProject(registry, {
+    id: projectId,
     path: absolutePath,
     name,
     remote,
