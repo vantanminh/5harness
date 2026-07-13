@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Durable random repository ids in the managed `AGENTS.md` block, exposed by
+  `harness project id`, and stored in the machine registry for stable project
+  routing across clone relocation (IN-012 / US-050).
+- OAuth consent now grants either one selected healthy linked project or all
+  healthy linked projects. Single-project MCP calls are forced to that project;
+  all-project calls require `X-Harness-Project` or `?project=` and record their
+  resolved project id and grant mode (US-052-US-054 / decision 0020).
+
 ### Changed
 
 - **Breaking:** standalone and dashboard-hosted MCP servers now start without a

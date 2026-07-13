@@ -1,6 +1,6 @@
 # Spec: MCP project binding at authorization
 
-**Status:** planned (not implemented)  
+**Status:** implemented
 **Intake:** IN-012  
 **Decision:** 0020-mcp-project-binding-at-authorization  
 **Stories:** US-050 … US-054  
@@ -235,13 +235,13 @@ MCP client ── Bearer token ──► harness mcp / dashboard /mcp
 
 ## 6. Acceptance criteria (initiative-level)
 
-- [ ] Fresh `harness mcp` without completed OAuth grant cannot mutate/read a project via tools.
-- [ ] Consent single-project: tools only see that project’s entities.
-- [ ] Consent all-projects without `X-Harness-Project` fails closed.
-- [ ] Consent all-projects with correct id targets that project only for that call.
-- [ ] `harness project id` matches AGENTS.md marker and registry entry.
-- [ ] Existing OAuth PKCE / audience rules still hold (0019).
-- [ ] No durable entity hand-edits required; agents use CLI/MCP only.
+- [x] Fresh `harness mcp` without completed OAuth grant cannot mutate/read a project via tools.
+- [x] Consent single-project: tools only see that project's entities.
+- [x] Consent all-projects without `X-Harness-Project` fails closed.
+- [x] Consent all-projects with correct id targets that project only for that call.
+- [x] `harness project id` matches AGENTS.md marker and registry entry.
+- [x] Existing OAuth PKCE / audience rules still hold (0019).
+- [x] No durable entity hand-edits required; agents use CLI/MCP only.
 
 ---
 

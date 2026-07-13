@@ -62,4 +62,12 @@ describe("AGENTS hard-fail contract (US-032 / 0017)", () => {
   it("references decision 0017", () => {
     expect(template).toMatch(/0017/);
   });
+
+  it("documents project id discovery and all-project MCP routing", () => {
+    expect(template).toMatch(/harness project id/);
+    expect(template).toMatch(/harness-project-id/);
+    expect(template).toMatch(/X-Harness-Project/);
+    expect(template).toMatch(/all-projects grant/i);
+    expect(template).toMatch(/Never rely on cwd/i);
+  });
 });

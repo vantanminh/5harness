@@ -79,13 +79,32 @@ Both `harness mcp` and the dashboard's `/mcp` endpoint are OAuth 2.1 protected
 resources. MCP clients discover the embedded authorization server through RFC
 9728, dynamically register as public clients, and use Authorization Code with
 mandatory PKCE S256. Access tokens are short-lived, opaque, and bound to the
-canonical MCP resource URI.
+canonical MCP resource URI. The server starts unbound: the working directory and
+`--dir` do not authorize access to a project. During consent, the operator grants
+either one healthy linked project or all healthy linked projects.
 
 ```bash
 harness dashboard              # MCP resource: http://127.0.0.1:3927/mcp
 harness mcp                    # MCP resource: http://127.0.0.1:3928/mcp
 harness dashboard set-password # replace the initial administrator password
 ```
+
+A single-project grant always routes tools to the selected project. An
+all-projects grant requires the target project's durable id on every MCP request:
+
+```bash
+cd /path/to/project
+harness project id             # also stored as harness-project-id in AGENTS.md
+
+# Preferred all-projects request selector:
+X-Harness-Project: <project-id>
+# Compatibility selector: append ?project=<project-id> to the MCP resource URI
+```
+
+Missing, conflicting, unknown, unlinked, or unavailable project ids fail closed.
+Agents must not infer authorization from cwd. See the
+[project-binding specification](docs/product/mcp-project-binding.md) and
+[security model](docs/SECURITY.md#mcp-model-context-protocol).
 
 Plain HTTP is accepted only on loopback. A non-loopback bind requires an HTTPS
 reverse proxy and its canonical URL, for example

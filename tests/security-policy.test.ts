@@ -48,6 +48,14 @@ describe("SECURITY policy docs (US-037)", () => {
     expect(ci).toMatch(/npm publish[^\n]*--provenance/);
   });
 
+  it("documents fail-closed MCP project grants", () => {
+    expect(docsSecurity).toMatch(/single-project grant/i);
+    expect(docsSecurity).toMatch(/all-projects grant/i);
+    expect(docsSecurity).toMatch(/X-Harness-Project/);
+    expect(docsSecurity).toMatch(/no cwd or first-linked fallback/i);
+    expect(docsSecurity).toMatch(/not secrets or authentication credentials/i);
+  });
+
   it("Dependabot is configured for npm and Actions", () => {
     const yml = fs.readFileSync(
       path.join(root, ".github", "dependabot.yml"),

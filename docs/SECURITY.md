@@ -59,6 +59,8 @@ Implementation: `src/infrastructure/verify.ts`.
 | Discovery | RFC 9728 protected-resource metadata + RFC 8414 authorization-server metadata |
 | Client model | Dynamic registration of public clients; no client secret |
 | Tokens | Opaque, one-hour, in-memory, Bearer header only, bound to the canonical `/mcp` resource |
+| Project grant | Consent selects one healthy linked project or all healthy linked projects |
+| Project routing | Single grants force their selected project; all grants require `X-Harness-Project` or `?project=` on every call |
 | Mutation surface | Reads and controlled durable mutations; agents still follow AGENTS hard-fail rules |
 | Call log | `.5harness/local/mcp-calls.jsonl` under the project (machine-local) |
 | Notification POSTs | `202 Accepted` with no body (Streamable HTTP; required by Codex CLI / rmcp) |
@@ -75,6 +77,17 @@ preserved; open redirects rejected). The approval page's CSP permits form
 navigation only to the server itself and the origin of that already validated,
 registered callback; it never uses a wildcard callback destination.
 
+MCP processes start without a project authorization derived from cwd, `--dir`,
+or registry order. For a single-project grant, the server resolves only the id
+selected at consent and rejects a conflicting request selector. For an
+all-projects grant, every tool request must provide `X-Harness-Project: <id>` or
+the compatibility query parameter `?project=<id>`. Missing or conflicting
+selectors, unknown or unlinked ids, and projects missing on disk are rejected;
+there is no cwd or first-linked fallback. Project ids are random durable routing
+identifiers, not secrets or authentication credentials. Operators can inspect a
+repo's id with `harness project id` or its `harness-project-id` marker in
+`AGENTS.md`.
+
 The administrator signs in once on the shared login page, then approves a client
 in the browser. Set a non-default password with
 `harness dashboard set-password` before authorizing clients. Client
@@ -88,7 +101,8 @@ operator boundary, not multi-tenant authorization.
 
 Implementation: `src/application/mcp-oauth.ts`,
 `src/application/mcp-oauth-http.ts`, `src/application/mcp-server.ts`, and
-`src/application/dashboard.ts`.
+`src/application/dashboard.ts`. The complete request-routing contract is in
+[`docs/product/mcp-project-binding.md`](product/mcp-project-binding.md).
 
 ---
 

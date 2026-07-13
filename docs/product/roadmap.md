@@ -118,6 +118,11 @@ Declared via harness CLI (decision **0014**, intake **IN-003**). Packets live un
 | [US-045](../stories/US-045.md) | E15 | OAuth 2.1 authorization core + PKCE S256 | US-027, US-042 | **done** |
 | [US-046](../stories/US-046.md) | E15 | OAuth enforcement on MCP HTTP surfaces | US-045 | **done** |
 | [US-047](../stories/US-047.md) | E15 | MCP OAuth hardening + interoperability docs | US-046 | **done** |
+| [US-050](../stories/US-050.md) | E15 | Durable repository identity + `harness project id` | IN-012 | **done** |
+| [US-051](../stories/US-051.md) | E15 | Start MCP servers without cwd project authorization | US-050 | **done** |
+| [US-052](../stories/US-052.md) | E15 | OAuth consent project grant picker | US-051 | **done** |
+| [US-053](../stories/US-053.md) | E15 | Enforce single/all project grants per MCP request | US-052 | **done** |
+| [US-054](../stories/US-054.md) | E15 | Document project binding and agent id discovery | US-053 | **done** |
 
 ## Versioning intent
 

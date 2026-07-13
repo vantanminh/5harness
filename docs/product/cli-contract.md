@@ -122,7 +122,8 @@ hand-edit operational markdown.
 
 | Command | Behavior |
 | --- | --- |
-| `harness mcp` | Start an **unbound** OAuth 2.1 + PKCE protected MCP server. Cwd and `--dir` do not authorize project tools; calls fail closed until OAuth authorization supplies a project binding. RFC 9728/RFC 8414 discovery, dynamic public-client registration, resource-bound Bearer tokens. **Read tools:** get, search, links, context, status, query matrix/stats, handoff, doctor, reindex. **Mutation tools (US-041):** intake, story_add/update, decision_add, backlog_add. Non-loopback requires `--public-url https://...`. |
+| `harness project id [--ensure] [--json]` | Print the cwd/`--dir` project's durable random id. `--ensure` creates the managed `AGENTS.md` marker if missing; `--json` returns id, path, and name. Init/link/upgrade ensure identity automatically. |
+| `harness mcp` | Start an **unbound** OAuth 2.1 + PKCE protected MCP server. Cwd and `--dir` do not authorize project tools; calls fail closed until OAuth consent grants one project or all healthy linked projects. Single grants force the selected project. All grants require `X-Harness-Project: <id>` (preferred) or `?project=<id>` on every request; invalid or missing selectors fail closed. RFC 9728/RFC 8414 discovery, dynamic public-client registration, resource-bound Bearer tokens. **Read tools:** get, search, links, context, status, query matrix/stats, handoff, doctor, reindex. **Mutation tools (US-041):** intake, story_add/update, decision_add, backlog_add. Non-loopback requires `--public-url https://...`. |
 | `harness export changelog [--since <tag\|date>] [--json]` | Derive changelog notes from implemented stories/decisions (assist only) |
 | `harness watch` | Watch entity directories and auto-reindex on markdown changes (debounced 500ms) |
 | `harness handoff [--story <id>] [--json]` | Emit concise session summary: recent traces, worklog, status, next steps |
