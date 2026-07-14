@@ -26,6 +26,7 @@ import {
 } from "../commands/story.js";
 import { executeDecisionAdd } from "../commands/decision.js";
 import { executeBacklogAdd } from "../commands/backlog.js";
+import { maybeReindex } from "../commands/_reindex-helper.js";
 import type { McpCallInput } from "../domain/mcp-call-record.js";
 import { appendMcpCall } from "./mcp-monitor.js";
 import {
@@ -35,6 +36,13 @@ import {
   resolveProjectPeer,
 } from "./project-link.js";
 import type { RegistryIoOptions } from "../infrastructure/registry.js";
+import {
+  addReportToPeer,
+  getReport,
+  listReports,
+  resolveReportPeer,
+  updateReport,
+} from "./report.js";
 
 type RpcReq = {
   jsonrpc: "2.0";
@@ -311,6 +319,66 @@ const PEER_MCP_TOOLS: McpTool[] = [
   },
 ];
 
+const REPORT_MCP_TOOLS: McpTool[] = [
+  {
+    name: "harness_report_add",
+    description:
+      "Create a target-owned report in one configured peer. Sanitize payloads; never include credentials, tokens, or secrets.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        to: { type: "string", description: "Configured peer role or project id" },
+        id: { type: "string", description: "Optional caller-supplied RP-### id" },
+        summary: { type: "string" },
+        severity: { type: "string" },
+        api: { type: "string" },
+        expected: { type: "string" },
+        actual: { type: "string" },
+        context: { type: "string" },
+        related: { type: "string" },
+      },
+      required: ["to", "summary"],
+    },
+  },
+  {
+    name: "harness_report_list",
+    description:
+      "List bounded local report rows: id, status, severity, summary, and updated_at.",
+    inputSchema: {
+      type: "object",
+      properties: { status: { type: "string" } },
+    },
+  },
+  {
+    name: "harness_report_get",
+    description:
+      "Get one local report, or one report from a configured peer selected by from.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        from: { type: "string", description: "Configured peer role or project id" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "harness_report_update",
+    description:
+      "Update a report owned by the calling project. Sanitize resolution text; never include credentials, tokens, or secrets.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        status: { type: "string" },
+        resolution: { type: "string" },
+        related: { type: "string" },
+      },
+      required: ["id", "status"],
+    },
+  },
+];
+
 export function getMcpTools(
   projectRoot?: string,
   _options: RegistryIoOptions = {},
@@ -318,7 +386,7 @@ export function getMcpTools(
   if (!projectRoot) return [...MCP_TOOLS];
   try {
     return hasProjectPeers(projectRoot)
-      ? [...MCP_TOOLS, ...PEER_MCP_TOOLS]
+      ? [...MCP_TOOLS, ...PEER_MCP_TOOLS, ...REPORT_MCP_TOOLS]
       : [...MCP_TOOLS];
   } catch {
     return [...MCP_TOOLS];
@@ -358,6 +426,15 @@ function peerRootForArgs(
     root,
     options,
   ).path;
+}
+
+function reportRootForArgs(
+  root: string,
+  args: Record<string, unknown>,
+  options: RegistryIoOptions,
+): string {
+  const from = optStr(args, "from");
+  return from ? resolveReportPeer(from, root, options).path : root;
 }
 
 function callTool(
@@ -461,6 +538,55 @@ function callTool(
         } as never),
       );
       break;
+    case "harness_report_add": {
+      const result = addReportToPeer(
+        root,
+        {
+          to: String(args.to ?? ""),
+          id: optStr(args, "id"),
+          summary: String(args.summary ?? ""),
+          severity: optStr(args, "severity"),
+          api: optStr(args, "api"),
+          expected: optStr(args, "expected"),
+          actual: optStr(args, "actual"),
+          context: optStr(args, "context"),
+          related: optStr(args, "related"),
+        },
+        options,
+      );
+      const lines = [
+        `Report ${String(result.file.data.id)} added to peer ${result.target.id}.`,
+        `  file: ${result.file.relativePath}`,
+      ];
+      maybeReindex(result.target.path, (message) => lines.push(message));
+      t = lines.join("\n");
+      break;
+    }
+    case "harness_report_list":
+      t = JSON.stringify(listReports(root, optStr(args, "status")), null, 2);
+      break;
+    case "harness_report_get": {
+      const reportRoot = reportRootForArgs(root, args, options);
+      const id = String(args.id ?? "");
+      getReport(reportRoot, id);
+      t = capture(() => executeGet(id, { dir: reportRoot } as never));
+      break;
+    }
+    case "harness_report_update": {
+      const file = updateReport(root, {
+        id: String(args.id ?? ""),
+        status: String(args.status ?? ""),
+        resolution: optStr(args, "resolution"),
+        related: optStr(args, "related"),
+      });
+      const lines = [
+        `Report ${String(file.data.id)} updated to ${String(file.data.status)}.`,
+        `  file: ${file.relativePath}`,
+      ];
+      maybeReindex(root, (message) => lines.push(message));
+      t = lines.join("\n");
+      break;
+    }
     case "harness_intake":
       t = capture(() =>
         executeIntake({

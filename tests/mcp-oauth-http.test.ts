@@ -12,6 +12,7 @@ import { addStoryMd } from "../src/application/md-durable.js";
 import { MCP_OAUTH_SCOPE } from "../src/application/mcp-oauth.js";
 import { configureProjectPeer } from "../src/application/project-link.js";
 import { setProjectRoleMarkers, type ProjectRole } from "../src/domain/project-link.js";
+import { readEntityById } from "../src/infrastructure/entities.js";
 
 const tempDirs: string[] = [];
 
@@ -536,7 +537,9 @@ describe("MCP OAuth HTTP integration", () => {
         }),
       });
       expect(listed.status).toBe(200);
-      expect(JSON.stringify(await listed.json())).toContain("harness_peer_get");
+      const listedPayload = JSON.stringify(await listed.json());
+      expect(listedPayload).toContain("harness_peer_get");
+      expect(listedPayload).toContain("harness_report_add");
 
       const readPeer = await fetch(`${dashboard.url}mcp`, {
         method: "POST",
@@ -556,10 +559,63 @@ describe("MCP OAuth HTTP integration", () => {
       });
       expect(readPeer.status).toBe(200);
       expect(JSON.stringify(await readPeer.json())).toContain("Peer through OAuth");
+
+      const addReport = await fetch(`${dashboard.url}mcp`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 42,
+          method: "tools/call",
+          params: {
+            name: "harness_report_add",
+            arguments: {
+              to: backendId,
+              summary: "OAuth-scoped frontend contract mismatch",
+              context: "sanitized OAuth integration context",
+            },
+          },
+        }),
+      });
+      expect(addReport.status).toBe(200);
+      expect(JSON.stringify(await addReport.json())).toContain("Report RP-001");
+      expect(readEntityById(frontend, "report", "RP-001")).toBeNull();
+      expect(readEntityById(backend, "report", "RP-001")?.data).toMatchObject({
+        from_project_id: frontendId,
+        to_project_id: backendId,
+        status: "open",
+      });
+
+      const peerHintIsNotGrant = await fetch(`${dashboard.url}mcp`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "X-Harness-Project": backendId,
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 43,
+          method: "tools/list",
+          params: {},
+        }),
+      });
+      expect(peerHintIsNotGrant.status).toBe(403);
+      await expect(peerHintIsNotGrant.json()).resolves.toMatchObject({
+        error_code: "project_hint_mismatch",
+      });
       expect(listMcpCalls(frontend)).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             tool_name: "harness_peer_get",
+            project_id: frontendId,
+            project_mode: "single",
+          }),
+          expect.objectContaining({
+            tool_name: "harness_report_add",
             project_id: frontendId,
             project_mode: "single",
           }),
