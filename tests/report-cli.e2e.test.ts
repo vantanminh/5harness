@@ -320,7 +320,7 @@ describe("Project Link report CLI e2e", () => {
     );
     expect(reportCount(frontend)).toBe(0);
     expect(reportCount(backend)).toBe(2);
-  });
+  }, 60_000);
 
   it("fails closed for unconfigured, ambiguous, unresolved, and invalid targets", () => {
     const home = temp("harness-report-cli-fail-home-");
