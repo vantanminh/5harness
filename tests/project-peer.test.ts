@@ -6,6 +6,7 @@ import {
   configureProjectPeer,
   listProjectPeers,
   removeProjectPeer,
+  resolveProjectPeer,
 } from "../src/application/project-link.js";
 import { linkProject } from "../src/application/registry.js";
 import {
@@ -91,6 +92,26 @@ describe("Project Link peer application", () => {
     expect(frontendPeers).toEqual([{ id: backendId, role: "backend" }]);
     expect(backendPeers).toEqual([{ id: frontendId, role: "frontend" }]);
     expect(listProjectPeers(frontend, { harnessHome: home })).toHaveLength(1);
+    expect(
+      resolveProjectPeer({ role: "backend" }, frontend, {
+        harnessHome: home,
+      }),
+    ).toMatchObject({ id: backendId, role: "backend", path: path.resolve(backend) });
+    expect(
+      resolveProjectPeer({ peerId: backendId }, frontend, {
+        harnessHome: home,
+      }),
+    ).toMatchObject({ id: backendId, role: "backend" });
+    expect(() =>
+      resolveProjectPeer({}, frontend, { harnessHome: home }),
+    ).toThrow(/Select a configured peer/);
+    expect(() =>
+      resolveProjectPeer(
+        { peerId: backendId, role: "backend" },
+        frontend,
+        { harnessHome: home },
+      ),
+    ).toThrow(/either/);
 
     const removed = removeProjectPeer(backendId, frontend, {
       harnessHome: home,
@@ -189,5 +210,38 @@ describe("Project Link peer application", () => {
         fs.readFileSync(path.join(shared, "AGENTS.md"), "utf8"),
       ),
     ).toEqual([{ id: frontendId, role: "other" }]);
+  });
+
+  it("requires a unique role selector and rejects arbitrary linked projects", () => {
+    const home = makeRoot("harness-peer-select-home-");
+    const frontend = makeRoot("harness-peer-select-fe-");
+    const backendA = makeRoot("harness-peer-select-a-");
+    const backendB = makeRoot("harness-peer-select-b-");
+    const backendAId = "44444444444444444444444444444444";
+    const backendBId = "55555555555555555555555555555555";
+    createHarnessProject(frontend, frontendId, "frontend");
+    createHarnessProject(backendA, backendAId, "backend");
+    createHarnessProject(backendB, backendBId, "backend");
+    for (const project of [frontend, backendA, backendB]) {
+      linkProject(project, { harnessHome: home });
+    }
+
+    configureProjectPeer(backendAId, undefined, frontend, {
+      harnessHome: home,
+    });
+    expect(() =>
+      resolveProjectPeer({ peerId: backendBId }, frontend, {
+        harnessHome: home,
+      }),
+    ).toThrow(/not a configured peer/);
+
+    configureProjectPeer(backendBId, undefined, frontend, {
+      harnessHome: home,
+    });
+    expect(() =>
+      resolveProjectPeer({ role: "backend" }, frontend, {
+        harnessHome: home,
+      }),
+    ).toThrow(/ambiguous/);
   });
 });

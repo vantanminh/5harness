@@ -80,6 +80,18 @@ export type ConfigureProjectPeerResult = {
   warning: string | null;
 };
 
+export type ProjectPeerSelector = {
+  peerId?: string;
+  role?: string;
+};
+
+export type ResolvedProjectPeer = ProjectPeer & {
+  name: string;
+  path: string;
+  localProjectId: string;
+  localProjectRoot: string;
+};
+
 function registryIo(options: RegistryIoOptions): RegistryIoOptions {
   return { env: options.env, harnessHome: options.harnessHome };
 }
@@ -166,6 +178,62 @@ export function listProjectPeers(
   return readProjectLink(projectRoot).peers.map((peer) =>
     inspectPeer(peer, options),
   );
+}
+
+export function hasProjectPeers(projectRoot: string): boolean {
+  return readProjectLink(projectRoot).peers.length > 0;
+}
+
+export function resolveProjectPeer(
+  selector: ProjectPeerSelector,
+  pathInput?: string,
+  options: RegistryIoOptions & { cwd?: string } = {},
+): ResolvedProjectPeer {
+  if (selector.peerId && selector.role) {
+    throw new Error("Choose either --peer/peer_id or --role, not both.");
+  }
+  if (!selector.peerId && !selector.role) {
+    throw new Error("Select a configured peer with --peer/peer_id or --role.");
+  }
+
+  const localProjectRoot = resolveTargetDir(
+    pathInput,
+    options.cwd ?? process.cwd(),
+  );
+  const localProjectId = readProjectId(localProjectRoot).id;
+  const peers = readProjectLink(localProjectRoot).peers;
+  let peer: ProjectPeer | undefined;
+
+  if (selector.peerId) {
+    const peerId = parseProjectId(selector.peerId);
+    peer = peers.find((candidate) => candidate.id === peerId);
+    if (!peer) {
+      throw new Error(
+        `Project ${peerId} is not a configured peer of ${localProjectId}.`,
+      );
+    }
+  } else {
+    const role = parseProjectRole(selector.role ?? "");
+    const matches = peers.filter((candidate) => candidate.role === role);
+    if (matches.length === 0) {
+      throw new Error(`No configured peer has role ${role}.`);
+    }
+    if (matches.length > 1) {
+      throw new Error(
+        `Peer role ${role} is ambiguous (${matches.length} configured peers). Use --peer/peer_id.`,
+      );
+    }
+    peer = matches[0];
+  }
+
+  const resolved = resolveRegisteredProject(peer.id, options);
+  return {
+    ...peer,
+    name: resolved.name,
+    path: resolved.path,
+    localProjectId,
+    localProjectRoot,
+  };
 }
 
 export function configureProjectPeer(

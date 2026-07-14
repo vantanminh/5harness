@@ -100,6 +100,14 @@ export const BUILTIN_TOOLS: ToolEntry[] = [
     source: "compiled",
   },
   {
+    name: "peer search|get|context|links",
+    kind: "builtin",
+    capability: "tool-access",
+    responsibility: "Bounded reads from an explicitly configured project peer",
+    status: "present",
+    source: "compiled",
+  },
+  {
     name: "dashboard",
     kind: "builtin",
     capability: "scaffold",

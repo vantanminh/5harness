@@ -696,7 +696,10 @@ export function startDashboard(
           return;
         }
         const { binding } = resolved;
-        const handle = createMonitoredMcpHandler(binding.projectRoot, binding);
+        const handle = createMonitoredMcpHandler(binding.projectRoot, binding, {
+          env: dashOpts.env,
+          harnessHome: dashOpts.harnessHome,
+        });
         let body = "";
         req.on("data", (chunk: Buffer) => {
           body += chunk.toString();

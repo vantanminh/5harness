@@ -45,6 +45,12 @@ import {
   executeProjectRoleSet,
   executeProjectRoleShow,
 } from "./commands/project.js";
+import {
+  executePeerContext,
+  executePeerGet,
+  executePeerLinks,
+  executePeerSearch,
+} from "./commands/peer.js";
 
 
 import {
@@ -308,6 +314,59 @@ async function main(argv: string[] = process.argv): Promise<void> {
       .option("--role <role>", "override the peer role")
       .action((idOrPath: string, opts) => {
         withErrors(() => executeProjectPeerAdd(idOrPath, opts));
+      }),
+  );
+
+  const peerCmd = program
+    .command("peer")
+    .description("Read bounded durable context from a configured project peer");
+  addDirOptions(
+    peerCmd
+      .command("search")
+      .description("Search a configured peer's indexed entities")
+      .argument("<query>", "search query")
+      .option("--peer <projectId>", "select a configured peer by project id")
+      .option("--role <role>", "select the only configured peer with this role")
+      .option("--limit <n>", "maximum search hits")
+      .action((query: string, opts) => {
+        withErrors(() => executePeerSearch(query, opts));
+      }),
+  );
+  addDirOptions(
+    peerCmd
+      .command("get")
+      .description("Get one entity from a configured peer")
+      .argument("<idOrPath>", "entity id or path")
+      .option("--peer <projectId>", "select a configured peer by project id")
+      .option("--role <role>", "select the only configured peer with this role")
+      .option("--summary", "return frontmatter only")
+      .action((idOrPath: string, opts) => {
+        withErrors(() => executePeerGet(idOrPath, opts));
+      }),
+  );
+  addDirOptions(
+    peerCmd
+      .command("context")
+      .description("Build a budgeted context pack from a configured peer")
+      .argument("<id>", "entity id")
+      .option("--peer <projectId>", "select a configured peer by project id")
+      .option("--role <role>", "select the only configured peer with this role")
+      .option("--depth <n>", "linked-entity depth (0 or 1)")
+      .option("--max-chars <n>", "maximum context body characters")
+      .option("--json", "print context as JSON")
+      .action((id: string, opts) => {
+        withErrors(() => executePeerContext(id, opts));
+      }),
+  );
+  addDirOptions(
+    peerCmd
+      .command("links")
+      .description("Show one peer entity's outbound links and backlinks")
+      .argument("<id>", "entity id")
+      .option("--peer <projectId>", "select a configured peer by project id")
+      .option("--role <role>", "select the only configured peer with this role")
+      .action((id: string, opts) => {
+        withErrors(() => executePeerLinks(id, opts));
       }),
   );
   addDirOptions(

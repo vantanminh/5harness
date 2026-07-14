@@ -10,6 +10,8 @@ import { linkProject, unlinkProject } from "../src/application/registry.js";
 import { listMcpCalls } from "../src/application/mcp-monitor.js";
 import { addStoryMd } from "../src/application/md-durable.js";
 import { MCP_OAUTH_SCOPE } from "../src/application/mcp-oauth.js";
+import { configureProjectPeer } from "../src/application/project-link.js";
+import { setProjectRoleMarkers, type ProjectRole } from "../src/domain/project-link.js";
 
 const tempDirs: string[] = [];
 
@@ -58,6 +60,23 @@ function sessionCookie(setCookie: string | null): string {
   const part = setCookie!.split(";")[0];
   expect(part).toMatch(/^harness_session=/);
   return part!;
+}
+
+function writeProjectIdentity(
+  projectRoot: string,
+  projectId: string,
+  role: ProjectRole,
+): void {
+  let agents = [
+    "<!-- HARNESS:BEGIN -->",
+    "<!-- harness-version: 0.20.0 -->",
+    `<!-- harness-project-id: ${projectId} -->`,
+    "## Harness",
+    "<!-- HARNESS:END -->",
+    "",
+  ].join("\n");
+  agents = setProjectRoleMarkers(agents, role, []);
+  fs.writeFileSync(path.join(projectRoot, "AGENTS.md"), agents, "utf8");
 }
 
 async function loginAsAdmin(baseUrl: string, redirect = "/"): Promise<string> {
@@ -474,6 +493,79 @@ describe("MCP OAuth HTTP integration", () => {
       await expect(unlinkedSingle.json()).resolves.toMatchObject({
         error_code: "project_not_linked",
       });
+    } finally {
+      await dashboard.close();
+    }
+  });
+
+  it("keeps a peer id inside the calling project's single OAuth grant", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-oauth-peer-home-"));
+    const frontend = fs.mkdtempSync(path.join(os.tmpdir(), "harness-oauth-peer-fe-"));
+    const backend = fs.mkdtempSync(path.join(os.tmpdir(), "harness-oauth-peer-be-"));
+    tempDirs.push(home, frontend, backend);
+    const frontendId = "dddddddddddddddddddddddddddddddd";
+    const backendId = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    writeProjectIdentity(frontend, frontendId, "frontend");
+    writeProjectIdentity(backend, backendId, "backend");
+    linkProject(frontend, { harnessHome: home });
+    linkProject(backend, { harnessHome: home });
+    configureProjectPeer(backendId, undefined, frontend, { harnessHome: home });
+    addStoryMd(
+      { projectRoot: backend },
+      { id: "US-PEER-OAUTH", title: "Peer through OAuth", lane: "normal" },
+    );
+
+    const dashboard = await startDashboard({
+      host: "127.0.0.1",
+      port: 0,
+      harnessHome: home,
+    });
+    try {
+      const token = await acquireToken(dashboard.url, "single", frontendId);
+      const listed = await fetch(`${dashboard.url}mcp`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 40,
+          method: "tools/list",
+          params: {},
+        }),
+      });
+      expect(listed.status).toBe(200);
+      expect(JSON.stringify(await listed.json())).toContain("harness_peer_get");
+
+      const readPeer = await fetch(`${dashboard.url}mcp`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 41,
+          method: "tools/call",
+          params: {
+            name: "harness_peer_get",
+            arguments: { id: "US-PEER-OAUTH", peer_id: backendId },
+          },
+        }),
+      });
+      expect(readPeer.status).toBe(200);
+      expect(JSON.stringify(await readPeer.json())).toContain("Peer through OAuth");
+      expect(listMcpCalls(frontend)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            tool_name: "harness_peer_get",
+            project_id: frontendId,
+            project_mode: "single",
+          }),
+        ]),
+      );
+      expect(listMcpCalls(backend)).toHaveLength(0);
     } finally {
       await dashboard.close();
     }

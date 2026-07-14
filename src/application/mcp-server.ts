@@ -28,6 +28,13 @@ import { executeDecisionAdd } from "../commands/decision.js";
 import { executeBacklogAdd } from "../commands/backlog.js";
 import type { McpCallInput } from "../domain/mcp-call-record.js";
 import { appendMcpCall } from "./mcp-monitor.js";
+import {
+  getProjectRole,
+  hasProjectPeers,
+  listProjectPeers,
+  resolveProjectPeer,
+} from "./project-link.js";
+import type { RegistryIoOptions } from "../infrastructure/registry.js";
 
 type RpcReq = {
   jsonrpc: "2.0";
@@ -41,7 +48,7 @@ type RpcRes = {
   result?: unknown;
   error?: { code: number; message: string };
 };
-type McpTool = {
+export type McpTool = {
   name: string;
   description: string;
   inputSchema: {
@@ -131,6 +138,17 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "harness_reindex",
     description: "Rebuild derived markdown index from entity files.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "harness_project_role",
+    description: "Show the calling project's configured role and stack tags.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "harness_project_peers",
+    description:
+      "List configured Project Link peers and machine-local resolution state.",
     inputSchema: { type: "object", properties: {} },
   },
   // --- mutations (same application layer as CLI; US-041) ---
@@ -231,6 +249,82 @@ export const MCP_TOOLS: McpTool[] = [
   },
 ];
 
+const PEER_MCP_TOOLS: McpTool[] = [
+  {
+    name: "harness_peer_search",
+    description:
+      "Search one configured peer's entity index with ranked, bounded snippets.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string" },
+        peer_id: { type: "string" },
+        role: { type: "string" },
+        limit: { type: "number" },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "harness_peer_get",
+    description: "Get one durable entity from a configured peer.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        peer_id: { type: "string" },
+        role: { type: "string" },
+        summary: { type: "boolean" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "harness_peer_context",
+    description:
+      "Build a maxChars-budgeted context pack for one configured peer entity.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        peer_id: { type: "string" },
+        role: { type: "string" },
+        depth: { type: "number" },
+        maxChars: { type: "number" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "harness_peer_links",
+    description:
+      "Show outbound links, backlinks, and broken targets for one peer entity.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        peer_id: { type: "string" },
+        role: { type: "string" },
+      },
+      required: ["id"],
+    },
+  },
+];
+
+export function getMcpTools(
+  projectRoot?: string,
+  _options: RegistryIoOptions = {},
+): McpTool[] {
+  if (!projectRoot) return [...MCP_TOOLS];
+  try {
+    return hasProjectPeers(projectRoot)
+      ? [...MCP_TOOLS, ...PEER_MCP_TOOLS]
+      : [...MCP_TOOLS];
+  } catch {
+    return [...MCP_TOOLS];
+  }
+}
+
 const SERVER_INFO = { name: "harness-mcp", version: VERSION };
 
 function capture(fn: () => void): string {
@@ -251,10 +345,26 @@ function optStr(args: Record<string, unknown>, key: string): string | undefined 
   return String(v);
 }
 
+function peerRootForArgs(
+  root: string,
+  args: Record<string, unknown>,
+  options: RegistryIoOptions,
+): string {
+  return resolveProjectPeer(
+    {
+      peerId: optStr(args, "peer_id"),
+      role: optStr(args, "role"),
+    },
+    root,
+    options,
+  ).path;
+}
+
 function callTool(
   root: string,
   name: string,
   args: Record<string, unknown>,
+  options: RegistryIoOptions,
 ): { content: Array<{ type: "text"; text: string }> } {
   let t = "";
   switch (name) {
@@ -301,7 +411,7 @@ function callTool(
     }
     case "harness_doctor": {
       // Use application layer directly — avoid process.exitCode side effects.
-      const report = runDoctor(root);
+      const report = runDoctor(root, options);
       t = formatDoctorReport(report, Boolean(args.json));
       if (!report.healthy) {
         t = `${t}\n\n(doctor: unhealthy — exit code 1 equivalent; hard-fail if required)`;
@@ -310,6 +420,46 @@ function callTool(
     }
     case "harness_reindex":
       t = capture(() => executeReindex({ dir: root } as never));
+      break;
+    case "harness_project_role": {
+      const project = getProjectRole(root);
+      t = JSON.stringify({ role: project.role, stack: project.stack });
+      break;
+    }
+    case "harness_project_peers":
+      t = JSON.stringify(listProjectPeers(root, options));
+      break;
+    case "harness_peer_search":
+      t = capture(() =>
+        executeSearch(String(args.query ?? ""), {
+          dir: peerRootForArgs(root, args, options),
+          limit: optStr(args, "limit"),
+        } as never),
+      );
+      break;
+    case "harness_peer_get":
+      t = capture(() =>
+        executeGet(String(args.id ?? ""), {
+          dir: peerRootForArgs(root, args, options),
+          summary: Boolean(args.summary),
+        } as never),
+      );
+      break;
+    case "harness_peer_context":
+      t = capture(() =>
+        executeContext(String(args.id ?? ""), {
+          dir: peerRootForArgs(root, args, options),
+          depth: String(args.depth ?? "0"),
+          maxChars: String(args.maxChars ?? "8000"),
+        } as never),
+      );
+      break;
+    case "harness_peer_links":
+      t = capture(() =>
+        executeLinks(String(args.id ?? ""), {
+          dir: peerRootForArgs(root, args, options),
+        } as never),
+      );
       break;
     case "harness_intake":
       t = capture(() =>
@@ -416,6 +566,7 @@ function summarizeInput(
 function dispatch(
   root: string | undefined,
   req: RpcReq,
+  options: RegistryIoOptions = {},
 ): { result: RpcRes | null; callInfo?: McpCallInput } {
   const { id, method, params } = req;
   if (id === undefined) return { result: null };
@@ -447,7 +598,11 @@ function dispatch(
         };
       case "tools/list":
         return {
-          result: { jsonrpc: "2.0", id, result: { tools: MCP_TOOLS } },
+          result: {
+            jsonrpc: "2.0",
+            id,
+            result: { tools: getMcpTools(root, options) },
+          },
           callInfo: {
             method,
             tool_name: null,
@@ -491,7 +646,15 @@ function dispatch(
           };
         }
         try {
-          const toolResult = callTool(root, p.name, p.arguments ?? {});
+          if (!getMcpTools(root, options).some((tool) => tool.name === p.name)) {
+            throw new Error(`Tool not available for this project: ${p.name}`);
+          }
+          const toolResult = callTool(
+            root,
+            p.name,
+            p.arguments ?? {},
+            options,
+          );
           return {
             result: { jsonrpc: "2.0", id, result: toolResult },
             callInfo: {
@@ -571,6 +734,7 @@ export function handleMcpRequest(
   body: string,
   projectRoot?: string,
   onCall?: (info: McpCallInput) => void,
+  options: RegistryIoOptions = {},
 ): string {
   const recordRoot = projectRoot ?? "";
   let parsed: unknown;
@@ -605,7 +769,7 @@ export function handleMcpRequest(
         continue;
       }
       // Process sequentially — mutations must not race.
-      const { result, callInfo } = dispatch(projectRoot, req);
+      const { result, callInfo } = dispatch(projectRoot, req, options);
       if (result) responses.push(result);
       if (callInfo && onCall) onCall(callInfo);
     }
@@ -628,7 +792,7 @@ export function handleMcpRequest(
       });
     return resp;
   }
-  const { result, callInfo } = dispatch(projectRoot, req);
+  const { result, callInfo } = dispatch(projectRoot, req, options);
   if (callInfo && onCall) onCall(callInfo);
   return result ? JSON.stringify(result) : "";
 }
@@ -640,18 +804,24 @@ export function handleMcpRequest(
 export function createMonitoredMcpHandler(
   projectRoot: string,
   binding?: { projectId: string; projectMode: "single" | "all" },
+  options: RegistryIoOptions = {},
 ): (body: string) => string {
   return (body: string) => {
-    return handleMcpRequest(body, projectRoot, (info) => {
-      try {
-        appendMcpCall(projectRoot, {
-          ...info,
-          project_id: binding?.projectId ?? null,
-          project_mode: binding?.projectMode ?? null,
-        });
-      } catch {
-        // monitoring write failures are non-fatal
-      }
-    });
+    return handleMcpRequest(
+      body,
+      projectRoot,
+      (info) => {
+        try {
+          appendMcpCall(projectRoot, {
+            ...info,
+            project_id: binding?.projectId ?? null,
+            project_mode: binding?.projectMode ?? null,
+          });
+        } catch {
+          // monitoring write failures are non-fatal
+        }
+      },
+      options,
+    );
   };
 }
