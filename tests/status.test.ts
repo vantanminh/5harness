@@ -3,6 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildStatus, formatStatus } from "../src/application/status.js";
+import { addReport, updateReport } from "../src/application/report.js";
+import {
+  setProjectRoleMarkers,
+  upsertProjectPeerMarker,
+} from "../src/domain/project-link.js";
 
 const tempDirs: string[] = [];
 
@@ -18,6 +23,30 @@ function tmp(): string {
   return dir;
 }
 
+function configureBackend(root: string): void {
+  let agents = setProjectRoleMarkers(
+    [
+      "<!-- HARNESS:BEGIN -->",
+      "<!-- harness-version: 0.20.0 -->",
+      "<!-- harness-project-id: 22222222222222222222222222222222 -->",
+      "## Harness",
+      "<!-- HARNESS:END -->",
+      "",
+    ].join("\n"),
+    "backend",
+    ["node", "postgres"],
+  );
+  agents = upsertProjectPeerMarker(agents, {
+    id: "11111111111111111111111111111111",
+    role: "frontend",
+  });
+  agents = upsertProjectPeerMarker(agents, {
+    id: "33333333333333333333333333333333",
+    role: "mobile",
+  });
+  fs.writeFileSync(path.join(root, "AGENTS.md"), agents);
+}
+
 describe("harness status (US-019)", () => {
   it("builds snapshot for empty project", () => {
     const root = tmp();
@@ -28,6 +57,12 @@ describe("harness status (US-019)", () => {
     expect(snap.decisions.total).toBe(0);
     expect(snap.traces.total).toBe(0);
     expect(snap.index.present).toBe(false);
+    expect(snap.projectLink).toEqual({
+      role: null,
+      stack: [],
+      peerCount: 0,
+      openReportCount: 0,
+    });
   });
 
   it("counts stories correctly", () => {
@@ -77,5 +112,41 @@ describe("harness status (US-019)", () => {
     const snap = buildStatus(root);
     expect(snap.version.mismatch).toBe(true);
     expect(snap.version.repo).toBe("0.1.0");
+  });
+
+  it("shows role, stack, configured peers, and open report count", () => {
+    const root = tmp();
+    configureBackend(root);
+    addReport(root, {
+      id: "RP-001",
+      summary: "Open contract mismatch",
+      fromProjectId: "11111111111111111111111111111111",
+      toProjectId: "22222222222222222222222222222222",
+    });
+    addReport(root, {
+      id: "RP-002",
+      summary: "Resolved contract mismatch",
+      fromProjectId: "11111111111111111111111111111111",
+      toProjectId: "22222222222222222222222222222222",
+    });
+    updateReport(root, {
+      id: "RP-002",
+      status: "fixed",
+      resolution: "Published the corrected schema.",
+    });
+
+    const snap = buildStatus(root);
+    expect(snap.projectLink).toEqual({
+      role: "backend",
+      stack: ["node", "postgres"],
+      peerCount: 2,
+      openReportCount: 1,
+    });
+    expect(formatStatus(snap, false)).toContain(
+      "--- Project Link ---\n  role: backend\n  stack: node, postgres\n  peers: 2\n  open reports: 1",
+    );
+    expect(JSON.parse(formatStatus(snap, true)).projectLink).toEqual(
+      snap.projectLink,
+    );
   });
 });

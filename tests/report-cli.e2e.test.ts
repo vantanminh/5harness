@@ -155,6 +155,55 @@ describe("Project Link report CLI e2e", () => {
     expect(backendList.stdout).not.toContain("access_token present");
     expect(backendList.stdout).not.toContain("Reproduced in frontend");
 
+    const backendStatus = runHarness(
+      ["status", "--json", "--dir", backend],
+      repoRoot,
+      home,
+    );
+    expectOk(backendStatus);
+    expect(JSON.parse(backendStatus.stdout).projectLink).toEqual({
+      role: "backend",
+      stack: [],
+      peerCount: 1,
+      openReportCount: 1,
+    });
+    const backendNext = runHarness(
+      ["next", "--json", "--dir", backend],
+      repoRoot,
+      home,
+    );
+    expectOk(backendNext);
+    expect(JSON.parse(backendNext.stdout)[0]).toMatchObject({
+      id: "RP-001",
+      type: "report",
+      status: "open",
+    });
+    const frontendNext = runHarness(
+      ["next", "--json", "--dir", frontend],
+      repoRoot,
+      home,
+    );
+    expectOk(frontendNext);
+    expect(
+      (JSON.parse(frontendNext.stdout) as Array<{ type: string }>).some(
+        (item) => item.type === "report",
+      ),
+    ).toBe(false);
+
+    fs.rmSync(path.join(backend, ".5harness", "index", "index.json"));
+    const doctor = runHarness(
+      ["doctor", "--json", "--dir", frontend],
+      repoRoot,
+      home,
+    );
+    expectOk(doctor);
+    expect(
+      (JSON.parse(doctor.stdout).checks as Array<{
+        name: string;
+        status: string;
+      }>).find((check) => check.name === "project-peer-indexes"),
+    ).toMatchObject({ status: "warn" });
+
     const localMiss = runHarness(
       ["report", "get", "RP-001", "--dir", frontend],
       repoRoot,

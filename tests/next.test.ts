@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildNextList, formatNextList } from "../src/application/next.js";
+import { addReport, updateReport } from "../src/application/report.js";
+import { setProjectRoleMarkers } from "../src/domain/project-link.js";
 
 const tempDirs: string[] = [];
 
@@ -16,6 +18,51 @@ function tmp(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-nx-"));
   tempDirs.push(dir);
   return dir;
+}
+
+function configureRole(root: string, role: "frontend" | "backend"): void {
+  const agents = setProjectRoleMarkers(
+    [
+      "<!-- HARNESS:BEGIN -->",
+      "<!-- harness-version: 0.20.0 -->",
+      "<!-- harness-project-id: 22222222222222222222222222222222 -->",
+      "## Harness",
+      "<!-- HARNESS:END -->",
+      "",
+    ].join("\n"),
+    role,
+    [],
+  );
+  fs.writeFileSync(path.join(root, "AGENTS.md"), agents);
+}
+
+function addStoriesAndReports(root: string): void {
+  fs.mkdirSync(path.join(root, "docs", "stories"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, "docs", "stories", "US-A.md"),
+    "---\nid: US-A\ntype: story\ntitle: Alpha\nstatus: planned\n---\n\n# A\n",
+  );
+  fs.writeFileSync(
+    path.join(root, "docs", "stories", "US-B.md"),
+    "---\nid: US-B\ntype: story\ntitle: Beta\nstatus: in_progress\n---\n\n# B\n",
+  );
+  addReport(root, {
+    id: "RP-001",
+    summary: "Review API mismatch",
+    fromProjectId: "11111111111111111111111111111111",
+    toProjectId: "22222222222222222222222222222222",
+  });
+  addReport(root, {
+    id: "RP-002",
+    summary: "Already resolved",
+    fromProjectId: "11111111111111111111111111111111",
+    toProjectId: "22222222222222222222222222222222",
+  });
+  updateReport(root, {
+    id: "RP-002",
+    status: "fixed",
+    resolution: "Done.",
+  });
 }
 
 describe("harness next (US-020)", () => {
@@ -80,5 +127,31 @@ describe("harness next (US-020)", () => {
     const out = formatNextList([], true);
     const parsed = JSON.parse(out);
     expect(Array.isArray(parsed)).toBe(true);
+  });
+
+  it("prioritizes open reports after active work for backend projects", () => {
+    const root = tmp();
+    configureRole(root, "backend");
+    addStoriesAndReports(root);
+
+    const items = buildNextList(root);
+    expect(items.map((item) => item.id)).toEqual(["US-B", "RP-001", "US-A"]);
+    expect(items[1]).toEqual({
+      id: "RP-001",
+      type: "report",
+      title: "Review API mismatch",
+      status: "open",
+      reason: "open report — review before planned work",
+    });
+    expect(items.some((item) => item.id === "RP-002")).toBe(false);
+  });
+
+  it("does not schedule reports for frontend projects", () => {
+    const root = tmp();
+    configureRole(root, "frontend");
+    addStoriesAndReports(root);
+
+    const items = buildNextList(root);
+    expect(items.map((item) => item.id)).toEqual(["US-B", "US-A"]);
   });
 });

@@ -3,6 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runDoctor, formatDoctorReport } from "../src/application/doctor.js";
+import { writeProjectIndex } from "../src/application/index-store.js";
+import { configureProjectPeer } from "../src/application/project-link.js";
+import { linkProject } from "../src/application/registry.js";
+import { setProjectRoleMarkers } from "../src/domain/project-link.js";
 
 const tempDirs: string[] = [];
 
@@ -16,6 +20,27 @@ function tmp(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-dr-"));
   tempDirs.push(dir);
   return dir;
+}
+
+function createLinkedProject(root: string, id: string, role: "frontend" | "backend"): void {
+  fs.mkdirSync(path.join(root, "docs", "stories"), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, "package.json"),
+    JSON.stringify({ name: path.basename(root) }),
+  );
+  const agents = setProjectRoleMarkers(
+    [
+      "<!-- HARNESS:BEGIN -->",
+      "<!-- harness-version: 0.20.0 -->",
+      `<!-- harness-project-id: ${id} -->`,
+      "## Harness",
+      "<!-- HARNESS:END -->",
+      "",
+    ].join("\n"),
+    role,
+    [],
+  );
+  fs.writeFileSync(path.join(root, "AGENTS.md"), agents);
 }
 
 describe("harness doctor (US-018)", () => {
@@ -106,5 +131,40 @@ describe("harness doctor (US-018)", () => {
     const integ = report.checks.find((c) => c.name === "index-integrity");
     expect(integ).toBeDefined();
     expect(["ok", "warn", "fail"]).toContain(integ!.status);
+  });
+
+  it("warns when a resolved peer has no readable index", () => {
+    const home = tmp();
+    const frontend = tmp();
+    const backend = tmp();
+    createLinkedProject(
+      frontend,
+      "11111111111111111111111111111111",
+      "frontend",
+    );
+    createLinkedProject(
+      backend,
+      "22222222222222222222222222222222",
+      "backend",
+    );
+    linkProject(frontend, { harnessHome: home });
+    linkProject(backend, { harnessHome: home });
+    configureProjectPeer(backend, undefined, frontend, { harnessHome: home });
+
+    const warning = runDoctor(frontend, { harnessHome: home });
+    expect(warning.healthy).toBe(true);
+    expect(
+      warning.checks.find((check) => check.name === "project-peer-indexes"),
+    ).toMatchObject({
+      status: "warn",
+      message: expect.stringContaining("22222222222222222222222222222222"),
+    });
+
+    writeProjectIndex(backend);
+    expect(
+      runDoctor(frontend, { harnessHome: home }).checks.find(
+        (check) => check.name === "project-peer-indexes",
+      ),
+    ).toMatchObject({ status: "ok" });
   });
 });

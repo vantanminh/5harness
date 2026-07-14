@@ -5,6 +5,8 @@ import { runAudit } from "./quality.js";
 import { indexJsonPath, hasMarkdownStore } from "./index-store.js";
 import type { ProjectIndex } from "./index-store.js";
 import { VERSION } from "../version.js";
+import type { ProjectRole } from "../domain/project-link.js";
+import { readProjectLink } from "../infrastructure/project-link.js";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -16,6 +18,12 @@ export type StatusSnapshot = {
   backlog: { total: number; openCount: number };
   decisions: { total: number };
   traces: { total: number };
+  projectLink: {
+    role: ProjectRole | null;
+    stack: string[];
+    peerCount: number;
+    openReportCount: number;
+  };
   version: { cli: string; repo: string | null; mismatch: boolean };
   index: { present: boolean; age: string | null; stale: boolean };
   audit: { lastScore: number | null };
@@ -37,6 +45,7 @@ export function buildStatus(projectRoot: string): StatusSnapshot {
   const intakes = catalog.byType.intake;
   const backlog = catalog.byType.backlog;
   const decisions = catalog.byType.decision;
+  const reports = catalog.byType.report;
   const traces = listLocalTraces(projectRoot);
 
   const openStoryStatuses = new Set(["planned", "in_progress"]);
@@ -45,6 +54,24 @@ export function buildStatus(projectRoot: string): StatusSnapshot {
 
   const openBacklogStatuses = new Set(["proposed", "accepted"]);
   const openBacklog = backlog.filter((b) => openBacklogStatuses.has(b.status));
+
+  let projectLink: StatusSnapshot["projectLink"] = {
+    role: null,
+    stack: [],
+    peerCount: 0,
+    openReportCount: reports.filter((report) => report.status === "open").length,
+  };
+  try {
+    const config = readProjectLink(projectRoot);
+    projectLink = {
+      ...projectLink,
+      role: config.role,
+      stack: config.stack,
+      peerCount: config.peers.length,
+    };
+  } catch {
+    // Status remains useful for uninitialized or partially scaffolded projects.
+  }
 
   // Recent intakes: last 5 by id desc
   const recentIntakes = [...intakes]
@@ -115,6 +142,7 @@ export function buildStatus(projectRoot: string): StatusSnapshot {
     },
     decisions: { total: decisions.length },
     traces: { total: traces.length },
+    projectLink,
     version: {
       cli: VERSION,
       repo: repoVersion,
@@ -164,6 +192,12 @@ export function formatStatus(snapshot: StatusSnapshot, json: boolean): string {
     "",
     "--- Traces ---",
     `  total: ${s.traces.total}`,
+    "",
+    "--- Project Link ---",
+    `  role: ${s.projectLink.role ?? "unset"}`,
+    `  stack: ${s.projectLink.stack.length > 0 ? s.projectLink.stack.join(", ") : "(none)"}`,
+    `  peers: ${s.projectLink.peerCount}`,
+    `  open reports: ${s.projectLink.openReportCount}`,
     "",
     "--- Version ---",
     `  CLI: ${s.version.cli}`,

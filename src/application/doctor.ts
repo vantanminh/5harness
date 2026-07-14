@@ -197,6 +197,30 @@ export function runDoctor(
             : `${peers.length} project peer(s) resolved`,
       });
     }
+
+    const resolved = peers.filter(
+      (peer): peer is typeof peer & { path: string } =>
+        peer.resolved && peer.path !== null,
+    );
+    const withoutReadableIndex = resolved.filter(
+      (peer) => loadProjectIndex(peer.path) === null,
+    );
+    if (withoutReadableIndex.length > 0) {
+      checks.push({
+        name: "project-peer-indexes",
+        status: "warn",
+        message: `${withoutReadableIndex.length} resolved peer(s) have no readable index: ${withoutReadableIndex.map((peer) => peer.id).join(", ")}. Run \`harness reindex\` in each peer project.`,
+      });
+    } else {
+      checks.push({
+        name: "project-peer-indexes",
+        status: "ok",
+        message:
+          resolved.length === 0
+            ? "No resolved project peer indexes to inspect"
+            : `${resolved.length} resolved project peer index(es) readable`,
+      });
+    }
   } catch (error) {
     checks.push({
       name: "project-peers",
