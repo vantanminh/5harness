@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Opt-in Project Link roles, stack tags, and direct peer relationships, with
+  bounded peer `search` / `get` / `context` / `links` reads resolved through
+  the same machine-local registry (IN-019 / US-059–US-061 / decision 0022).
+- Target-owned Git-backed reports with CLI and dynamically advertised MCP
+  add/list/get/update tools, plus Project Link guidance in generated
+  `AGENTS.md` and role/peer/report visibility in `doctor`, `status`, and `next`
+  (US-062–US-063).
+
+### Security
+
+- Project Link fails closed to configured peers, forbids arbitrary-path and
+  peer-of-peer access, limits cross-project operational-entity mutation to
+  sanitized reports, and preserves OAuth binding to the calling project.
+
 ## [0.17.0] - 2026-07-13
 
 ### Added

@@ -64,14 +64,46 @@ harness dashboard            # or bare: harness
 | Feature | What it does |
 | --- | --- |
 | **Init / link** | Scaffold agent docs + markdown entities; register project in `~/.5harness` |
-| **Durable history** | Stories, decisions, intakes, backlog as **Git-backed** markdown |
+| **Durable history** | Stories, decisions, intakes, backlog, reports as **Git-backed** markdown |
 | **Agent index** | `search` / `get` / `links` / `reindex` — no whole-vault dumps |
 | **Tools-only mutation** | Agents change operational entities **only** via CLI (or MCP tools) |
+| **Project Link** | Opt-in roles and configured peers with bounded reads + target-owned reports |
 | **Quality loop** | `verify`, `trace`, `audit`, `propose` |
 | **Agent loop** | `doctor`, `status`, `next`, `context`, `handoff`, `watch` |
 | **MCP** | Local `harness mcp` / dashboard MCP — reads + durable mutations (US-041) |
 | **Dashboard** | Localhost multi-project UI + optional MCP monitoring |
 | **Releases** | CI multi-OS matrix, OIDC publish, GitHub Releases, SBOM |
+
+### Project Link (opt-in)
+
+Project Link lets related repositories declare roles, resolve explicitly
+configured peers, read bounded peer context, and exchange durable reports:
+
+```bash
+# frontend project
+harness project role set frontend --stack supabase
+harness project peer add <backend-project-id-or-path> --role backend
+harness peer search "auth contract" --role backend
+harness report add --to backend --summary "Login response contract mismatch"
+
+# backend project
+harness report list --status open
+harness report get RP-001
+harness report update --id RP-001 --status fixed --resolution "Updated response schema"
+```
+
+Role, stack, and peer ids are Git-backed markers in the managed `AGENTS.md`
+block. Peer paths are not committed: both repositories must be registered in
+the same machine-local `~/.5harness` registry (or `HARNESS_HOME`). Reads are
+limited to direct configured peers and bounded `search` / `get` / `context` /
+`links` results; peer-of-peer traversal and arbitrary paths are rejected.
+
+Reports are target-owned Git-backed entities under `docs/reports/`. Create and
+update them only through `harness report` or its MCP tools, never by hand. Keep
+payloads sanitized: do not include credentials, tokens, secrets, or unnecessary
+personal data. `doctor` warns about unresolved peers and missing peer indexes;
+`status` summarizes Project Link state; `next` surfaces open reports before
+planned backend work.
 
 ### MCP authentication
 
@@ -106,6 +138,14 @@ Agents must not infer authorization from cwd. See the
 [project-binding specification](docs/product/mcp-project-binding.md) and
 [security model](docs/SECURITY.md#mcp-model-context-protocol).
 
+After binding the calling project, MCP tool discovery dynamically exposes peer
+read and report tools only when that project has configured peers. In an
+all-projects grant, `X-Harness-Project` still selects the **calling** project;
+a peer id never substitutes for that OAuth binding. Cross-project
+operational-entity mutation is restricted to sanitized reports owned by the
+configured target project; explicit peer-management commands may also attempt
+reverse configuration markers.
+
 Plain HTTP is accepted only on loopback. A non-loopback bind requires an HTTPS
 reverse proxy and its canonical URL, for example
 `harness mcp --host 0.0.0.0 --public-url https://mcp.example.com`.
@@ -117,7 +157,7 @@ Product pivot: [decision 0011](docs/decisions/0011-global-tool-markdown-durable-
 1. **Read first:** `AGENTS.md`, `docs/HARNESS.md`, `docs/FEATURE_INTAKE.md`,
    active story under `docs/stories/`.
 2. **Mutate only via tools:** `harness intake` / `story` / `decision` /
-   `backlog` — **never** hand-edit operational entity markdown.
+   `backlog` / `report` — **never** hand-edit operational entity markdown.
 3. **Hard-fail (decision 0017):** if harness CLI or MCP fails for a required
    step → **HARD STOP**. Recover with `doctor` / `link` / `reindex`, then
    retry. Do not bypass with hand-edits.
@@ -154,7 +194,8 @@ harness export changelog [--since 2026-07-01]
 | Query + agent index | Shipped |
 | Quality (verify / trace / audit / propose) | Shipped |
 | Agent-loop tools (doctor / status / next / …) | Shipped |
-| MCP (reads + intake/story/decision/backlog mutations) | Shipped |
+| Project Link (roles / peers / reports) | Implemented (unreleased) |
+| MCP core (reads + intake/story/decision/backlog mutations) | Shipped |
 | Local dashboard + MCP monitor | Shipped |
 | CI multi-OS + OIDC provenance releases | Shipped |
 | Legacy SQLite import | Optional (`harness import-sqlite`) |

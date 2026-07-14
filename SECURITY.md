@@ -72,6 +72,15 @@ before public disclosure when the issue is not already widely known.
   project-trusted shell (like CI `run:` steps).
 - Keep **dashboard** and **MCP** bound to **localhost** unless you understand
   the exposure of local project data.
+- Project Link resolves only explicitly configured peers through the
+  machine-local registry. Peer reads are bounded and direct; its only
+  cross-project operational-entity mutation is a target-owned `report`.
+  Explicit peer-management commands may also attempt reverse AGENTS markers.
+- Sanitize Git-backed report payloads. Never include credentials, tokens,
+  secrets, or unnecessary personal data in `docs/reports/` files.
+- MCP exposes peer/report tools dynamically after binding the calling project.
+  A peer id cannot replace the OAuth project selector, including for
+  all-projects grants.
 - Do not commit tokens; CI should prefer OIDC over long-lived `NPM_TOKEN`.
 
 Thank you for helping keep harness and its users safe.

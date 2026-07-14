@@ -35,8 +35,8 @@ project; consent does not express least-privilege project scope.
 | --- | --- |
 | G1 | Starting `harness` (default dashboard) or `harness mcp` does **not** bind tool execution to a project from cwd. |
 | G2 | Human **authorization / consent** for an MCP client selects project scope: **one project** or **all linked projects**. |
-| G3 | After a single-project grant, every MCP tool call runs **only** against that project. |
-| G4 | After an all-projects grant, the agent **must** supply the target project id on each MCP call; missing/unknown id fails closed. |
+| G3 | A single-project grant fixes the **calling project**. Local tools stay on that root; Project Link tools may reach only peers explicitly configured by it. |
+| G4 | After an all-projects grant, the agent **must** supply the calling project id on each MCP call; missing/unknown id fails closed. Peer targets are selected separately from configured capabilities. |
 | G5 | Each harnessed repo has a **random durable project id** stored in local `AGENTS.md` (harness-managed block). |
 | G6 | Agents discover the id by reading `AGENTS.md` or running `harness project id` (from that project directory). |
 
@@ -138,6 +138,36 @@ harness project id
 
 Then configure MCP client / each call with that id when the OAuth grant is `all`.
 
+#### Project Link capability routing
+
+Project Link adds a second, narrower routing step **after** the request has an
+OAuth-bound calling project:
+
+```text
+Bearer grant + X-Harness-Project/?project= (all mode)
+  → calling project root
+  → calling project's committed peer markers
+  → configured peer id → same-machine registry path
+  → bounded peer read or target-owned report creation
+```
+
+The OAuth grant/header never selects the report target or peer. MCP `peer_id`
+does not select or replace the OAuth calling project. Arguments `peer_id`,
+`role`, `to`, and `from` only select among capabilities explicitly
+configured in the calling project's `AGENTS.md`. They cannot authorize an
+unconfigured project, an arbitrary path, or peer-of-peer traversal. A
+single-project grant therefore remains rooted at the project selected at
+consent even when a tool reads a peer or creates a report there; an all-projects
+grant still requires the calling project header/query on every request.
+
+`harness_project_role` and `harness_project_peers` are always available after
+project binding. Dynamic tool exposure advertises peer-read and report MCP tools only
+when the calling project has at least one configured peer. Cross-project writes
+are limited to target-owned report creation; `harness_report_update` mutates
+only reports owned by the calling project. A successful report mutation
+reindexes the owning project. MCP monitoring remains attached to the calling
+OAuth project, including when a configured peer is the read/write target.
+
 ### 3.5 Monitoring and audit
 
 - Extend MCP call records with `project_id` and `project_mode` (in addition to
@@ -177,9 +207,17 @@ MCP client ── Bearer token ──► harness mcp / dashboard /mcp
                   registry: id → path
                            ▼
               handleMcpRequest(body, projectRoot)
+                    │                    │
+                    │ local tools        │ Project Link tools
+                    ▼                    ▼
+          calling-project entities   configured peer markers
+                                          │
+                                registry peer id → path
+                                          │
+                               bounded read / target report
 ```
 
-**Code touchpoints (implementation later):**
+**Implementation touchpoints:**
 
 | Area | Files (current) |
 | --- | --- |
@@ -188,7 +226,7 @@ MCP client ── Bearer token ──► harness mcp / dashboard /mcp
 | OAuth grant | `src/application/mcp-oauth.ts`, `mcp-oauth-http.ts`, auth pages |
 | Registry | `src/domain/registry.ts`, link/init |
 | AGENTS markers | `src/domain/upgrade.ts`, `src/infrastructure/upgrade.ts`, templates |
-| CLI | `src/cli.ts` — new `project` command group |
+| CLI | `src/cli.ts` — project identity, role, peer, and report command groups |
 | Docs | `docs/SECURITY.md`, `docs/product/cli-contract.md`, `templates/AGENTS.md` |
 
 ---
@@ -236,7 +274,8 @@ MCP client ── Bearer token ──► harness mcp / dashboard /mcp
 ## 6. Acceptance criteria (initiative-level)
 
 - [x] Fresh `harness mcp` without completed OAuth grant cannot mutate/read a project via tools.
-- [x] Consent single-project: tools only see that project's entities.
+- [x] Consent single-project: local tools stay on the consent-selected calling
+  project; Project Link tools reach only that project's configured peers.
 - [x] Consent all-projects without `X-Harness-Project` fails closed.
 - [x] Consent all-projects with correct id targets that project only for that call.
 - [x] `harness project id` matches AGENTS.md marker and registry entry.

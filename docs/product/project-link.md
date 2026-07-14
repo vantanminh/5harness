@@ -1,6 +1,6 @@
 # Spec: Project Link (peer projects + cross-project reports)
 
-**Status:** planned (declaration only — no implementation in this task)  
+**Status:** implemented (unreleased)
 **Intake:** IN-019  
 **Decision:** 0022-project-peer-link-and-cross-project-reports  
 **Stories:** US-059 … US-063  
@@ -11,7 +11,7 @@
 ## 1. Problem
 
 Full-stack work often splits into **two or more Git repos** (e.g. backend API +
-frontend web), each harnessed with `5harness`. Today:
+frontend web), each harnessed with `5harness`. Before Project Link:
 
 1. An agent in the **frontend** repo cannot safely search backend product docs /
    stories / decisions without the human pasting files or opening the other repo.
@@ -83,13 +83,13 @@ harness report …
 | State | Storage | Git | Why |
 | --- | --- | --- | --- |
 | Project id | `<!-- harness-project-id: … -->` in AGENTS harness block | Yes | Already shipped (0020) |
-| Role | `<!-- harness-project-role: frontend -->` | Yes | Tiny, always in agent entrypoint |
+| Role | `<!-- harness-project-role: frontend -->` | Yes | Tiny once configured; visible in the agent entrypoint |
 | Stack (optional) | `<!-- harness-project-stack: supabase -->` or comma list | Yes | Only when set |
 | Peer edges | `<!-- harness-peer: id=<id>;role=<role> -->` (one marker per peer) | Yes | Clone recovers *intent*; machine still needs registry path |
 | Path resolution | `~/.5harness/registry.json` id → absolute path | No | Same machine as today |
 | Peer index | Peer’s `.5harness/index/` (rebuild with reindex/link) | No | Derived |
 | Reports | Markdown entities under `docs/reports/` in **target** project | Yes | Backend history of FE findings travels with BE repo |
-| Outbound stubs (optional) | Reporter project may keep a thin pointer entity or only the report id | Prefer **target-owned** SoT; reporter re-queries peer |
+| Reporter copy | None | — | Reporter re-queries the configured target; no duplicate report file |
 
 **Design choice (locked):** peer *identity* is git-tracked; peer *filesystem path*
 is machine-local via registry. After clone on a new machine: `harness link` each
@@ -125,10 +125,12 @@ When both projects are on disk and registered:
 harness project peer add <backend-id-or-path> --role backend
 ```
 
-CLI **should** also write the reverse marker on the backend (`role=frontend`)
-when the backend path is writable. If reverse write fails, forward link still
-succeeds with a clear warning (partial link). Agents treat one-way links as
-valid for reads toward the declared peer.
+CLI also attempts to write the reverse marker on the backend
+(`role=frontend`) when the backend path is writable. If the reverse write
+fails, the forward link remains saved and the command prints a clear partial
+link warning. Agents treat one-way links as valid for reads toward the declared
+peer. Removal likewise removes the local marker first and attempts the reverse
+unlink.
 
 ### 4.4 Token discipline
 
@@ -147,29 +149,36 @@ valid for reads toward the declared peer.
 
 | Mode | Tools |
 | --- | --- |
-| No peers configured | Do **not** advertise peer/report tools (or advertise only `harness_project_peers` returning empty + setup hint). Prefer **dynamic list** to reduce agent confusion. |
-| Peers configured | Expose peer read + report tools; each tool requires grant-scoped project bind (0020) for the **local** project; peer resolution uses registry under the same trust model (local machine). |
+| No peers configured | Advertise `harness_project_role` and `harness_project_peers`, but do **not** advertise peer-read or report tools. |
+| Peers configured | Also advertise peer read + report tools. The OAuth grant binds the **calling** project; configured markers and the same-machine registry resolve peer capabilities. |
 
-MCP names (illustrative):
+Implemented MCP names:
 
 - `harness_project_role` (get)
 - `harness_project_peers` (list)
 - `harness_peer_search` / `harness_peer_get` / `harness_peer_context` / `harness_peer_links`
 - `harness_report_add` / `harness_report_list` / `harness_report_get` / `harness_report_update`
 
-All-mode OAuth still requires `X-Harness-Project` for the **calling** project;
-peer tools never treat peer id as the OAuth project selector.
+For an all-projects OAuth grant, `X-Harness-Project` or `?project=` always
+selects the **calling** project. `peer_id`, `role`, `to`, and `from` only select
+a configured capability from that calling project; they never replace the
+OAuth project selector or authorize an arbitrary project. Single-project grants
+remain forced to the project chosen at consent.
 
 ### 4.6 Security / trust
 
-- Peer reads: only via explicitly configured peer ids; path from registry; fail closed.
-- Peer **writes** in v1: **only** create/update `report` entities on the target
-  project root — not stories/decisions/intakes/backlog of the peer.
-- Report bodies must not encourage secrets (tokens, passwords); tools should
-  document “sanitize payloads”.
-- Cross-project write is a **capability boundary**: document in SECURITY.md when
-  implemented; doctor may warn if peer path is outside expected roots later
-  (optional hardening — backlog).
+- Peer reads: only via explicitly configured peer ids; path from the
+  same-machine registry; fail closed.
+- After explicit peer-management configuration (which may write a reverse
+  AGENTS marker), cross-project **operational-entity writes** in v1 only create
+  `report` entities on the target project root — never stories, decisions,
+  intakes, backlog, or existing reports.
+- Cross-project creation is limited to target-owned reports. Lifecycle updates
+  run only in the calling/local project, so a peer cannot remotely resolve a
+  target report.
+- Report bodies must be sanitized: never include credentials, tokens, secrets,
+  or unnecessary personal data.
+- Successful report mutations reindex the project that owns the changed report.
 
 ---
 
@@ -187,7 +196,8 @@ harness project role show --json
 - Markers written only when set/changed.
 - `harness upgrade` preserves existing role/stack/peer markers (must not strip).
 - Valid roles: `frontend` | `backend` | `mobile` | `service` | `shared` | `other`.
-- Stack: optional short tokens `[a-z0-9_-]+`, comma-separated, max small N (e.g. 4).
+- Stack: optional lowercase tokens `[a-z0-9_-]+`, comma-separated, at most four
+  tags and 32 characters per tag; duplicates are rejected.
 
 AGENTS managed block example after configuration:
 
@@ -208,6 +218,13 @@ Agent-facing short rules (injected only when role/peers present):
 - If role is `frontend`: prefer peer tools for API/backend contract docs; file
   reports toward `backend` instead of inventing backend schemas.
 - If role is `backend`: on start of “fix FE issues” work, run `harness report list --status open` before coding.
+
+The role/peer commands maintain a conditional
+`HARNESS:PROJECT-LINK:BEGIN/END` workflow section inside the Harness-managed
+block. Plain `harness init` output has no Project Link workflow copy. Setting a
+role or peer adds it, role changes refresh it, removing the final peer removes
+it when no role is set, and `harness upgrade` preserves the markers while
+regenerating the current copy.
 
 ### 5.2 Peer management
 
@@ -273,7 +290,7 @@ harness report add \
   --api "POST /v1/auth/login" \
   --expected "refresh_token:string" \
   --actual "only access_token present" \
-  --context "FE story US-12; repro with user demo@…" \
+  --context "FE story US-12; reproduced with the auth fixture" \
   --severity high
 
 # on backend
@@ -291,7 +308,10 @@ harness peer get RP-001 --role backend
 
 **SoT rule:** the canonical report file lives in the **target** project
 (`to_project_id`). Reporter does not need a second full copy; status is read via
-peer get/list.
+`harness report get --from` or `harness peer get`. `report add` validates both
+durable project ids and writes only to a configured peer. `report list`, local
+`report get`, and `report update`
+operate on the calling project. `fixed` requires a non-empty resolution.
 
 ### 5.5 Enterprise-like agent flow (canonical)
 
@@ -307,7 +327,7 @@ harness report add --to backend --summary … --api … --expected … --actual 
 harness report list --status open
 harness report get RP-###
     ▼
-fix code + tests; harness story update …; harness report update --status fixed --resolution …
+fix code + tests; harness story update …; harness report update --id RP-### --status fixed --resolution …
 git commit / push backend
     ▼
 [FE agent] harness peer get RP-### --role backend
@@ -318,15 +338,17 @@ continue FE implementation with correct contract
 
 ### 5.6 Doctor / status / next (minimal v1)
 
-- `doctor`: warn if peer markers exist but peer id unresolved on this machine;
-  warn if peer path missing index (suggest reindex on peer).
-- `status`: include `role`, `stack`, peer count, open report count (local target).
-- `next`: if role is backend and open reports > 0, prefer surfacing open reports
-  before random planned stories (soft recommendation).
+- `doctor`: warns if peer markers cannot resolve through this machine's registry
+  and separately warns when a resolved peer has no readable index. Both are
+  non-fatal health warnings with recovery guidance.
+- `status`: includes role, stack, configured peer count, and the count of local
+  reports whose status is `open`, in both human and JSON output.
+- `next`: for a backend role, orders open reports after in-progress stories and
+  before planned stories. Other roles retain the existing ordering.
 
 ---
 
-## 6. CLI contract (target surface)
+## 6. CLI contract (implemented surface)
 
 | Command | Behavior |
 | --- | --- |
@@ -335,10 +357,10 @@ continue FE implementation with correct contract
 | `harness project peer add <id\|path> [--role <role>]` | Add peer edge (+ reverse when possible) |
 | `harness project peer remove <id>` | Remove peer edge |
 | `harness project peer list [--json]` | List peers + resolution |
-| `harness peer search <query> [--role\|--peer]` | Search peer catalog |
-| `harness peer get <id> [--role\|--peer] [--summary]` | Get peer entity |
-| `harness peer context <id> [--role\|--peer] [--max-chars]` | Budgeted peer context |
-| `harness peer links <id> [--role\|--peer]` | Peer link graph slice |
+| `harness peer search <query> (--role <role>\|--peer <id>)` | Search peer catalog |
+| `harness peer get <id> (--role <role>\|--peer <id>) [--summary]` | Get peer entity |
+| `harness peer context <id> (--role <role>\|--peer <id>) [--max-chars]` | Budgeted peer context |
+| `harness peer links <id> (--role <role>\|--peer <id>)` | Peer link graph slice |
 | `harness report add --to <role\|id> --summary …` | Create report on target |
 | `harness report list [--status] [--json]` | List local (target) reports |
 | `harness report get <id> [--from <role\|id>]` | Get local or via peer |
@@ -348,41 +370,42 @@ Registry `harness link` / `unlink` / `projects` **unchanged**.
 
 ---
 
-## 7. Implementation notes (for later coding)
+## 7. Implementation notes
 
-1. Reuse `executeSearch` / `executeGet` / `executeContext` / `executeLinks` with
-   injected `projectRoot` = peer root — do not fork ranking logic.
-2. Extend `ENTITY_TYPES` with `report` + `docs/reports` + catalog/index paths.
-3. Marker parse/emit lives next to `domain/project-id.ts` / upgrade pipeline;
-   `upgrade` **must preserve** unknown harness markers it does not own, or
-   explicitly re-emit role/stack/peer markers.
-4. MCP: build tool list from local project config after bind (dynamic).
-5. Tests: unit marker parse; integration two temp projects peer search + report
-   round-trip; e2e CLI; MCP list presence with/without peers.
-6. Docs: product README row; cli-contract; SECURITY note; AGENTS template
-   conditional section; roadmap Phase **I / E16**.
+1. Peer reads reuse the local search/get/context/links application paths with
+   an explicitly resolved peer root, preserving ranking and token budgets.
+2. `report` is a catalog/index entity under `docs/reports/`; report mutations
+   use the normal lock and reindex path.
+3. Role, stack, and peer marker parsing/emission lives beside durable project
+   identity, and the upgrade pipeline preserves those markers while refreshing
+   conditional workflow copy.
+4. MCP builds its tool list after the OAuth-bound calling project is known, so
+   peer/report tools appear only when that project has configured peers.
+5. Unit, integration, CLI e2e, MCP, OAuth, and platform-path tests cover marker
+   round trips, two-project reads, report lifecycle, dynamic tools, and denial
+   of unconfigured or incorrectly bound projects.
 
 ---
 
 ## 8. Story map
 
-| ID | Title | Lane | Depends |
-| --- | --- | --- | --- |
-| US-059 | Project role + optional stack markers + CLI | normal | 0020 |
-| US-060 | Peer add/remove/list + reverse edge + registry resolve | normal | US-059 |
-| US-061 | Peer read tools CLI + MCP (search/get/context/links) | high-risk | US-060, US-009, US-027 |
-| US-062 | Report entity + add/list/get/update + cross-project write | high-risk | US-060 |
-| US-063 | AGENTS workflow copy, doctor/status/next hooks, product docs finish | normal | US-061, US-062 |
+| ID | Title | Lane | Status | Depends |
+| --- | --- | --- | --- | --- |
+| US-059 | Project role + optional stack markers + CLI | normal | implemented | 0020 |
+| US-060 | Peer add/remove/list + reverse edge + registry resolve | normal | implemented | US-059 |
+| US-061 | Peer read tools CLI + MCP (search/get/context/links) | high-risk | implemented | US-060, US-009, US-027 |
+| US-062 | Report entity + add/list/get/update + cross-project write | high-risk | implemented | US-060 |
+| US-063 | AGENTS workflow copy, doctor/status/next hooks, product docs finish | normal | implemented (unreleased) | US-061, US-062 |
 
 ---
 
 ## 9. Acceptance (initiative)
 
-- Two harnessed temp projects can be peered; FE can search BE docs without
+- [x] Two harnessed temp projects can be peered; FE can search BE docs without
   copying files.
-- FE can file RP report into BE; BE lists/fixes/resolves; FE sees `fixed` +
+- [x] FE can file RP report into BE; BE lists/fixes/resolves; FE sees `fixed` +
   resolution via peer get.
-- Init without peers remains identical UX.
-- Registry `harness link` meaning unchanged.
-- Token tools return snippets/budgets only.
-- Hard-fail (0017) applies to all new tools.
+- [x] Init without peers remains identical UX.
+- [x] Registry `harness link` meaning unchanged.
+- [x] Token tools return snippets/budgets only.
+- [x] Hard-fail (0017) applies to all new tools.

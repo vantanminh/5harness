@@ -97,9 +97,9 @@ hand-edit operational markdown.
 
 | Command | Behavior |
 | --- | --- |
-| `harness doctor [--fix] [--json]` | Workspace health checks (harness install, store, reindex, git, node) |
-| `harness status [--json]` | Project snapshot: stories, intakes, backlog, version, index age |
-| `harness next [--json]` | Recommend next work item (in_progress → planned → intake → backlog) |
+| `harness doctor [--json]` | Workspace health checks (store, registry, index, Node, logs); Project Link adds non-fatal unresolved-peer and unreadable peer index warnings |
+| `harness status [--json]` | Project snapshot: stories, intakes, backlog, Project Link role/stack/peer count/open local reports, version, index age |
+| `harness next [--limit <n>] [--json]` | Recommend next work item; backend projects place open reports after in-progress stories and before planned stories |
 | `harness context <id> [--depth 0\|1] [--max-chars N] [--json]` | Budgeted entity context pack |
 | `harness tool register [--name] [--command] ...` | Register external project tool |
 | `harness tool check [--name] [--json]` | Scan registered tools |
@@ -123,10 +123,47 @@ hand-edit operational markdown.
 | Command | Behavior |
 | --- | --- |
 | `harness project id [--ensure] [--json]` | Print the cwd/`--dir` project's durable random id. `--ensure` creates the managed `AGENTS.md` marker if missing; `--json` returns id, path, and name. Init/link/upgrade ensure identity automatically. |
-| `harness mcp` | Start an **unbound** OAuth 2.1 + PKCE protected MCP server. Cwd and `--dir` do not authorize project tools; calls fail closed until OAuth consent grants one project or all healthy linked projects. Single grants force the selected project. All grants require `X-Harness-Project: <id>` (preferred) or `?project=<id>` on every request; invalid or missing selectors fail closed. RFC 9728/RFC 8414 discovery, dynamic public-client registration, resource-bound Bearer tokens. **Read tools:** get, search, links, context, status, query matrix/stats, handoff, doctor, reindex. **Mutation tools (US-041):** intake, story_add/update, decision_add, backlog_add. Non-loopback requires `--public-url https://...`. |
+| `harness mcp` | Start an **unbound** OAuth 2.1 + PKCE protected MCP server. Cwd and `--dir` do not authorize project tools; calls fail closed until OAuth consent grants one project or all healthy linked projects. Single grants force the selected project. All grants require `X-Harness-Project: <id>` (preferred) or `?project=<id>` on every request; invalid or missing selectors fail closed. RFC 9728/RFC 8414 discovery, dynamic public-client registration, resource-bound Bearer tokens. **Read tools:** get, search, links, context, status, query matrix/stats, handoff, doctor, reindex, project role/peers. **Mutation tools:** intake, story_add/update, decision_add, backlog_add. Project Link peer/report tools are added dynamically when the OAuth-bound calling project has peers. Non-loopback requires `--public-url https://...`. |
 | `harness export changelog [--since <tag\|date>] [--json]` | Derive changelog notes from implemented stories/decisions (assist only) |
 | `harness watch` | Watch entity directories and auto-reindex on markdown changes (debounced 500ms) |
 | `harness handoff [--story <id>] [--json]` | Emit concise session summary: recent traces, worklog, status, next steps |
+
+## Commands in scope for Phase I (E16, Project Link) — implemented, unreleased
+
+Project Link is opt-in. Project ids and peer intent are durable markers in the
+Harness-managed `AGENTS.md` block; peer paths resolve only through the
+same-machine registry. Registry `harness link` keeps its existing meaning.
+
+| Command | Behavior |
+| --- | --- |
+| `harness project role set <role> [--stack <tags>] [--json]` | Set `frontend\|backend\|mobile\|service\|shared\|other` and up to four unique lowercase stack tags (`[a-z0-9_-]+`, max 32 characters each) |
+| `harness project role show [--json]` | Show the local role and stack tags |
+| `harness project peer add <id\|path> [--role <role>]` | Add a registered harness project as a peer and attempt the reverse marker; save the forward marker with a warning if reverse write fails |
+| `harness project peer remove <id>` | Remove the local edge and attempt the reverse unlink |
+| `harness project peer list [--json]` | List configured ids, roles, names, and machine-local resolved paths/status |
+| `harness peer search <query> (--peer <id>\|--role <role>) [--limit <n>]` | Search one configured peer's derived index with bounded ranked snippets |
+| `harness peer get <id\|path> (--peer <id>\|--role <role>) [--summary]` | Get one peer entity; `--summary` returns frontmatter only |
+| `harness peer context <id> (--peer <id>\|--role <role>) [--depth 0\|1] [--max-chars <n>] [--json]` | Build a bounded peer context pack |
+| `harness peer links <id> (--peer <id>\|--role <role>)` | Show one peer entity's outbound links and backlinks |
+| `harness report add --to <role\|id> --summary <text> [options]` | Create an `open`, target-owned report in one configured peer and reindex that target |
+| `harness report list [--status <status>] [--json]` | List bounded local report rows (`open\|acked\|fixed\|wontfix\|needs_info`) |
+| `harness report get <id> [--from <role\|id>]` | Get one local report, or read it from a configured peer |
+| `harness report update --id <id> --status <status> [--resolution <text>] [--related <csv>]` | Update a report owned by the local project and reindex locally; `fixed` requires a resolution |
+
+Peer selectors are capability selectors, not arbitrary paths or OAuth routing.
+`--role` must identify exactly one configured peer; `--peer`, `--to`, and
+`--from` must name a configured peer id/role. There is no peer-of-peer traversal.
+Cross-project mutation is limited to `report add`; report lifecycle updates are
+local to the target project. Report payloads must be sanitized and must not
+contain credentials, tokens, secrets, or unnecessary personal data.
+
+MCP exposes `harness_project_role` and `harness_project_peers` for the calling
+project. When that project has peers it additionally exposes
+`harness_peer_search`, `harness_peer_get`, `harness_peer_context`,
+`harness_peer_links`, `harness_report_add`, `harness_report_list`,
+`harness_report_get`, and `harness_report_update`. With an all-projects grant,
+`X-Harness-Project`/`?project=` selects the calling project; MCP `peer_id`,
+`role`, `to`, and `from` never replace that OAuth selection.
 
 ## Commands deferred (later)
 

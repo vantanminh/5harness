@@ -56,6 +56,21 @@ describe("SECURITY policy docs (US-037)", () => {
     expect(docsSecurity).toMatch(/not secrets or authentication credentials/i);
   });
 
+  it("documents the Project Link capability and report boundary", () => {
+    expect(docsSecurity).toMatch(/configured peer/i);
+    expect(docsSecurity).toMatch(/peer-of-peer/i);
+    expect(docsSecurity).toMatch(
+      /reports are the only cross-project operational-entity write surface/i,
+    );
+    expect(docsSecurity).toMatch(/peer add\/remove[\s\S]*reverse AGENTS markers/i);
+    expect(docsSecurity).toMatch(/target-owned/i);
+    expect(docsSecurity).toMatch(
+      /credentials[\s\S]{0,80}tokens[\s\S]{0,80}secrets/i,
+    );
+    expect(docsSecurity).toMatch(/calling project/i);
+    expect(rootSecurity).toMatch(/Git-backed report payloads?/i);
+  });
+
   it("Dependabot is configured for npm and Actions", () => {
     const yml = fs.readFileSync(
       path.join(root, ".github", "dependabot.yml"),

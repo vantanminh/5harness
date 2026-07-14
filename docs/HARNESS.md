@@ -77,7 +77,7 @@ Policy documents describe how to work. The durable layer records what happened.
 
 | Kind | Storage | Git |
 | --- | --- | --- |
-| Stories, decisions, intakes, backlog | Markdown entities in the project | **Yes** |
+| Stories, decisions, intakes, backlog, reports | Markdown entities in the project | **Yes** |
 | Derived search index | `.5harness/index/` | No |
 | Traces | Machine-local | No |
 | Multi-project pointers | `HARNESS_HOME` / `~/.5harness` | No |
@@ -88,7 +88,7 @@ never by hand-editing entity markdown.
 **Hard-fail (decision 0017):** if the harness CLI or MCP fails for a required
 step, agents **HARD STOP** that path, run recovery (`harness doctor`,
 `harness link`, `harness reindex` as needed), and retry the tool. They must
-not bypass failures by editing story / decision / intake / backlog files by
+not bypass failures by editing story / decision / intake / backlog / report files by
 hand. See the harness block in `AGENTS.md` and
 `docs/decisions/0017-agent-hard-fail-contract.md`.
 
@@ -101,11 +101,50 @@ harness link          # register path + reindex committed history
 harness query matrix
 ```
 
-### Current MVP (v0.5) vs target
+### Project Link (opt-in)
 
-Until Phase F stories land, the **shipped** product CLI still uses per-project
-SQLite (`harness.db`) for operational rows. Story packets and decisions in
-`docs/` are already the human/agent tracking surface for *this* product repo.
+Project Link connects related repositories without making every linked project
+visible to every agent. Configure the local role and direct peers explicitly:
+
+```bash
+harness project role set frontend --stack supabase
+harness project peer add <backend-project-id-or-path> --role backend
+harness project peer list
+harness peer context US-088 --role backend --max-chars 8000
+harness report add --to backend --summary "Login response contract mismatch"
+```
+
+Role, stack, and peer ids live in the managed `AGENTS.md` block. Opting in also
+injects a short role-aware workflow there; plain projects keep the original
+agent instructions. Peer paths remain machine-local. After cloning, run
+`harness link` in each repository so the durable ids can resolve through the
+same `~/.5harness` registry (or `HARNESS_HOME`).
+
+Peer reads are limited to configured, direct peers and bounded
+`search` / `get` / `context` / `links` results. They never accept an arbitrary
+filesystem path or traverse a peer's peers. After explicit peer configuration,
+the only cross-project operational-entity mutation is a sanitized `report`
+created in the configured target project; peer-management commands may also
+attempt reverse AGENTS markers.
+Reports live under the target's `docs/reports/` and must be created or updated
+through `harness report`, never by hand. Do not put credentials, tokens, secrets,
+or unnecessary personal data in a report.
+
+For a backend project, `harness report list --status open` is the report inbox;
+acknowledge and resolve each item with `harness report update`. `doctor` warns
+about unresolved peers or missing peer indexes, `status` shows role/stack/peer
+and open-report counts, and `next` places open reports after in-progress work
+but before planned stories.
+
+MCP always binds the caller first. Peer read and report tools are advertised
+dynamically only when the calling project has configured peers. With an
+all-projects OAuth grant, `X-Harness-Project` selects the calling project; the
+peer id is resolved afterward and never acts as the OAuth selector.
+
+### Product CLI
+
+The shipped CLI uses Git-backed markdown as the durable source of truth. The
+local index, traces, and registry are derived or machine-local state.
 
 Prefer the product CLI:
 
@@ -124,18 +163,19 @@ harness story   add --id <id> --title <text> --lane <lane>
 harness story   update --id <id> --status <status>
 harness story   update --id <id> --unit 1 --integration 1 --e2e 0 --platform 0
 harness decision add --id <id> --title <text> --doc docs/decisions/<file>.md
+harness report add --to <role-or-id> --summary <text>
 harness query   matrix
 harness query   stats
 harness audit
 harness propose
 ```
 
-Target commands (Phase F+, see roadmap):
+Read, registry, and dashboard commands:
 
 ```bash
 harness link | unlink | projects
 harness reindex | get | search | links
-harness dashboard    # Phase G
+harness dashboard
 ```
 
 ## Source Hierarchy

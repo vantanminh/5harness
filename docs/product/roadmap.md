@@ -26,6 +26,7 @@ git clone → npm i -g → harness link → reindex → same history + dashboard
 | Status | Meaning |
 | --- | --- |
 | done | Shipped in a released version |
+| implemented | Code and story acceptance are complete; release is pending |
 | planned | Accepted, not started |
 | in_progress | Active implementation |
 | blocked | Waiting on dependency |
@@ -49,7 +50,7 @@ git clone → npm i -g → harness link → reindex → same history + dashboard
 | H1 | E12 | Agent loop Tier 1 (doctor/status/next/context + inbound tools) | **done** (v0.10) |
 | H2 | E13 | Agent loop Tier 2 (lifecycle, worklog, intake run, dashboard mutations) | **done** (v0.10) |
 | H3 | E14 | Agent loop Tier 3 (MCP, export, watch, handoff) | **done** (v0.10.1) |
-| I | E16 | Project Link (peer projects + cross-project reports) | **planned** (IN-019 / 0022) |
+| I | E16 | Project Link (peer projects + cross-project reports) | **implemented** (unreleased; IN-019 / 0022) |
 
 ## Dependency graph
 
@@ -68,9 +69,12 @@ E07 markdown store ──► E08 agent index ──────────┘  
                           │
                           ├──► E13 Tier 2 lifecycle / worklog / intake run / dash mutations
                           └──► E14 Tier 3 MCP / export / watch / handoff
+                                      │
+                                      └──► E16 Project Link / peer reports
 ```
 
-**Recommended implement order:** E06 → E07 → E08 → E09 → E10 → E11 → **E12 → E13 → E14**.
+**Implemented order:** E06 → E07 → E08 → E09 → E10 → E11 →
+**E12 → E13 → E14 → E16**.
 
 Rationale:
 
@@ -80,7 +84,8 @@ Rationale:
 4. Init payload changes last among F* so mid-migration still works.
 5. Quality (verify/trace/audit) rewired once store+index stable.
 6. Dashboard only needs registry + readable project state.
-7. Post-G work is agent-loop tools (decision **0014** / intake **IN-003**), not more entity types.
+7. Agent-loop tools (decision **0014** / intake **IN-003**) establish the MCP
+   and health surfaces that E16 extends with opt-in peer reads and reports.
 
 ## Story checklist (Phase F–G)
 
@@ -99,7 +104,7 @@ Rationale:
 ## Story checklist (Phase H — post-G agent loop)
 
 Declared via harness CLI (decision **0014**, intake **IN-003**). Packets live under
-`docs/stories/US-0xx.md` (tools-only writes). No implementation yet.
+`docs/stories/US-0xx.md` (tools-only writes).
 
 | ID | Epic | Title | Depends on | Status |
 | --- | --- | --- | --- | --- |
@@ -128,15 +133,16 @@ Declared via harness CLI (decision **0014**, intake **IN-003**). Packets live un
 ## Story checklist (Phase I — Project Link)
 
 Declared via harness CLI (decision **0022**, intake **IN-019**). Spec:
-`docs/product/project-link.md`. **No implementation yet** — declaration only.
+`docs/product/project-link.md`. Implementation is complete and awaiting release.
+Status: implemented (unreleased).
 
 | ID | Epic | Title | Depends on | Status |
 | --- | --- | --- | --- | --- |
-| [US-059](../stories/US-059.md) | E16 | Project role + optional stack markers and CLI | US-050 | **planned** |
-| [US-060](../stories/US-060.md) | E16 | Peer add/remove/list + registry path resolution | US-059, US-006 | **planned** |
-| [US-061](../stories/US-061.md) | E16 | Peer read tools CLI + MCP (search/get/context/links) | US-060, US-009, US-027 | **planned** |
-| [US-062](../stories/US-062.md) | E16 | Cross-project report entity + lifecycle tools | US-060, US-007 | **planned** |
-| [US-063](../stories/US-063.md) | E16 | AGENTS workflow, doctor/status/next, product docs finish | US-061, US-062 | **planned** |
+| [US-059](../stories/US-059.md) | E16 | Project role + optional stack markers and CLI | US-050 | **implemented** |
+| [US-060](../stories/US-060.md) | E16 | Peer add/remove/list + registry path resolution | US-059, US-006 | **implemented** |
+| [US-061](../stories/US-061.md) | E16 | Peer read tools CLI + MCP (search/get/context/links) | US-060, US-009, US-027 | **implemented** |
+| [US-062](../stories/US-062.md) | E16 | Cross-project report entity + lifecycle tools | US-060, US-007 | **implemented** |
+| [US-063](../stories/US-063.md) | E16 | AGENTS workflow, doctor/status/next, product docs finish | US-061, US-062 | **implemented** (release proof pending) |
 
 Dependency order: **US-059 → US-060 → (US-061 ∥ US-062) → US-063**.
 
@@ -149,7 +155,7 @@ Dependency order: **US-059 → US-060 → (US-061 ∥ US-062) → US-063**.
 | 0.8.x | E09–E10 init pivot + SQLite SoT retired |
 | 0.9.x | E11 dashboard MVP |
 | 0.10.x+ | E12+ agent-loop tools (incremental) |
-| 0.21.x+ | E16 Project Link (role/peers/reports) when implemented |
+| 0.21.x+ | First E16 Project Link release (role/peers/reports) |
 | 1.0.0 | Public contract stable; publish confidence |
 
 Exact versions may shift; keep `CHANGELOG.md` as release truth.

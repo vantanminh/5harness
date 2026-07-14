@@ -14,6 +14,8 @@ and CI. Implementation references point into `src/` where useful.
 | `harness` CLI mutations | Local operator / agent with shell | Local filesystem |
 | `verify` frontmatter commands | Project-authored shell | Local cwd = project |
 | Machine registry (`~/.5harness`) | Local user | Paths on this machine |
+| Project Link peer reads | Explicit peer markers + local registry | Configured same-machine projects only |
+| Project Link reports | Project Git authors + configured reporter peer | Target project's durable markdown |
 | Dashboard | Loopback HTTP | `127.0.0.1` by default |
 | MCP server | OAuth 2.1 protected resource | Loopback HTTP by default |
 | npm update check | Public registry read | Advisory stderr only |
@@ -103,6 +105,54 @@ Implementation: `src/application/mcp-oauth.ts`,
 `src/application/mcp-oauth-http.ts`, `src/application/mcp-server.ts`, and
 `src/application/dashboard.ts`. The complete request-routing contract is in
 [`docs/product/mcp-project-binding.md`](product/mcp-project-binding.md).
+
+---
+
+## Project Link capability boundary
+
+Project Link is an explicit same-machine trust relationship. Durable
+`harness-peer` markers identify allowed project ids, while
+`~/.5harness/registry.json` resolves those ids to local paths. A marker without
+a healthy registry entry and matching durable id does not grant access: peer
+reads and report creation fail closed. Peer markers are capability
+configuration, not authentication. Paths supplied directly to peer-read/report
+commands are not a capability, and peer-of-peer traversal is not supported.
+
+| Operation | Allowed target | Mutation scope |
+| --- | --- | --- |
+| Peer search/get/context/links | One configured peer selected by id or an unambiguous role | Read-only, bounded index/entity output |
+| Report add | One configured peer selected by id or role | Creates one target-owned `docs/reports/RP-###.md` entity and reindexes the target |
+| Report list/get/update | Calling/local project; `get --from` may read one configured peer | Lifecycle updates are local only and reindex the owner |
+
+`harness project peer add/remove` are explicit configuration commands and may
+best-effort write reverse AGENTS markers. After that configuration step,
+reports are the only cross-project operational-entity write surface and are
+Git-backed entities in the **target** project. A reporter cannot remotely
+mutate the target's stories, decisions, intakes,
+backlog, or existing report lifecycle. Target agents acknowledge or resolve
+reports locally; `fixed` requires resolution notes. Report summaries, context,
+expected/actual values, and resolutions must be sanitized: never include
+credentials, tokens, secrets, passwords, or unnecessary personal data.
+Field-length validation is not secret detection or automatic redaction.
+
+For MCP, OAuth continues to authorize the **calling** project. A single grant is
+forced to its consent-selected project; an all-projects grant uses
+`X-Harness-Project` or `?project=` to select the calling project on every
+request. Tool arguments `peer_id`, `role`, `to`, and `from` only select a
+configured capability from that root and never replace OAuth project routing.
+`harness_project_role` and `harness_project_peers` remain visible after binding;
+peer-read/report tools are not advertised when the calling project has no
+configured peers. Dynamic hiding reduces tool noise; it is not the authorization
+boundary. Selector and registry/id validation still fail closed. MCP call
+monitoring remains under the calling project.
+
+`harness doctor` warnings about unresolved peers or unreadable peer indexes are
+operational guidance, not authorization and not evidence that a peer is safe.
+
+Implementation: `src/domain/project-link.ts`,
+`src/application/project-link.ts`, `src/application/report.ts`, and
+`src/application/mcp-server.ts`. Full behavior:
+[`docs/product/project-link.md`](product/project-link.md).
 
 ---
 

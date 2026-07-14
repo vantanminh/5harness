@@ -12,6 +12,7 @@
 | Derived index | `.5harness/index/` rebuildable; atomic write + checksum (US-034); may use SQLite FTS internally |
 | Mutation lock | `.5harness/mutation.lock` during index write (stale reclaim ~30s) |
 | Global registry | `HARNESS_HOME` / `~/.5harness` project pointers only |
+| Project Link | Git-tracked peer ids + machine-local registry resolution; no cloud graph |
 | Traces | Machine-local (not default Git) |
 | Packaging | npm package; optional native packages later |
 | Project SQLite as SoT | **Retired** (was v0.5 MVP; supersedes decision 0004 for this product) |
@@ -32,7 +33,7 @@ npm i -g  →  harness CLI
     |
     +--→ Target project filesystem
            AGENTS.md, docs/ policy
-           docs/stories|decisions|intakes|backlog/*.md   ← SoT (git)
+           docs/stories|decisions|intakes|backlog|reports/*.md   ← SoT (git)
            .5harness/index/   ← derived (gitignore)
            .5harness/local/   ← traces etc (gitignore)
     |
@@ -45,6 +46,26 @@ Collaborator:
 ```text
 git clone (gets MD history) → harness link → reindex → CLI/dashboard ready
 ```
+
+Opt-in Project Link:
+
+```text
+calling project AGENTS.md
+  role/stack + configured peer ids (git)
+       |
+       +--> ~/.5harness registry: peer id -> same-machine path
+       |         |
+       |         +--> peer index: bounded search/get/context/links (read)
+       |
+       +------------> peer docs/reports/RP-###.md (create only)
+                         target-owned lifecycle + target reindex
+```
+
+Peer selectors never accept arbitrary roots or perform peer-of-peer traversal.
+For MCP, OAuth first binds the calling project; `peer_id`, `role`, `to`, and
+`from` then select only that project's configured capabilities. They do not
+replace the single-project consent selection or the all-projects
+`X-Harness-Project`/`?project=` caller selector.
 
 ## Discovery Before Shape
 
@@ -76,8 +97,8 @@ domain
 ## Mutation policy
 
 Operational durable entities are written **only** through application services
-invoked by CLI (or future controlled API). Agents must not hand-edit entity
-markdown. Policy docs (`HARNESS.md`, etc.) remain human-editable.
+invoked by CLI or MCP. Agents must not hand-edit entity markdown. Policy docs
+(`HARNESS.md`, etc.) remain human-editable.
 
 **Agent hard-fail (decision 0017):** CLI/MCP failure is non-skippable for
 durable writes. Agents stop, recover via `doctor` / `link` / `reindex`, and
@@ -85,8 +106,9 @@ retry — never hand-edit entities to work around a tool error. Shipped wording
 lives in the `templates/AGENTS.md` harness block.
 
 **Auto-reindex (US-015):** Every mutation command (intake, story add/update,
-decision add, backlog add/close) auto-reindexes after a successful write.
-Agents never need to call `harness reindex` manually. The shared helper
+decision add, backlog add/close, and report add/update) auto-reindexes the
+project that owns the successful write. Agents never need to call
+`harness reindex` manually after a mutation. The shared helper
 `src/commands/_reindex-helper.ts` encapsulates this pattern.
 
 ## Upgrade system (US-016)
@@ -111,6 +133,8 @@ CLI (v0.9.7)
 Key properties:
 - Only the `<!-- HARNESS:BEGIN -->` ... `<!-- HARNESS:END -->` section is modified
 - User-customized content outside the block is preserved
+- Project Link role/stack/peer markers are preserved and its conditional
+  `HARNESS:PROJECT-LINK:BEGIN/END` agent workflow is regenerated when configured
 - Timestamped backup written to `.5harness-backup/` before modification
 - Backward compatible: any old version can be upgraded to current
 - Pre-0.9.7 repos (no version marker) receive guidance to re-init

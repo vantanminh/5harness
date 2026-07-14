@@ -94,6 +94,7 @@ const requiredOnDisk = [
   "CHANGELOG.md",
   "SECURITY.md",
   "docs/SECURITY.md",
+  "docs/product/project-link.md",
 ];
 for (const rel of requiredOnDisk) {
   if (!fs.existsSync(path.join(root, rel))) {
@@ -180,6 +181,9 @@ const mustPack = [
   "package.json",
   "LICENSE",
   "README.md",
+  "SECURITY.md",
+  "docs/SECURITY.md",
+  "docs/product/project-link.md",
   "dist/cli.js",
   "templates/manifest.json",
   "migrations/001-init.sql",
