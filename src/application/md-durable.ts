@@ -265,7 +265,7 @@ export function updateStoryMd(
   return written;
 }
 
-export type DecisionWriteInput = DecisionAddInput & { links?: string };
+export type DecisionWriteInput = DecisionAddInput & { links?: string; force?: boolean };
 
 export function addDecisionMd(
   meta: MdWriteMeta,
@@ -283,8 +283,41 @@ export function addDecisionMd(
     input.doc /* file-is-the-doc when under project */,
   );
 
-  if (readEntityFile(meta.projectRoot, relativePath)) {
-    throw new Error(`Decision ${id} already exists`);
+  const existing = readEntityFile(meta.projectRoot, relativePath);
+  if (existing) {
+    if (input.force) {
+      // Overwrite: keep the same file path, replace content.
+      const data: FrontmatterData = withLinks(
+        {
+          id,
+          type: "decision",
+          title: input.title,
+          status,
+          doc: relativePath,
+          verify: input.verify ?? null,
+          notes: input.notes ?? null,
+          created_at:
+            (existing.data.created_at as string) ?? nowIso(),
+          updated_at: nowIso(),
+        },
+        input.links,
+      );
+      const body = `# ${input.title}\n\n`;
+      const file = writeEntityFile(
+        meta.projectRoot,
+        relativePath,
+        data,
+        body,
+      );
+      if (meta.db) {
+        addDecisionDb(meta.db, {
+          ...input,
+          doc: relativePath,
+        });
+      }
+      return file;
+    }
+    throw new Error(`Decision ${id} already exists. Use force=true to overwrite.`);
   }
   // also guard default path if custom doc differs
   const defaultPath = entityRelativePath("decision", id);
@@ -292,7 +325,44 @@ export function addDecisionMd(
     relativePath !== defaultPath &&
     readEntityById(meta.projectRoot, "decision", id)
   ) {
-    throw new Error(`Decision ${id} already exists`);
+    if (input.force) {
+      // Overwrite at the default path location.
+      const existingDefault = readEntityById(
+        meta.projectRoot,
+        "decision",
+        id,
+      )!;
+      const data: FrontmatterData = withLinks(
+        {
+          id,
+          type: "decision",
+          title: input.title,
+          status,
+          doc: defaultPath,
+          verify: input.verify ?? null,
+          notes: input.notes ?? null,
+          created_at:
+            (existingDefault.data.created_at as string) ?? nowIso(),
+          updated_at: nowIso(),
+        },
+        input.links,
+      );
+      const body = `# ${input.title}\n\n`;
+      const file = writeEntityFile(
+        meta.projectRoot,
+        defaultPath,
+        data,
+        body,
+      );
+      if (meta.db) {
+        addDecisionDb(meta.db, {
+          ...input,
+          doc: defaultPath,
+        });
+      }
+      return file;
+    }
+    throw new Error(`Decision ${id} already exists. Use force=true to overwrite.`);
   }
 
   const data: FrontmatterData = withLinks(

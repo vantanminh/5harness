@@ -13,6 +13,7 @@ export type DecisionAddCliOptions = TargetOptions & {
   verify?: string;
   notes?: string;
   links?: string;
+  force?: boolean;
 };
 
 export function executeDecisionAdd(options: DecisionAddCliOptions): void {
@@ -30,6 +31,7 @@ export function executeDecisionAdd(options: DecisionAddCliOptions): void {
       verify: options.verify,
       notes: options.notes,
       links: options.links,
+      force: options.force,
     },
   );
   console.log(`Decision ${options.id} added.`);

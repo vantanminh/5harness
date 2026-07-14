@@ -538,8 +538,10 @@ async function main(argv: string[] = process.argv): Promise<void> {
       .option("--verify <command>", "optional verify command")
       .option("--notes <text>", "notes")
       .option("--links <csv>", "related entity links")
+      .option("--force", "overwrite existing decision with same id")
+
       .action((opts) => {
-        withErrors(() => executeDecisionAdd(opts));
+        withErrors(() => executeDecisionAdd({ ...opts, force: Boolean(opts.force) }));
       }),
   );
 

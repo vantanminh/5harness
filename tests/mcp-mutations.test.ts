@@ -186,4 +186,141 @@ describe("MCP mutation tools (US-041)", () => {
     expect(res.error).toBeDefined();
     expect(res.error!.message).toMatch(/story add requires/i);
   });
+
+  it("supports JSON-RPC 2.0 batch requests", () => {
+    const root = tmp();
+    const batch = JSON.stringify([
+      {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: {
+          name: "harness_decision_add",
+          arguments: { id: "batch-1", title: "Batch 1" },
+        },
+      },
+      {
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: {
+          name: "harness_decision_add",
+          arguments: { id: "batch-2", title: "Batch 2" },
+        },
+      },
+    ]);
+    const raw = handleMcpRequest(batch, root);
+    const responses = JSON.parse(raw) as Array<{
+      id: number;
+      result?: unknown;
+      error?: { code: number; message: string };
+    }>;
+    expect(Array.isArray(responses)).toBe(true);
+    expect(responses).toHaveLength(2);
+    // Both should succeed
+    expect(responses[0].error).toBeUndefined();
+    expect(responses[1].error).toBeUndefined();
+    // Files should exist
+    expect(
+      fs.existsSync(path.join(root, "docs", "decisions", "batch-1.md")),
+    ).toBe(true);
+    expect(
+      fs.existsSync(path.join(root, "docs", "decisions", "batch-2.md")),
+    ).toBe(true);
+  });
+
+  it("rejects duplicate in batch (second call sees first's file)", () => {
+    const root = tmp();
+    // First call creates batch-dup-1, second tries the same ID
+    const batch = JSON.stringify([
+      {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: {
+          name: "harness_decision_add",
+          arguments: { id: "batch-dup-1", title: "First" },
+        },
+      },
+      {
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: {
+          name: "harness_decision_add",
+          arguments: { id: "batch-dup-1", title: "Dup" },
+        },
+      },
+    ]);
+    const raw = handleMcpRequest(batch, root);
+    const responses = JSON.parse(raw) as Array<{
+      id: number;
+      result?: unknown;
+      error?: { code: number; message: string };
+    }>;
+    expect(Array.isArray(responses)).toBe(true);
+    expect(responses).toHaveLength(2);
+    // First succeeds
+    expect(responses[0].error).toBeUndefined();
+    // Second fails — first call wrote the file sequentially
+    expect(responses[1].error).toBeDefined();
+    expect(responses[1].error!.message).toMatch(/already exists/i);
+  });
+
+  it("decision_add force overwrites existing decision", () => {
+    const root = tmp();
+    // Create initial
+    toolText(
+      rpc(root, "tools/call", {
+        name: "harness_decision_add",
+        arguments: {
+          id: "force-dec-1",
+          title: "Original title",
+        },
+      }),
+    );
+    const p = path.join(root, "docs", "decisions", "force-dec-1.md");
+    expect(fs.existsSync(p)).toBe(true);
+    const original = fs.readFileSync(p, "utf8");
+    expect(original).toContain("Original title");
+
+    // Force overwrite
+    const d = toolText(
+      rpc(root, "tools/call", {
+        name: "harness_decision_add",
+        arguments: {
+          id: "force-dec-1",
+          title: "Overwritten title",
+          force: true,
+        },
+      }),
+    );
+    expect(d).toContain("Decision force-dec-1 added");
+    const updated = fs.readFileSync(p, "utf8");
+    expect(updated).toContain("Overwritten title");
+    expect(updated).not.toContain("Original title");
+  });
+
+  it("decision_add rejects duplicate without force", () => {
+    const root = tmp();
+    toolText(
+      rpc(root, "tools/call", {
+        name: "harness_decision_add",
+        arguments: {
+          id: "no-force-1",
+          title: "First",
+        },
+      }),
+    );
+    const res = rpc(root, "tools/call", {
+      name: "harness_decision_add",
+      arguments: {
+        id: "no-force-1",
+        title: "Second",
+        force: false,
+      },
+    });
+    expect(res.error).toBeDefined();
+    expect(res.error!.message).toMatch(/already exists.*Use force=true/i);
+  });
 });

@@ -206,6 +206,7 @@ export const MCP_TOOLS: McpTool[] = [
         verify: { type: "string" },
         notes: { type: "string" },
         links: { type: "string" },
+        force: { type: "boolean", description: "If true, overwrite an existing decision with the same id" },
       },
       required: ["id", "title"],
     },
@@ -369,6 +370,7 @@ function callTool(
           verify: optStr(args, "verify"),
           notes: optStr(args, "notes"),
           links: optStr(args, "links"),
+          force: Boolean(args.force),
         }),
       );
       break;
@@ -564,16 +566,16 @@ export function mcpStreamableHttpStatus(responseBody: string): 200 | 202 {
   return responseBody.length === 0 ? 202 : 200;
 }
 
-/** Handle a JSON-RPC body string, return the response string (or "" for notifications). */
+/** Handle a JSON-RPC body string (single request or batch array), return the response string (or "" for notifications-only). */
 export function handleMcpRequest(
   body: string,
   projectRoot?: string,
   onCall?: (info: McpCallInput) => void,
 ): string {
   const recordRoot = projectRoot ?? "";
-  let req: RpcReq;
+  let parsed: unknown;
   try {
-    req = JSON.parse(body) as RpcReq;
+    parsed = JSON.parse(body);
   } catch {
     const resp = JSON.stringify(err(0, -32700, "Parse error"));
     if (onCall)
@@ -588,11 +590,35 @@ export function handleMcpRequest(
       });
     return resp;
   }
-  if (req.jsonrpc !== "2.0") {
-    const resp = JSON.stringify(err(req.id ?? 0, -32600, "Invalid Request"));
+
+  // JSON-RPC 2.0 batch: array of request objects → process sequentially, return array of responses.
+  // Notifications (id: undefined) are processed but produce no response entry.
+  if (Array.isArray(parsed)) {
+    const batch = parsed as RpcReq[];
+    if (batch.length === 0) {
+      return JSON.stringify(err(0, -32600, "Invalid Request: empty batch"));
+    }
+    const responses: RpcRes[] = [];
+    for (const req of batch) {
+      if (!req || typeof req !== "object") {
+        responses.push(err(0, -32600, "Invalid Request: non-object in batch"));
+        continue;
+      }
+      // Process sequentially — mutations must not race.
+      const { result, callInfo } = dispatch(projectRoot, req);
+      if (result) responses.push(result);
+      if (callInfo && onCall) onCall(callInfo);
+    }
+    return responses.length > 0 ? JSON.stringify(responses) : "";
+  }
+
+  const req = parsed as RpcReq;
+  if (!req || typeof req !== "object" || req.jsonrpc !== "2.0") {
+    const id = (req as RpcReq)?.id ?? 0;
+    const resp = JSON.stringify(err(id, -32600, "Invalid Request"));
     if (onCall)
       onCall({
-        method: req.method ?? "<invalid>",
+        method: (req as RpcReq)?.method ?? "<invalid>",
         tool_name: null,
         input_summary: null,
         duration_ms: 0,
