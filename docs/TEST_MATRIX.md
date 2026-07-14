@@ -51,7 +51,7 @@ SQLite is no longer the source of truth; the active store is markdown.
 | US-060 | Configured peers; registry resolution; reverse edge | yes | yes | yes | yes | implemented | peer domain/CLI suites; Windows path cases |
 | US-061 | Bounded peer search/get/context/links through CLI and MCP | yes | yes | yes | yes | implemented | peer tool and project-binding suites |
 | US-062 | Target-owned report entity and lifecycle through CLI and MCP | yes | yes | yes | yes | implemented | report store, round-trip CLI, and MCP suites |
-| US-063 | Conditional workflow; doctor/status/next hooks; release docs | yes | yes | yes | no | implemented (unreleased) | workflow, health, and documentation suites; release gate before publish |
+| US-063 | Conditional workflow; doctor/status/next hooks; release docs | yes | yes | yes | yes | implemented (unreleased) | Windows workflow/health/docs proof; `release:check`: 65 files / 398 tests; pack check: 420 paths |
 
 ## Evidence Rules
 

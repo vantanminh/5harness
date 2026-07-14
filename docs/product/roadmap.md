@@ -142,7 +142,7 @@ Status: implemented (unreleased).
 | [US-060](../stories/US-060.md) | E16 | Peer add/remove/list + registry path resolution | US-059, US-006 | **implemented** |
 | [US-061](../stories/US-061.md) | E16 | Peer read tools CLI + MCP (search/get/context/links) | US-060, US-009, US-027 | **implemented** |
 | [US-062](../stories/US-062.md) | E16 | Cross-project report entity + lifecycle tools | US-060, US-007 | **implemented** |
-| [US-063](../stories/US-063.md) | E16 | AGENTS workflow, doctor/status/next, product docs finish | US-061, US-062 | **implemented** (release proof pending) |
+| [US-063](../stories/US-063.md) | E16 | AGENTS workflow, doctor/status/next, product docs finish | US-061, US-062 | **implemented** (unreleased) |
 
 Dependency order: **US-059 → US-060 → (US-061 ∥ US-062) → US-063**.
 
