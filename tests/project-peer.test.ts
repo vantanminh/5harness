@@ -10,6 +10,7 @@ import {
 } from "../src/application/project-link.js";
 import { linkProject } from "../src/application/registry.js";
 import {
+  PROJECT_LINK_WORKFLOW_BEGIN,
   extractProjectPeers,
   setProjectRoleMarkers,
   upsertProjectPeerMarker,
@@ -210,6 +211,23 @@ describe("Project Link peer application", () => {
         fs.readFileSync(path.join(shared, "AGENTS.md"), "utf8"),
       ),
     ).toEqual([{ id: frontendId, role: "other" }]);
+    expect(
+      fs.readFileSync(path.join(frontend, "AGENTS.md"), "utf8"),
+    ).toContain(PROJECT_LINK_WORKFLOW_BEGIN);
+    expect(
+      fs.readFileSync(path.join(shared, "AGENTS.md"), "utf8"),
+    ).toContain(PROJECT_LINK_WORKFLOW_BEGIN);
+
+    const removed = removeProjectPeer(backendId, frontend, {
+      harnessHome: home,
+    });
+    expect(removed.reverseModified).toBe(true);
+    expect(
+      fs.readFileSync(path.join(frontend, "AGENTS.md"), "utf8"),
+    ).not.toContain(PROJECT_LINK_WORKFLOW_BEGIN);
+    expect(
+      fs.readFileSync(path.join(shared, "AGENTS.md"), "utf8"),
+    ).not.toContain(PROJECT_LINK_WORKFLOW_BEGIN);
   });
 
   it("requires a unique role selector and rejects arbitrary linked projects", () => {

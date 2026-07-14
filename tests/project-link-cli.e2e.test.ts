@@ -38,6 +38,7 @@ describe("Project Link role CLI e2e", () => {
     const initializedAgents = fs.readFileSync(path.join(project, "AGENTS.md"), "utf8");
     expect(initializedAgents).not.toContain("harness-project-role");
     expect(initializedAgents).not.toContain("harness-project-stack");
+    expect(initializedAgents).not.toContain("HARNESS:PROJECT-LINK:BEGIN");
 
     const empty = runHarness(
       ["project", "role", "show", "--dir", project, "--json"],
@@ -85,6 +86,9 @@ describe("Project Link role CLI e2e", () => {
     const changedAgents = fs.readFileSync(path.join(project, "AGENTS.md"), "utf8");
     expect(changedAgents).toContain("harness-project-role: backend");
     expect(changedAgents).not.toContain("harness-project-stack");
+    expect(changedAgents).toContain("HARNESS:PROJECT-LINK:BEGIN");
+    expect(changedAgents).toContain("harness report list --status open");
+    expect(changedAgents).not.toContain("inventing schemas");
 
     const invalid = runHarness(
       ["project", "role", "set", "database", "--dir", project],

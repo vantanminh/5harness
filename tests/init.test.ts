@@ -9,6 +9,7 @@ import { VERSION } from "../src/version.js";
 import manifest from "../templates/manifest.json" with { type: "json" };
 import { extractProjectId } from "../src/domain/project-id.js";
 import {
+  PROJECT_LINK_WORKFLOW_BEGIN,
   extractProjectRoleConfig,
   setProjectRoleMarkers,
 } from "../src/domain/project-link.js";
@@ -129,6 +130,7 @@ describe("runInit", () => {
     const agents = fs.readFileSync(path.join(dir, "AGENTS.md"), "utf8");
     expect(agents).toContain("HARNESS:BEGIN");
     expect(agents).not.toBe("mine");
+    expect(agents).not.toContain(PROJECT_LINK_WORKFLOW_BEGIN);
     const backupRoot = path.join(dir, ".5harness-backup");
     expect(fs.existsSync(backupRoot)).toBe(true);
   });
@@ -189,6 +191,12 @@ describe("runInit", () => {
       stack: ["supabase"],
     });
     expect(after).toContain("harness-peer: id=abcdef0123456789;role=backend");
+    expect(after).toContain(PROJECT_LINK_WORKFLOW_BEGIN);
+    expect(after).toContain("prefer peer tools over inventing schemas");
+    expect(after.match(/HARNESS:PROJECT-LINK:BEGIN/g)).toHaveLength(1);
+    expect(after.indexOf(PROJECT_LINK_WORKFLOW_BEGIN)).toBeLessThan(
+      after.indexOf("### Before work"),
+    );
   });
 
   it("optional legacy db create still migrates", () => {

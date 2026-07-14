@@ -1,4 +1,8 @@
-import { extractHarnessBlock, HARNESS_BEGIN } from "./upgrade.js";
+import {
+  extractHarnessBlock,
+  HARNESS_BEGIN,
+  HARNESS_END,
+} from "./upgrade.js";
 import { parseProjectId } from "./project-id.js";
 
 export const PROJECT_ROLES = [
@@ -43,6 +47,14 @@ export type ProjectPeer = {
 export type ProjectLinkConfig = ProjectRoleConfig & {
   peers: ProjectPeer[];
 };
+
+export const PROJECT_LINK_WORKFLOW_BEGIN =
+  "<!-- HARNESS:PROJECT-LINK:BEGIN -->";
+export const PROJECT_LINK_WORKFLOW_END =
+  "<!-- HARNESS:PROJECT-LINK:END -->";
+
+const PROJECT_LINK_WORKFLOW_RE =
+  /^[ \t]*<!-- HARNESS:PROJECT-LINK:BEGIN -->[\s\S]*?^[ \t]*<!-- HARNESS:PROJECT-LINK:END -->[ \t]*(?:\r?\n){0,2}/m;
 
 export function parseProjectRole(raw: string): ProjectRole {
   const normalized = raw.trim().toLowerCase();
@@ -182,6 +194,97 @@ function insertPeerLines(block: string, lines: string[]): string {
   return block.replace(HARNESS_BEGIN, `${HARNESS_BEGIN}${newline}${markerText}`);
 }
 
+function withoutProjectLinkWorkflow(block: string): string {
+  const beginCount = block.split(PROJECT_LINK_WORKFLOW_BEGIN).length - 1;
+  const endCount = block.split(PROJECT_LINK_WORKFLOW_END).length - 1;
+  const ordered =
+    beginCount === 1 &&
+    endCount === 1 &&
+    block.indexOf(PROJECT_LINK_WORKFLOW_BEGIN) <
+      block.indexOf(PROJECT_LINK_WORKFLOW_END);
+  const removable = PROJECT_LINK_WORKFLOW_RE.test(block);
+  if (
+    (beginCount !== 0 || endCount !== 0) &&
+    (!ordered || !removable)
+  ) {
+    throw new Error(
+      "AGENTS.md has an invalid or incomplete managed Project Link workflow section. Run `harness upgrade` after repairing the managed block.",
+    );
+  }
+  return block.replace(PROJECT_LINK_WORKFLOW_RE, "");
+}
+
+function projectLinkWorkflowLines(config: ProjectLinkConfig): string[] {
+  const lines = [
+    PROJECT_LINK_WORKFLOW_BEGIN,
+    "### Project Link workflow",
+    "",
+    `This repository opted into Project Link${config.role ? ` as \`${config.role}\`` : ""}.`,
+    "Resolve only configured peers (`harness project peer list`); never traverse",
+    "peer-of-peer links or treat a filesystem path as a peer capability.",
+    "",
+    "- Use the `harness peer` read commands for bounded peer context.",
+    "- Cross-project writes are limited to sanitized `report` entities; never",
+    "  include credentials, tokens, secrets, or unnecessary personal data.",
+    "- Create and update reports only through `harness report` commands; never",
+    "  hand-edit `docs/reports/` operational entities.",
+  ];
+  if (config.role === "frontend") {
+    lines.push(
+      "- For API/backend contracts, prefer peer tools over inventing schemas; file",
+      "  mismatches with `harness report add --to backend --summary \"...\"`.",
+    );
+  }
+  if (config.role === "backend") {
+    lines.push(
+      "- Before fixing frontend/peer issues, run `harness report list --status open`;",
+      "  acknowledge with `acked`, then record `fixed` plus a resolution.",
+    );
+  }
+  lines.push(PROJECT_LINK_WORKFLOW_END);
+  return lines;
+}
+
+/** Refresh the conditional agent workflow from durable role/peer markers. */
+export function syncProjectLinkWorkflow(agentsText: string): string {
+  const extracted = extractHarnessBlock(agentsText);
+  if (!extracted) {
+    throw new Error(
+      "AGENTS.md has no harness-managed block. Run `harness init --force` first.",
+    );
+  }
+
+  const config = extractProjectLinkConfig(agentsText);
+  const stripped = withoutProjectLinkWorkflow(extracted.block);
+  if (!config.role && config.peers.length === 0) {
+    return extracted.before + stripped + extracted.after;
+  }
+
+  const newline = stripped.includes("\r\n") ? "\r\n" : "\n";
+  const section = projectLinkWorkflowLines(config).join(newline);
+  const beforeWork = /^### Before work[^\r\n]*$/m;
+  let updatedBlock: string;
+  if (beforeWork.test(stripped)) {
+    updatedBlock = stripped.replace(
+      beforeWork,
+      `${section}${newline}${newline}$&`,
+    );
+  } else {
+    const endAt = stripped.indexOf(HARNESS_END);
+    const beforeEnd = stripped
+      .slice(0, endAt)
+      .replace(/[ \t]*(?:\r?\n)*$/, "");
+    updatedBlock =
+      beforeEnd +
+      newline +
+      newline +
+      section +
+      newline +
+      stripped.slice(endAt);
+  }
+  return extracted.before + updatedBlock + extracted.after;
+}
+
 export function setProjectRoleMarkers(
   agentsText: string,
   role: ProjectRole,
@@ -203,7 +306,9 @@ export function setProjectRoleMarkers(
     lines.push(`<!-- harness-project-stack: ${parsedStack.join(",")} -->`);
   }
   const updatedBlock = insertMetadataLines(stripped, lines);
-  return extracted.before + updatedBlock + extracted.after;
+  return syncProjectLinkWorkflow(
+    extracted.before + updatedBlock + extracted.after,
+  );
 }
 
 export function setProjectPeerMarkers(
@@ -229,7 +334,9 @@ export function setProjectPeerMarkers(
     (peer) => `<!-- harness-peer: id=${peer.id};role=${peer.role} -->`,
   );
   const updatedBlock = insertPeerLines(stripped, lines);
-  return extracted.before + updatedBlock + extracted.after;
+  return syncProjectLinkWorkflow(
+    extracted.before + updatedBlock + extracted.after,
+  );
 }
 
 export function upsertProjectPeerMarker(
@@ -271,8 +378,10 @@ export function preserveProjectLinkMarkers(
     .replace(ROLE_MARKER_LINE_RE, "")
     .replace(STACK_MARKER_LINE_RE, "")
     .replace(PEER_MARKER_LINE_RE, "");
-  return insertMetadataLines(
-    stripped,
-    markerLines.map((line) => line.trim()),
+  return syncProjectLinkWorkflow(
+    insertMetadataLines(
+      stripped,
+      markerLines.map((line) => line.trim()),
+    ),
   );
 }

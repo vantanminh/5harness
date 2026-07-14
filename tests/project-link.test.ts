@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  PROJECT_LINK_WORKFLOW_BEGIN,
+  PROJECT_LINK_WORKFLOW_END,
   extractProjectRoleConfig,
   extractProjectPeers,
   parseProjectRole,
@@ -87,6 +89,54 @@ describe("Project Link role metadata", () => {
     expect(setProjectRoleMarkers(changed, "backend", [])).toBe(changed);
   });
 
+  it("injects one role-specific workflow only after Project Link opt-in", () => {
+    expect(agents()).not.toContain(PROJECT_LINK_WORKFLOW_BEGIN);
+
+    const frontend = setProjectRoleMarkers(agents(), "frontend", ["web"]);
+    expect(frontend).toContain(PROJECT_LINK_WORKFLOW_BEGIN);
+    expect(frontend).toContain(PROJECT_LINK_WORKFLOW_END);
+    expect(frontend).toContain("prefer peer tools over inventing schemas");
+    expect(frontend).toContain("harness report add --to backend");
+    expect(frontend).toContain("never\n  hand-edit `docs/reports/`");
+    expect(frontend.match(/HARNESS:PROJECT-LINK:BEGIN/g)).toHaveLength(1);
+    expect(setProjectRoleMarkers(frontend, "frontend", ["web"])).toBe(
+      frontend,
+    );
+
+    const backend = setProjectRoleMarkers(frontend, "backend", ["node"]);
+    expect(backend).toContain("harness report list --status open");
+    expect(backend).toContain("record `fixed` plus a resolution");
+    expect(backend).not.toContain("inventing schemas");
+    expect(backend.match(/HARNESS:PROJECT-LINK:BEGIN/g)).toHaveLength(1);
+  });
+
+  it("rejects incomplete or duplicate managed workflow sections", () => {
+    const incomplete = agents().replace(
+      "## Harness",
+      `${PROJECT_LINK_WORKFLOW_BEGIN}\n## Harness`,
+    );
+    expect(() =>
+      setProjectRoleMarkers(incomplete, "frontend", []),
+    ).toThrow(/invalid or incomplete managed Project Link workflow/);
+
+    const configured = setProjectRoleMarkers(agents(), "frontend", []);
+    const duplicate = configured.replace(
+      PROJECT_LINK_WORKFLOW_END,
+      `${PROJECT_LINK_WORKFLOW_END}\n${PROJECT_LINK_WORKFLOW_BEGIN}\n${PROJECT_LINK_WORKFLOW_END}`,
+    );
+    expect(() =>
+      setProjectRoleMarkers(duplicate, "frontend", []),
+    ).toThrow(/invalid or incomplete managed Project Link workflow/);
+
+    const sameLine = agents().replace(
+      "## Harness",
+      `${PROJECT_LINK_WORKFLOW_BEGIN}${PROJECT_LINK_WORKFLOW_END}\n## Harness`,
+    );
+    expect(() =>
+      setProjectRoleMarkers(sameLine, "frontend", []),
+    ).toThrow(/invalid or incomplete managed Project Link workflow/);
+  });
+
   it("preserves role, stack, and future peer markers across template replacement", () => {
     const configured = setProjectRoleMarkers(agents("0.19.0"), "frontend", [
       "supabase",
@@ -94,7 +144,7 @@ describe("Project Link role metadata", () => {
       "<!-- harness-project-stack: supabase -->",
       "<!-- harness-project-stack: supabase -->\n" +
         "<!-- harness-peer: id=abcdef0123456789;role=backend -->",
-    );
+    ).replace("prefer peer tools over inventing schemas", "stale workflow copy");
     const nextBlock = agents("0.21.0");
 
     const preserved = preserveProjectLinkMarkers(nextBlock, configured);
@@ -103,6 +153,7 @@ describe("Project Link role metadata", () => {
     expect(preserved).toContain(
       "harness-peer: id=abcdef0123456789;role=backend",
     );
+    expect(preserved).not.toContain("stale workflow copy");
 
     const project = fs.mkdtempSync(path.join(os.tmpdir(), "harness-role-upgrade-"));
     tempDirs.push(project);
@@ -115,6 +166,11 @@ describe("Project Link role metadata", () => {
     });
     expect(upgraded).toContain("harness-peer: id=abcdef0123456789;role=backend");
     expect(upgraded).toContain("Local tail.");
+    expect(upgraded).toContain("prefer peer tools over inventing schemas");
+    expect(upgraded.match(/HARNESS:PROJECT-LINK:BEGIN/g)).toHaveLength(1);
+    expect(applyHarnessBlockUpgrade(project, agents("0.21.0"))).toEqual({
+      modified: false,
+    });
   });
 });
 
@@ -153,6 +209,21 @@ describe("Project Link peer metadata", () => {
     expect(removeProjectPeerMarker(removed, mobileId)).toBe(removed);
   });
 
+  it("adds a generic workflow for peer-only opt-in and removes it with the last peer", () => {
+    const withPeer = upsertProjectPeerMarker(agents(), {
+      id: backendId,
+      role: "backend",
+    });
+    expect(withPeer).toContain(PROJECT_LINK_WORKFLOW_BEGIN);
+    expect(withPeer).toContain("Use the `harness peer` read commands");
+    expect(withPeer).not.toContain("inventing schemas");
+
+    const removed = removeProjectPeerMarker(withPeer, backendId);
+    expect(extractProjectPeers(removed)).toEqual([]);
+    expect(removed).not.toContain(PROJECT_LINK_WORKFLOW_BEGIN);
+    expect(removed).not.toContain(PROJECT_LINK_WORKFLOW_END);
+  });
+
   it("rejects malformed and duplicate peer markers", () => {
     const duplicate = agents().replace(
       "## Harness",
@@ -179,5 +250,8 @@ describe("Project Link peer metadata", () => {
       `<!-- harness-peer: id=${backendId};role=backend -->\r\n`,
     );
     expect(updated.replaceAll("\r\n", "")).not.toContain("\n");
+    expect(updated).toContain(
+      `${PROJECT_LINK_WORKFLOW_BEGIN}\r\n### Project Link workflow\r\n`,
+    );
   });
 });

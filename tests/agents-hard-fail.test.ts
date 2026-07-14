@@ -46,6 +46,11 @@ describe("AGENTS hard-fail contract (US-032 / 0017)", () => {
     expect(template).toMatch(/story[\s\S]*decision[\s\S]*intake[\s\S]*backlog/i);
   });
 
+  it("keeps Project Link workflow guidance conditional", () => {
+    expect(template).not.toContain("HARNESS:PROJECT-LINK:BEGIN");
+    expect(template).not.toContain("harness report add --to backend");
+  });
+
   it("lists recovery steps: doctor, link, reindex", () => {
     expect(template).toMatch(/harness doctor/);
     expect(template).toMatch(/harness link/);
