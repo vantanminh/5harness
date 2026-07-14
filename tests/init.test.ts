@@ -65,6 +65,10 @@ describe("runInit", () => {
     }
     expect(fs.existsSync(path.join(dir, "docs", "intakes"))).toBe(true);
     expect(fs.existsSync(path.join(dir, "docs", "backlog"))).toBe(true);
+    expect(fs.existsSync(path.join(dir, "docs", "reports"))).toBe(true);
+    expect(fs.existsSync(path.join(dir, "docs", "reports", "README.md"))).toBe(
+      false,
+    );
     expect(fs.existsSync(path.join(dir, "harness.db"))).toBe(false);
 
     const gitignore = fs.readFileSync(path.join(dir, ".gitignore"), "utf8");

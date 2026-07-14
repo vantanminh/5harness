@@ -57,6 +57,10 @@ describe("CLI e2e", () => {
     expect(init.status, init.stderr + init.stdout).toBe(0);
     expect(fs.existsSync(path.join(dir, "AGENTS.md"))).toBe(true);
     expect(fs.existsSync(path.join(dir, "docs", "stories"))).toBe(true);
+    expect(fs.existsSync(path.join(dir, "docs", "reports"))).toBe(true);
+    expect(init.stdout).toContain(
+      "Entity dirs: docs/stories|decisions|intakes|backlog|reports",
+    );
     // US-013: no project SQLite SoT by default
     expect(fs.existsSync(path.join(dir, "harness.db"))).toBe(false);
 

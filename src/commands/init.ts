@@ -40,7 +40,7 @@ export function executeInit(
     if (result.registered) {
       console.log(`Registered in global registry: ${result.registryPath}`);
     }
-    console.log("Entity dirs: docs/stories|decisions|intakes|backlog");
+    console.log("Entity dirs: docs/stories|decisions|intakes|backlog|reports");
 
     // Decision 0012: init auto-reindexes after scaffolding so queries work immediately
     maybeReindex(result.targetDir);
