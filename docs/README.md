@@ -15,6 +15,10 @@ itself and the product contracts shipped to target repos via `init`.
 | [`ARCHITECTURE.md`](./ARCHITECTURE.md) | Stack and layering |
 | [`HARNESS.md`](./HARNESS.md) | Collaboration model |
 | [`WORKFLOW_VI.md`](./WORKFLOW_VI.md) | Workflow guide (Tiếng Việt) |
+| [`EXAMPLES.md`](./EXAMPLES.md) | New project walkthrough (EN) |
+| [`EXAMPLES_VI.md`](./EXAMPLES_VI.md) | New project walkthrough (Tiếng Việt) |
+| [`EXAMPLES_EXISTING.md`](./EXAMPLES_EXISTING.md) | Existing project walkthrough (EN) |
+| [`EXAMPLES_EXISTING_VI.md`](./EXAMPLES_EXISTING_VI.md) | Existing project walkthrough (Tiếng Việt) |
 
 ## Main files
 
