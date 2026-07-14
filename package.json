@@ -5,7 +5,8 @@
   "type": "module",
   "bin": {
     "harness": "dist/cli.js",
-    "5harness": "dist/cli.js"
+    "5harness": "dist/cli.js",
+    "5hn": "dist/cli.js"
   },
   "main": "dist/cli.js",
   "files": [
