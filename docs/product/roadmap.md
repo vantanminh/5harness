@@ -49,6 +49,7 @@ git clone → npm i -g → harness link → reindex → same history + dashboard
 | H1 | E12 | Agent loop Tier 1 (doctor/status/next/context + inbound tools) | **done** (v0.10) |
 | H2 | E13 | Agent loop Tier 2 (lifecycle, worklog, intake run, dashboard mutations) | **done** (v0.10) |
 | H3 | E14 | Agent loop Tier 3 (MCP, export, watch, handoff) | **done** (v0.10.1) |
+| I | E16 | Project Link (peer projects + cross-project reports) | **planned** (IN-019 / 0022) |
 
 ## Dependency graph
 
@@ -124,6 +125,21 @@ Declared via harness CLI (decision **0014**, intake **IN-003**). Packets live un
 | [US-053](../stories/US-053.md) | E15 | Enforce single/all project grants per MCP request | US-052 | **done** |
 | [US-054](../stories/US-054.md) | E15 | Document project binding and agent id discovery | US-053 | **done** |
 
+## Story checklist (Phase I — Project Link)
+
+Declared via harness CLI (decision **0022**, intake **IN-019**). Spec:
+`docs/product/project-link.md`. **No implementation yet** — declaration only.
+
+| ID | Epic | Title | Depends on | Status |
+| --- | --- | --- | --- | --- |
+| [US-059](../stories/US-059.md) | E16 | Project role + optional stack markers and CLI | US-050 | **planned** |
+| [US-060](../stories/US-060.md) | E16 | Peer add/remove/list + registry path resolution | US-059, US-006 | **planned** |
+| [US-061](../stories/US-061.md) | E16 | Peer read tools CLI + MCP (search/get/context/links) | US-060, US-009, US-027 | **planned** |
+| [US-062](../stories/US-062.md) | E16 | Cross-project report entity + lifecycle tools | US-060, US-007 | **planned** |
+| [US-063](../stories/US-063.md) | E16 | AGENTS workflow, doctor/status/next, product docs finish | US-061, US-062 | **planned** |
+
+Dependency order: **US-059 → US-060 → (US-061 ∥ US-062) → US-063**.
+
 ## Versioning intent
 
 | Version bump | When |
@@ -133,6 +149,7 @@ Declared via harness CLI (decision **0014**, intake **IN-003**). Packets live un
 | 0.8.x | E09–E10 init pivot + SQLite SoT retired |
 | 0.9.x | E11 dashboard MVP |
 | 0.10.x+ | E12+ agent-loop tools (incremental) |
+| 0.21.x+ | E16 Project Link (role/peers/reports) when implemented |
 | 1.0.0 | Public contract stable; publish confidence |
 
 Exact versions may shift; keep `CHANGELOG.md` as release truth.

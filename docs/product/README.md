@@ -14,6 +14,8 @@ docs over one monolithic SPEC.
 | `durable-layer.md` | Markdown SoT + command semantics (decision 0011) |
 | `global-registry.md` | Machine-local project registry + clone→link workflow |
 | `agent-index.md` | Derived index + get/search/links for agents |
+| `mcp-project-binding.md` | OAuth project grant + durable project id |
+| `project-link.md` | Peer projects + role/stack + cross-project reports (planned) |
 | `distribution.md` | npm packaging, global-first install, release checklist |
 
 ## Update Rule
