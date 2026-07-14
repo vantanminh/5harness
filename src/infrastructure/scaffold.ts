@@ -18,6 +18,12 @@ import { ensureEntityDirs } from "./entities.js";
 import { migrateDatabase } from "./db.js";
 import { ensureProjectId } from "./project-id.js";
 import { extractProjectId } from "../domain/project-id.js";
+import { preserveProjectLinkMarkers } from "../domain/project-link.js";
+import {
+  extractHarnessBlock,
+  replaceHarnessBlock,
+} from "../domain/upgrade.js";
+import { atomicWriteFile } from "./atomic-write.js";
 
 export type Manifest = {
   files: string[];
@@ -167,8 +173,11 @@ export function runInit(options: InitOptions): InitResult {
   const migrationsDir = path.join(options.packageRoot, "migrations");
   const manifest = loadManifest(options.packageRoot);
   const agentsPath = path.join(targetDir, "AGENTS.md");
-  const existingProjectId = fs.existsSync(agentsPath)
-    ? extractProjectId(fs.readFileSync(agentsPath, "utf8"))
+  const existingAgentsText = fs.existsSync(agentsPath)
+    ? fs.readFileSync(agentsPath, "utf8")
+    : null;
+  const existingProjectId = existingAgentsText
+    ? extractProjectId(existingAgentsText)
     : null;
 
   const plans: PlannedWrite[] = [];
@@ -233,6 +242,23 @@ export function runInit(options: InitOptions): InitResult {
     ensureEntityDirs(targetDir);
     writeEntityDirReadmes(targetDir);
     ensureProjectId(targetDir, existingProjectId ?? undefined);
+    if (existingAgentsText) {
+      const initializedAgentsText = fs.readFileSync(agentsPath, "utf8");
+      const initializedBlock = extractHarnessBlock(initializedAgentsText);
+      if (initializedBlock) {
+        const restoredBlock = preserveProjectLinkMarkers(
+          initializedBlock.block,
+          existingAgentsText,
+        );
+        const restoredAgentsText = replaceHarnessBlock(
+          initializedAgentsText,
+          restoredBlock,
+        );
+        if (restoredAgentsText !== initializedAgentsText) {
+          atomicWriteFile(agentsPath, restoredAgentsText);
+        }
+      }
+    }
     log("dirs     entity markdown directories ready");
 
     if (!skipDb) {

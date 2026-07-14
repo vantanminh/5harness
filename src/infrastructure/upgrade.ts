@@ -11,6 +11,7 @@ import {
   generateProjectId,
   insertProjectIdMarker,
 } from "../domain/project-id.js";
+import { preserveProjectLinkMarkers } from "../domain/project-link.js";
 
 export type ReadAgentsResult = {
   /** Absolute path to AGENTS.md in the project. */
@@ -78,7 +79,8 @@ export function applyHarnessBlockUpgrade(
   }
 
   const projectId = extractProjectId(targetText) ?? generateProjectId();
-  const newBlock = insertProjectIdMarker(templateBlock, projectId);
+  const identityBlock = insertProjectIdMarker(templateBlock, projectId);
+  const newBlock = preserveProjectLinkMarkers(identityBlock, targetText);
 
   const updated = replaceHarnessBlock(targetText, newBlock);
   if (updated === targetText) {

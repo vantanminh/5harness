@@ -84,6 +84,14 @@ export const BUILTIN_TOOLS: ToolEntry[] = [
     source: "compiled",
   },
   {
+    name: "project role",
+    kind: "builtin",
+    capability: "scaffold",
+    responsibility: "Configure or inspect Project Link role and stack tags",
+    status: "present",
+    source: "compiled",
+  },
+  {
     name: "dashboard",
     kind: "builtin",
     capability: "scaffold",

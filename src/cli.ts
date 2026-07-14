@@ -37,7 +37,11 @@ import { executeExportChangelog } from "./commands/export-cmd.js";
 import { executeWatch } from "./commands/watch.js";
 import { executeHandoff } from "./commands/handoff.js";
 import { executeMcp } from "./commands/mcp.js";
-import { executeProjectId } from "./commands/project.js";
+import {
+  executeProjectId,
+  executeProjectRoleSet,
+  executeProjectRoleShow,
+} from "./commands/project.js";
 
 
 import {
@@ -272,6 +276,30 @@ async function main(argv: string[] = process.argv): Promise<void> {
       .option("--ensure", "create the project id marker when missing")
       .action((opts) => {
         withErrors(() => executeProjectId(opts));
+      }),
+  );
+
+  const projectRoleCmd = projectCmd
+    .command("role")
+    .description("Configure or inspect the project role and stack tags");
+  addDirOptions(
+    projectRoleCmd
+      .command("set")
+      .description("Set the project role and optional stack tags")
+      .argument("<role>", "frontend|backend|mobile|service|shared|other")
+      .option("--stack <tags>", "comma-separated stack tags (maximum 4)")
+      .option("--json", "print role and stack as JSON")
+      .action((role: string, opts) => {
+        withErrors(() => executeProjectRoleSet(role, opts));
+      }),
+  );
+  addDirOptions(
+    projectRoleCmd
+      .command("show")
+      .description("Show the configured project role and stack tags")
+      .option("--json", "print role and stack as JSON")
+      .action((opts) => {
+        withErrors(() => executeProjectRoleShow(opts));
       }),
   );
 

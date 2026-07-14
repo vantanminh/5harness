@@ -8,6 +8,10 @@ import { migrateDatabase, schemaIsReadable } from "../src/infrastructure/db.js";
 import { VERSION } from "../src/version.js";
 import manifest from "../templates/manifest.json" with { type: "json" };
 import { extractProjectId } from "../src/domain/project-id.js";
+import {
+  extractProjectRoleConfig,
+  setProjectRoleMarkers,
+} from "../src/domain/project-link.js";
 
 const packageRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -151,6 +155,40 @@ describe("runInit", () => {
       fs.readFileSync(path.join(dir, "AGENTS.md"), "utf8"),
     );
     expect(after).toBe(before);
+  });
+
+  it("force re-init preserves opt-in Project Link markers", () => {
+    const dir = tempDir();
+    runInit({
+      directory: dir,
+      packageRoot,
+      skipRegister: true,
+    });
+    const agentsPath = path.join(dir, "AGENTS.md");
+    const configured = setProjectRoleMarkers(
+      fs.readFileSync(agentsPath, "utf8"),
+      "frontend",
+      ["supabase"],
+    ).replace(
+      "<!-- harness-project-stack: supabase -->",
+      "<!-- harness-project-stack: supabase -->\n" +
+        "<!-- harness-peer: id=abcdef0123456789;role=backend -->",
+    );
+    fs.writeFileSync(agentsPath, configured, "utf8");
+
+    runInit({
+      directory: dir,
+      force: true,
+      packageRoot,
+      skipRegister: true,
+    });
+
+    const after = fs.readFileSync(agentsPath, "utf8");
+    expect(extractProjectRoleConfig(after)).toEqual({
+      role: "frontend",
+      stack: ["supabase"],
+    });
+    expect(after).toContain("harness-peer: id=abcdef0123456789;role=backend");
   });
 
   it("optional legacy db create still migrates", () => {
