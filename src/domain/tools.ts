@@ -108,6 +108,14 @@ export const BUILTIN_TOOLS: ToolEntry[] = [
     source: "compiled",
   },
   {
+    name: "report add|list|get|update",
+    kind: "builtin",
+    capability: "tool-access",
+    responsibility: "Create and resolve target-owned Project Link reports",
+    status: "present",
+    source: "compiled",
+  },
+  {
     name: "dashboard",
     kind: "builtin",
     capability: "scaffold",

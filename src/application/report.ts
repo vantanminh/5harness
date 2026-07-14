@@ -8,6 +8,7 @@ import {
 } from "../domain/frontmatter.js";
 import { parseProjectId } from "../domain/project-id.js";
 import {
+  PROJECT_ROLES,
   parseProjectRole,
   type ProjectRole,
 } from "../domain/project-link.js";
@@ -28,6 +29,13 @@ import {
 } from "../infrastructure/entities.js";
 import { withMutationLock } from "../infrastructure/lockfile.js";
 import { readProjectId } from "../infrastructure/project-id.js";
+import type { RegistryIoOptions } from "../infrastructure/registry.js";
+import {
+  getProjectRole,
+  resolveProjectPeer,
+  type ProjectPeerSelector,
+  type ResolvedProjectPeer,
+} from "./project-link.js";
 
 export const REPORT_FIELD_LIMITS = {
   summary: 500,
@@ -65,6 +73,18 @@ export type ReportListItem = {
   severity: ReportSeverity;
   summary: string;
   updated_at: string;
+};
+
+export type PeerReportAddInput = Omit<
+  ReportAddInput,
+  "fromProjectId" | "fromRole" | "toProjectId"
+> & {
+  to: string;
+};
+
+export type PeerReportAddResult = {
+  file: EntityFile;
+  target: ResolvedProjectPeer;
 };
 
 function nowIso(): string {
@@ -146,6 +166,49 @@ function reportFile(projectRoot: string, rawId: string): EntityFile {
 
 function reportRelated(raw: string | undefined): string[] {
   return parseLinksCsv(raw) ?? [];
+}
+
+export function projectPeerSelectorFromToken(
+  raw: string,
+): ProjectPeerSelector {
+  const token = raw.trim();
+  if (!token) {
+    throw new Error("A configured peer role or project id is required.");
+  }
+  const role = token.toLowerCase();
+  if ((PROJECT_ROLES as readonly string[]).includes(role)) {
+    return { role };
+  }
+  return { peerId: token };
+}
+
+export function resolveReportPeer(
+  token: string,
+  pathInput?: string,
+  options: RegistryIoOptions & { cwd?: string } = {},
+): ResolvedProjectPeer {
+  return resolveProjectPeer(
+    projectPeerSelectorFromToken(token),
+    pathInput,
+    options,
+  );
+}
+
+export function addReportToPeer(
+  pathInput: string | undefined,
+  input: PeerReportAddInput,
+  options: RegistryIoOptions & { cwd?: string } = {},
+): PeerReportAddResult {
+  const target = resolveReportPeer(input.to, pathInput, options);
+  const localRole = getProjectRole(target.localProjectRoot).role ?? undefined;
+  const { to: _to, ...reportInput } = input;
+  const file = addReport(target.path, {
+    ...reportInput,
+    fromProjectId: target.localProjectId,
+    fromRole: localRole,
+    toProjectId: target.id,
+  });
+  return { file, target };
 }
 
 export function addReport(

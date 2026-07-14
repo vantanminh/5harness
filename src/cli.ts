@@ -51,6 +51,12 @@ import {
   executePeerLinks,
   executePeerSearch,
 } from "./commands/peer.js";
+import {
+  executeReportAdd,
+  executeReportGet,
+  executeReportList,
+  executeReportUpdate,
+} from "./commands/report.js";
 
 
 import {
@@ -300,6 +306,59 @@ async function main(argv: string[] = process.argv): Promise<void> {
       .option("--json", "print role and stack as JSON")
       .action((role: string, opts) => {
         withErrors(() => executeProjectRoleSet(role, opts));
+      }),
+  );
+
+  const reportCmd = program
+    .command("report")
+    .description("Create and manage target-owned Project Link reports");
+  addDirOptions(
+    reportCmd
+      .command("add")
+      .description("Create a report in a configured peer project")
+      .requiredOption("--to <roleOrProjectId>", "configured peer role or id")
+      .requiredOption("--summary <text>", "one-line report summary")
+      .option("--id <id>", "caller-supplied RP-### id")
+      .option("--api <name>", "route or RPC name")
+      .option("--expected <text>", "expected contract or behavior")
+      .option("--actual <text>", "actual contract or behavior")
+      .option("--context <text>", "sanitized supporting context")
+      .option("--severity <severity>", "low | medium | high", "medium")
+      .option("--related <csv>", "target story or decision ids")
+      .action((opts) => {
+        withErrors(() => executeReportAdd(opts));
+      }),
+  );
+  addDirOptions(
+    reportCmd
+      .command("list")
+      .description("List bounded report summaries in the local project")
+      .option("--status <status>", "open | acked | fixed | wontfix | needs_info")
+      .option("--json", "print bounded rows as JSON")
+      .action((opts) => {
+        withErrors(() => executeReportList(opts));
+      }),
+  );
+  addDirOptions(
+    reportCmd
+      .command("get")
+      .description("Get one local or configured-peer report")
+      .argument("<id>", "report id")
+      .option("--from <roleOrProjectId>", "configured peer role or id")
+      .action((id: string, opts) => {
+        withErrors(() => executeReportGet(id, opts));
+      }),
+  );
+  addDirOptions(
+    reportCmd
+      .command("update")
+      .description("Update a report owned by the local project")
+      .requiredOption("--id <id>", "report id")
+      .requiredOption("--status <status>", "new lifecycle status")
+      .option("--resolution <text>", "resolution notes")
+      .option("--related <csv>", "target story or decision ids")
+      .action((opts) => {
+        withErrors(() => executeReportUpdate(opts));
       }),
   );
 
