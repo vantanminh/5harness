@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { Command } from "commander";
+import { Command } from "./infrastructure/cli-parser.js";
 import { executeDashboard, executeSetPassword } from "./commands/dashboard.js";
 import { executeAudit } from "./commands/audit.js";
 import {

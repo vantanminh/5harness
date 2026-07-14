@@ -60,8 +60,8 @@ export class Command {
   // US-057: subcommand nesting, action dispatch, hooks
   private _parent: Command | null = null;
   private _subcommands: Map<string, Command> = new Map();
-  private _actionFn: Function | null = null;
-  private _hooks: Map<string, Function[]> = new Map();
+  private _actionFn: ((...args: any[]) => void | Promise<void>) | null = null;
+  private _hooks: Map<string, ((...args: any[]) => void | Promise<void>)[]> = new Map();
 
   /** The subcommand name that was matched during parse (set by the parent). */
   private _matchedName: string | null = null;
@@ -172,7 +172,7 @@ export class Command {
    *                      if no positional args: pass opts object
    *   fn.length >= 2   → pass positional args (up to fn.length-1), then opts
    */
-  action(fn: Function): this {
+  action(fn: (...args: any[]) => void | Promise<void>): this {
     this._actionFn = fn;
     return this;
   }
@@ -185,7 +185,7 @@ export class Command {
    * Register a hook. Supported events: "preAction".
    * preAction hooks on parent commands fire before subcommand actions.
    */
-  hook(event: string, fn: Function): this {
+  hook(event: string, fn: (...args: any[]) => void | Promise<void>): this {
     const list = this._hooks.get(event) ?? [];
     list.push(fn);
     this._hooks.set(event, list);
@@ -211,14 +211,14 @@ export class Command {
     // Seed defaults
     for (const opt of this._options) {
       if (opt.defaultValue !== undefined) {
-        const key = opt.long ?? opt.short ?? "UNKNOWN";
+        const key = this._optionKey(opt);
         this._parsedOpts[key] = opt.takesValue
           ? opt.defaultValue
           : opt.defaultValue === "true";
       }
       // Negatable booleans: --flag defaults to false until --flag is seen
       if (!opt.takesValue && opt.long) {
-        this._parsedOpts[opt.long] = false;
+        this._parsedOpts[this._optionKey(opt)] = false;
       }
     }
 
@@ -245,7 +245,7 @@ export class Command {
           (o) => o.long === longName && !o.takesValue,
         );
         if (opt) {
-          this._parsedOpts[opt.long!] = false;
+          this._parsedOpts[this._optionKey(opt)] = false;
           i++;
           continue;
         }
@@ -261,7 +261,7 @@ export class Command {
         if (!opt) {
           this._error(`unknown option '--${longName}'`);
         }
-        this._parsedOpts[opt.long!] = opt.takesValue ? value : true;
+        this._parsedOpts[this._optionKey(opt)] = opt.takesValue ? value : true;
         i++;
         continue;
       }
@@ -278,9 +278,9 @@ export class Command {
           if (i >= tokens.length || tokens[i].startsWith("-")) {
             this._error(`option '--${longName}' requires a value`);
           }
-          this._parsedOpts[opt.long!] = tokens[i];
+          this._parsedOpts[this._optionKey(opt)] = tokens[i];
         } else {
-          this._parsedOpts[opt.long!] = true;
+          this._parsedOpts[this._optionKey(opt)] = true;
         }
         i++;
         continue;
@@ -298,7 +298,7 @@ export class Command {
           if (opt.takesValue) {
             if (ci + 1 < shortChars.length) {
               // rest of token is the value (e.g. -d./path)
-              this._parsedOpts[opt.long!] = shortChars.slice(ci + 1);
+              this._parsedOpts[this._optionKey(opt)] = shortChars.slice(ci + 1);
               break;
             }
             // value is next token
@@ -306,9 +306,9 @@ export class Command {
             if (i >= tokens.length || tokens[i].startsWith("-")) {
               this._error(`option '-${ch}' requires a value`);
             }
-            this._parsedOpts[opt.long!] = tokens[i];
+            this._parsedOpts[this._optionKey(opt)] = tokens[i];
           } else {
-            this._parsedOpts[opt.long!] = true;
+            this._parsedOpts[this._optionKey(opt)] = true;
           }
         }
         i++;
@@ -338,7 +338,7 @@ export class Command {
     // Validate required options
     for (const opt of this._options) {
       if (opt.required) {
-        const key = opt.long ?? opt.short ?? "UNKNOWN";
+        const key = this._optionKey(opt);
         if (this._parsedOpts[key] === undefined) {
           this._error(`required option '--${opt.long}' not specified`);
         }
@@ -503,6 +503,23 @@ export class Command {
   // Internal helpers
   // ------------------------------------------------------------------
 
+  /**
+   * Convert kebab-case to camelCase (commander-compatible).
+   * "dry-run" → "dryRun", "max-chars" → "maxChars", "dir" → "dir"
+   */
+  private _camelCase(str: string): string {
+    return str.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+  }
+
+  /**
+   * Return the storage key for an option spec.
+   * Long options are camelCased; short options are used as-is (fallback).
+   */
+  private _optionKey(opt: OptionSpec): string {
+    if (opt.long) return this._camelCase(opt.long);
+    return opt.short ?? "UNKNOWN";
+  }
+
   private _parseFlags(flags: string): OptionSpec {
     const spec: OptionSpec = {
       short: null,
@@ -521,7 +538,7 @@ export class Command {
 
     for (const part of parts) {
       // Detect value marker: <xxx> or [xxx] at the end of this segment
-      const valueMatch = part.match(/^(.+?)\s+[<\[](\w+)[\]>]$/);
+      const valueMatch = part.match(/^(.+?)\s+[<\[]([^\]>]+)[\]>]$/);
       if (valueMatch) {
         spec.takesValue = true;
         const flagPart = valueMatch[1];
