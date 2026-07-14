@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { ENTITY_DIRS } from "../domain/entities.js";
 import {
   PROJECT_STATE_DIRNAME,
   BACKUP_DIRNAME,
@@ -14,7 +15,7 @@ export type RemoveOptions = {
   dir?: string;
   /** Skip confirmation prompt */
   force?: boolean;
-  /** Keep entity directories (docs/stories, docs/decisions, docs/intakes, docs/backlog) */
+  /** Keep all entity directories, including docs/reports. */
   keepEntities?: boolean;
   /** Custom harness home (for testing) */
   harnessHome?: string;
@@ -99,12 +100,7 @@ export function removeHarness(options: RemoveOptions): RemoveResult {
 
   // 6. Optionally remove entity directories
   if (!options.keepEntities) {
-    const entityDirs = [
-      "docs/stories",
-      "docs/decisions",
-      "docs/intakes",
-      "docs/backlog",
-    ] as const;
+    const entityDirs = [...new Set(Object.values(ENTITY_DIRS))];
     for (const entityDir of entityDirs) {
       safeRemove(targetDir, entityDir, removed, errors);
     }

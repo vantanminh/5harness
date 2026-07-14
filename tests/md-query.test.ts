@@ -15,6 +15,7 @@ import {
   closeBacklogMd,
   updateStoryMd,
 } from "../src/application/md-durable.js";
+import { addReport } from "../src/application/report.js";
 
 const tempDirs: string[] = [];
 
@@ -116,5 +117,36 @@ describe("markdown query (US-008)", () => {
     const cat = buildCatalog(root);
     expect(cat.byType.story).toHaveLength(2);
     expect(cat.byId.get("US-1")?.[0]?.title).toBe("One");
+  });
+
+  it("counts reports in stats and catalogs their summary", () => {
+    const root = tmp();
+    const targetId = "22222222222222222222222222222222";
+    fs.writeFileSync(
+      path.join(root, "AGENTS.md"),
+      [
+        "<!-- HARNESS:BEGIN -->",
+        "<!-- harness-version: 0.20.0 -->",
+        `<!-- harness-project-id: ${targetId} -->`,
+        "<!-- HARNESS:END -->",
+      ].join("\n"),
+      "utf8",
+    );
+    addReport(root, {
+      summary: "Indexed mismatch",
+      fromProjectId: "11111111111111111111111111111111",
+      toProjectId: targetId,
+    });
+
+    const cat = buildCatalog(root);
+    expect(cat.byType.report).toHaveLength(1);
+    expect(cat.byType.report[0]).toMatchObject({
+      id: "RP-001",
+      title: "Indexed mismatch",
+      status: "open",
+    });
+    const stats = queryStatsMd(root);
+    expect(stats).toMatch(/reports/);
+    expect(stats).toMatch(/\n0\s+0\s+0\s+0\s+1\s+0/);
   });
 });

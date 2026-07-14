@@ -31,6 +31,20 @@ describe("frontmatter", () => {
     expect(body).toContain("# Body");
   });
 
+  it("round-trips multiline report context as a quoted scalar", () => {
+    const context = "line one\r\n---\r\nkey: \"value\"\r\nC:\\work\\repo";
+    const raw = serializeEntityFile({ context });
+    expect(raw).toContain("context: \"");
+    expect(parseFrontmatter(raw).data.context).toBe(context);
+  });
+
+  it("preserves numeric-looking identifiers as strings", () => {
+    const projectId = "22222222222222222222222222222222";
+    const raw = serializeEntityFile({ project_id: projectId });
+    expect(raw).toContain(`project_id: "${projectId}"`);
+    expect(parseFrontmatter(raw).data.project_id).toBe(projectId);
+  });
+
   it("rejects invalid entity ids", () => {
     expect(() => sanitizeEntityId("../x")).toThrow();
     expect(() => sanitizeEntityId("a/b")).toThrow();

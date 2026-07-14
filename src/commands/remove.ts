@@ -41,6 +41,7 @@ function formatWarning(targetDir: string, keepEntities: boolean): string {
     keepEntities ? "" : "  - docs/decisions/    entity directory",
     keepEntities ? "" : "  - docs/intakes/      entity directory",
     keepEntities ? "" : "  - docs/backlog/      entity directory",
+    keepEntities ? "" : "  - docs/reports/      entity directory",
     "",
     "  This action is IRREVERSIBLE (except via Git history).",
     "",

@@ -148,6 +148,8 @@ function formatScalar(value: string | number | boolean | null): string {
   if (
     value === "" ||
     /[:#\[\]{},&*!|>'"%@`]/.test(value) ||
+    /[\r\n]/.test(value) ||
+    /^-?\d+(?:\.\d+)?$/.test(value) ||
     /^\s|\s$/.test(value) ||
     value === "true" ||
     value === "false" ||

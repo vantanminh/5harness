@@ -5,6 +5,7 @@ export const ENTITY_TYPES = [
   "decision",
   "intake",
   "backlog",
+  "report",
 ] as const;
 export type EntityType = (typeof ENTITY_TYPES)[number];
 
@@ -13,6 +14,7 @@ export const ENTITY_DIRS: Record<EntityType, string> = {
   decision: "docs/decisions",
   intake: "docs/intakes",
   backlog: "docs/backlog",
+  report: "docs/reports",
 };
 
 /** Safe single path segment for entity ids (Windows-friendly). */

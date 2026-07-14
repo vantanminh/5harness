@@ -35,7 +35,7 @@ export type ProjectCatalog = {
 };
 
 function entryTitle(type: EntityType, data: FrontmatterData, id: string): string {
-  if (type === "intake") {
+  if (type === "intake" || type === "report") {
     return asString(data, "summary") ?? id;
   }
   return asString(data, "title") ?? id;
@@ -77,6 +77,7 @@ export function buildCatalog(projectRoot: string): ProjectCatalog {
     decision: [] as CatalogEntry[],
     intake: [] as CatalogEntry[],
     backlog: [] as CatalogEntry[],
+    report: [] as CatalogEntry[],
   };
 
   for (const type of ENTITY_TYPES) {
@@ -150,5 +151,8 @@ export function proof01(data: FrontmatterData, key: string): 0 | 1 {
 }
 
 export function linksOf(data: FrontmatterData): string[] {
-  return asStringArray(data, "links") ?? [];
+  return [
+    ...(asStringArray(data, "links") ?? []),
+    ...(asStringArray(data, "related") ?? []),
+  ].filter((value, index, all) => all.indexOf(value) === index);
 }

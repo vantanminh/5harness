@@ -62,10 +62,11 @@ export function queryStatsMd(
           stories: cat.byType.story.length,
           decisions: cat.byType.decision.length,
           backlog_items: cat.byType.backlog.length,
+          reports: cat.byType.report.length,
           traces,
         },
       ],
-      ["intakes", "stories", "decisions", "backlog_items", "traces"],
+      ["intakes", "stories", "decisions", "backlog_items", "reports", "traces"],
     ),
   ];
   return lines.join("\n");

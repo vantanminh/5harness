@@ -65,6 +65,7 @@ export function hasMarkdownStore(projectRoot: string): boolean {
     "docs/decisions",
     "docs/intakes",
     "docs/backlog",
+    "docs/reports",
   ];
   return markers.some((rel) => fs.existsSync(path.join(projectRoot, rel)));
 }
@@ -104,6 +105,11 @@ export function buildProjectIndex(projectRoot: string): ProjectIndex {
       asString(e.data, "notes") ?? "",
       asString(e.data, "summary") ?? "",
       asString(e.data, "evidence") ?? "",
+      asString(e.data, "api") ?? "",
+      asString(e.data, "expected") ?? "",
+      asString(e.data, "actual") ?? "",
+      asString(e.data, "context") ?? "",
+      asString(e.data, "resolution") ?? "",
     ].join(" ");
     texts[e.id] = `${fmBlob}\n${body}`;
 

@@ -162,8 +162,11 @@ describe("removeHarness (application)", () => {
 
     // Set up entity dirs with content
     const storiesDir = path.join(project, "docs", "stories");
+    const reportsDir = path.join(project, "docs", "reports");
     fs.mkdirSync(storiesDir, { recursive: true });
+    fs.mkdirSync(reportsDir, { recursive: true });
     fs.writeFileSync(path.join(storiesDir, "US-001.md"), "story", "utf8");
+    fs.writeFileSync(path.join(reportsDir, "RP-001.md"), "report", "utf8");
 
     const stateDir = path.join(project, ".5harness");
     fs.mkdirSync(path.join(stateDir, "index"), { recursive: true });
@@ -175,7 +178,22 @@ describe("removeHarness (application)", () => {
 
     expect(result.removed).toContain(".5harness");
     expect(result.removed).not.toContain("docs/stories");
+    expect(result.removed).not.toContain("docs/reports");
     // Entity dir should still exist
     expect(fs.existsSync(storiesDir)).toBe(true);
+    expect(fs.existsSync(reportsDir)).toBe(true);
+  });
+
+  it("removes report entities with the other durable entity directories", () => {
+    const project = fs.mkdtempSync(path.join(os.tmpdir(), "harness-remove-report-"));
+    tempDirs.push(project);
+    const reportsDir = path.join(project, "docs", "reports");
+    fs.mkdirSync(reportsDir, { recursive: true });
+    fs.writeFileSync(path.join(reportsDir, "RP-001.md"), "report", "utf8");
+
+    const result = removeHarness({ dir: project });
+
+    expect(result.removed).toContain("docs/reports");
+    expect(fs.existsSync(reportsDir)).toBe(false);
   });
 });

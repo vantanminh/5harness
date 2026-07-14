@@ -8,11 +8,11 @@ import {
   buildProjectIndex,
   writeProjectIndex,
 } from "../application/index-store.js";
-import { ENTITY_TYPES } from "../domain/entities.js";
+import { ENTITY_DIRS } from "../domain/entities.js";
 
 export type WatchCliOptions = TargetOptions;
 
-const WATCH_DIRS = ENTITY_TYPES.map((t) => `docs/${t}s`);
+export const WATCH_DIRS = [...new Set(Object.values(ENTITY_DIRS))];
 
 export function executeWatch(options: WatchCliOptions): void {
   const { targetDir } = resolveTargetFromOptions(options);
