@@ -14,6 +14,7 @@ itself and the product contracts shipped to target repos via `init`.
 | [`TEST_MATRIX.md`](./TEST_MATRIX.md) | Proof matrix |
 | [`ARCHITECTURE.md`](./ARCHITECTURE.md) | Stack and layering |
 | [`HARNESS.md`](./HARNESS.md) | Collaboration model |
+| [`WORKFLOW_VI.md`](./WORKFLOW_VI.md) | Workflow guide (Tiếng Việt) |
 
 ## Main files
 
