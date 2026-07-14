@@ -147,9 +147,15 @@ without parsing the human table.
 
 | Command | Responsibility | Purpose | Arguments |
 | --- | --- | --- | --- |
-| `init` | Task state | Create the harness database. | none |
-| `migrate` | Task state | Apply pending schema migrations. | none |
-| `import brownfield` | Project memory | Seed durable records from markdown state. | none |
+| `init` | Task state | Scaffold markdown state and register the project. | optional directory / force flags |
+| `migrate` | Task state | Migrate a legacy `harness.db` when present. | optional directory |
+| `import-sqlite` | Project memory | Import legacy SQLite rows into markdown entities. | optional `--db`, `--force` |
+| `link` / `unlink` / `projects` | Task state | Manage machine-local registry pointers. | optional project path |
+| `project id` | Project memory | Read or ensure durable project identity. | optional `--ensure`, `--json` |
+| `project role` | Project memory | Configure or inspect Project Link role and stack tags. | `set` or `show` |
+| `project peer` | Tool access | Add, remove, or list explicitly configured peers. | peer id/path and optional role |
+| `peer search\|get\|context\|links` | Tool access | Run bounded reads against one configured peer. | `--peer` or unique `--role` |
+| `report add\|list\|get\|update` | Project memory | Manage target-owned cross-project reports. | command-specific report fields |
 | `intake` | Task specification | Record a feature intake classification. | `--type`, `--summary`, `--lane` |
 | `story add` | Task state | Create a durable story record. | `--id`, `--title`, `--lane`, optional `--verify` |
 | `story update` | Task state | Update story status, proof flags, evidence, or verification command. | `--id`, optional proof/status fields |
@@ -177,9 +183,12 @@ without parsing the human table.
 | `query tools` | Tool access | Show compiled and registered tool entries. | optional `--json`, `--summary`, `--responsibility`, `--capability`, `--status` |
 | `query interventions` | Intervention recording | Show intervention records. | optional `--trace`, `--story`, `--type` |
 | `query stats` | Task state | Show durable record counts. | none |
-| `query sql` | Tool access | Run arbitrary SQL against `harness.db`. | SQL text |
-| `db changeset apply` | Task state | Apply one semantic changeset idempotently. | changeset path |
-| `db rebuild` | Task state | Rebuild a fresh `harness.db` from semantic changesets. | `--from` changeset directory |
+
+Project Link MCP tools are advertised only when the calling project has
+configured peers. Their peer selector is a capability boundary, not an OAuth
+project selector: reads stay bounded to one configured peer and never traverse
+peer-of-peer links; cross-project operational-entity writes are report-only
+after the explicit peer-management configuration step.
 
 ## Validation Rules
 

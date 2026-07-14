@@ -14,13 +14,22 @@ This product owns the payload shipped inside the npm package (`templates/`).
 ## Init behavior (0011)
 
 1. Write / merge operating files from templates.
-2. Ensure durable entity directories exist (stories, decisions, intakes, backlog).
+2. Ensure durable entity directories exist (stories, decisions, intakes,
+   backlog, reports).
 3. Ensure `.gitignore` ignores derived index and local runtime data (not durable MD).
 4. Register project path in `~/.5harness` (global registry).
 5. Build initial empty index (or on first query).
 
 `harness link` skips scaffold (or only fills missing dirs) and does steps 4–5
 for clones that already have committed harness files.
+
+Plain `init` is deliberately unconfigured for Project Link: it creates the
+durable project-id marker but no role, stack, peer markers, or conditional
+Project Link workflow copy. Those appear only after `project role set` or
+`project peer add`.
+Force-init and `harness upgrade` preserve existing Project Link markers and
+regenerate their conditional managed workflow instead of silently opting the
+project out.
 
 ## Payload (minimum)
 
@@ -39,8 +48,13 @@ for clones that already have committed harness files.
 | `docs/decisions/` | Decision entities (+ README) |
 | `docs/intakes/` | Intake entities (when store lands) |
 | `docs/backlog/` | Backlog entities (when store lands) |
+| `docs/reports/` | Target-owned Project Link report entities |
 | `docs/templates/*` | story, decision, validation, spec-intake templates |
 | `.gitignore` entries | `.5harness/index/`, `.5harness/local/`, legacy `harness.db*` |
+
+`docs/reports/` is created as an empty entity directory, but init adds no report
+README or template. It becomes Git-visible only after a target-owned report is
+created through Harness.
 
 ### Explicitly out of init payload
 
@@ -63,7 +77,7 @@ tests can assert exact file set without scanning ad hoc lists in code.
 
 ## Transition from v0.5
 
-Current shipped init still creates `harness.db` (SQLite MVP). The 0011 target
-removes project SQLite SoT in favor of markdown entities + registry registration.
-Update templates/tests in the store-rewrite story; do not treat `harness.db` as
-long-term product behavior.
+Current `init` creates markdown entity directories, local derived state, and a
+registry entry; it does not create project SQLite as the source of truth.
+Legacy `harness.db*` remains ignored so old clones can use
+`harness import-sqlite` without recommitting database files.

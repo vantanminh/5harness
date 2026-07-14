@@ -9,6 +9,7 @@ itself and the product contracts shipped to target repos via `init`.
 | --- | --- |
 | [`product/roadmap.md`](./product/roadmap.md) | Implementation tracking |
 | [`product/overview.md`](./product/overview.md) | Product identity |
+| [`product/project-link.md`](./product/project-link.md) | Project Link roles, configured peers, bounded reads, and reports |
 | [`decisions/0011-global-tool-markdown-durable-index.md`](./decisions/0011-global-tool-markdown-durable-index.md) | Locked pivot |
 | [`stories/README.md`](./stories/README.md) | Epic/story index |
 | [`TEST_MATRIX.md`](./TEST_MATRIX.md) | Proof matrix |
@@ -37,6 +38,7 @@ itself and the product contracts shipped to target repos via `init`.
 | `product/` | **Product truth** for this CLI (contracts + roadmap) |
 | `stories/` | Feature packets and backlog |
 | `decisions/` | Durable decisions |
+| `reports/` (when populated) | Target-owned Project Link report entities |
 | `templates/` | Story/decision/intake templates used in *this* repo |
 
 Payload templates shipped to **target** projects live in repo-root
@@ -44,5 +46,8 @@ Payload templates shipped to **target** projects live in repo-root
 
 ## Current state
 
-- **Shipped:** Phases A–G (US-001–US-014), markdown SoT, registry, index, dashboard — **v0.9.3**.
-- **Locked direction:** decision 0011 (global tool, markdown SoT, index, dashboard).
+- **Shipped:** markdown SoT, registry, index, dashboard, agent loop, and
+  project-bound MCP through Phase H.
+- **Implemented (unreleased):** Phase I / E16 Project Link (US-059–US-063).
+- **Locked direction:** decisions 0011 (global tool + markdown SoT) and 0022
+  (configured peers + target-owned reports).

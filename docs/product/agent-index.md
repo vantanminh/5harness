@@ -43,11 +43,26 @@ Embeddings / vector DB: **not** required for the first implementation.
 | `query *` | Tables/aggregates from catalog | Bounded |
 | `reindex` | Rebuild stats | — |
 
+## Project Link reads and reports
+
+`harness peer search|get|context|links` resolves exactly one explicitly
+configured peer by project id or unique role, then reuses the same local
+retrieval engines against that peer root. Results keep the same snippets,
+summary mode, context budget, and bounded link views. An arbitrary registry
+project is not a peer capability, and peer reads never traverse peer-of-peer
+relationships.
+
+Reports are indexed with the other entity types in the **target** project's
+catalog. `report add` reindexes the resolved target after creating the report;
+`report update` reindexes the local target after a lifecycle change. If
+`doctor` reports a missing or unreadable peer index, run `harness reindex` in that
+peer project before retrying the read.
+
 ## Mutation rule (mandatory)
 
 Agents **only** change durable entities through write commands
-(`story add|update`, `decision add`, …). After a write, the CLI updates the
-index (or marks dirty for next reindex).
+(`story add|update`, `decision add`, `report add|update`, …). After a write,
+the CLI updates the derived index for the project that owns the entity.
 
 Hand-editing operational markdown is a **policy violation** for agents (and
 unsupported for correctness).

@@ -24,7 +24,7 @@ Registry entry fields (minimum):
 
 | Field | Purpose |
 | --- | --- |
-| `id` | Stable local id |
+| `id` | Durable project id from the project's AGENTS harness block |
 | `path` | Absolute path to project root |
 | `name` | Display name (folder or package name) |
 | `linked_at` | When registered |
@@ -39,6 +39,19 @@ Registry entry fields (minimum):
 | `harness link [path]` | Register existing harness project (clone workflow); reindex |
 | `harness unlink [path]` | Remove registry entry (does not delete project files) |
 | `harness projects` | List linked projects (for humans / dashboard prep) |
+
+## Registry link vs Project Link
+
+`harness link` is a machine-local registration command. It does not create a
+relationship between repositories. The opt-in **Project Link** feature uses
+`harness project role` and `harness project peer` and stores role, stack, and
+peer identity markers in the Git-tracked AGENTS harness block.
+
+Peer paths are never committed. A peer marker contains a durable project id;
+the registry resolves that id to an absolute path on the current machine. Both
+projects therefore need to be registered and healthy on the same machine.
+Missing, ambiguous, or unconfigured peers fail closed, and tools do not follow
+peer-of-peer relationships.
 
 ## Clone workflow (product requirement)
 
@@ -55,6 +68,9 @@ npm i -g 5harness
 cd my-app
 harness link
 # dashboard / query now see committed history at this path
+
+# If this repo uses Project Link, link each configured peer clone too.
+# The committed peer ids resolve again once all paths are registered.
 ```
 
 No shared global cloud state is required for this workflow.
@@ -71,3 +87,4 @@ If a project is moved or deleted, registry entries may break. CLI should:
 - Syncing registry across machines.
 - Storing full story/decision bodies in `~/.5harness`.
 - Replacing Git as the collaboration channel.
+- Treating every registered project as an authorized Project Link peer.

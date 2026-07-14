@@ -13,8 +13,8 @@ reading raw files from disk.
 - You want to see what documentation files are available before reading one.
 
 **Do NOT use `harness docs` to read target-project entities** (stories,
-decisions, intakes, backlog). Use `harness get`, `harness search`, `harness
-query` for that.
+decisions, intakes, backlog, reports). Use `harness get`, `harness search`,
+`harness query`, or the bounded `harness peer` equivalents for that.
 
 ## Commands
 
@@ -93,6 +93,7 @@ relative path as a heading.
 | `product/cli-contract.md` | CLI surface contract, every command and its args |
 | `product/roadmap.md` | Implementation phases and story tracking |
 | `product/agent-index.md` | Agent retrieval API (get/search/links/reindex) |
+| `product/project-link.md` | Roles, configured peers, bounded peer reads, reports |
 | `TRACE_SPEC.md` | Trace recording expectations |
 | `TEST_MATRIX.md` | Testing expectations by risk lane |
 | `GLOSSARY.md` | Terminology |
@@ -110,7 +111,8 @@ relative path as a heading.
 
 | Command | Searches |
 | --- | --- |
-| `harness search <q>` | Target-project **entities** (stories, decisions, intake, backlog) |
+| `harness search <q>` | Local target-project **entities**, including reports |
+| `harness peer search <q>` | One explicitly configured peer's entities; bounded snippets |
 | `harness docs search <q>` | Harness package **documentation** (how harness works) |
 | `harness get <id>` | One target-project entity by ID |
 | `harness docs read <path>` | One harness documentation file by path |

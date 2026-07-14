@@ -93,6 +93,7 @@ Read to leave useful evidence for the next agent and for benchmark scoring.
 | --- | --- |
 | Task touches durable records or legacy import | Read `docs/decisions/0004-sqlite-durable-layer.md`, `0011-…`, `migrations/`, and relevant CLI code before planning. |
 | Task touches CLI command behavior or packaging | Read `docs/decisions/0008-…`, `0010-…`, `docs/product/cli-contract.md`, `docs/product/distribution.md`, and CLI help. |
+| Task reads a peer or handles a cross-project report | Read `docs/product/project-link.md`; inspect configured peers with `project peer list`; use bounded peer tools only, never peer-of-peer traversal. Report mutations belong to and reindex the target project. |
 | Task touches auth, authorization, audit/security, data loss, or external providers | Treat as high-risk, read `docs/templates/high-risk-story/*`, and check prior decisions before implementation. |
 | Task changes public API shape, product behavior, or user-visible workflow | Read relevant `docs/product/*`, story packets, and validation expectations before editing. |
 | Task changes Harness policy, source hierarchy, risk classification, or validation requirements | Read `docs/HARNESS.md`, `docs/FEATURE_INTAKE.md`, `docs/ARCHITECTURE.md`, and `docs/decisions/*`; pause if direction is ambiguous. |

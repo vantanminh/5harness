@@ -10,7 +10,8 @@ npm package: **`5harness`**
 
 A **global npm CLI** that turns any software repo into an agent-ready workspace:
 project markdown as durable, Git-backed history; machine-local registry for
-multi-project dashboard; retrieval tools so agents never dump whole vaults.
+multi-project dashboard; retrieval tools so agents never dump whole vaults;
+and opt-in Project Link collaboration between configured peer repositories.
 
 ## Problem
 
@@ -36,7 +37,9 @@ Ship a **single npm CLI** (preferred **global** install) that:
    (committed with the repo).
 4. **Indexes** entities + links so agents **search/get** instead of reading
    giant files.
-5. Keeps **traces** machine-local (high volume, not default Git noise).
+5. **Links configured peers** by durable project identity for bounded reads and
+   target-owned cross-project reports.
+6. Keeps **traces** machine-local (high volume, not default Git noise).
 
 Agents **only** mutate durable state through CLI tools (mandatory).
 
@@ -46,7 +49,7 @@ Agents **only** mutate durable state through CLI tools (mandatory).
 | --- | --- |
 | Human maintainer | `npm i -g` once; `harness init` / `link` per repo; history on GitHub |
 | Collaborator | Clone repo → install CLI → `harness link` → same history + dashboard |
-| Coding agent | Stable tools: write via commands, read via get/search/links/query |
+| Coding agent | Stable tools: write via commands, read locally or from configured peers, and report cross-project mismatches |
 | Contributor to this product | Clear product docs, decisions, and story packets in this repo |
 
 ## Non-Goals (near-term)
@@ -63,6 +66,8 @@ Agents **only** mutate durable state through CLI tools (mandatory).
 3. After clone + `harness link`, query tools see committed history (reindex).
 4. Agents can work without reading entire markdown trees (search/get/links).
 5. Agents never need to hand-edit operational markdown.
+6. Configured peers can exchange bounded context and target-owned reports
+   without making every registered project accessible.
 
 ## Surfaces
 
@@ -73,6 +78,8 @@ Agents **only** mutate durable state through CLI tools (mandatory).
 | Derived index (`.5harness/index/`) | Local, rebuildable |
 | Global registry (`~/.5harness/`) | Pointers for multi-project + dashboard |
 | Browser dashboard | Localhost; reads registry + project paths |
+| AGENTS Project Link metadata | Git-tracked role, optional stack, and peer ids |
+| Reports (`docs/reports/`) | Git-tracked, target-owned cross-project findings |
 | Project SQLite as SoT | **Retired** (decision 0011); optional `import-sqlite` |
 
 ## Roadmap sketch
@@ -82,6 +89,8 @@ Agents **only** mutate durable state through CLI tools (mandatory).
 | A–E (v0.1–0.5) | **Done** — early CLI + quality surface |
 | F — Store pivot | Markdown SoT + registry + link + reindex + get/search/links |
 | G — Dashboard | Local browser multi-project view |
+| H — Agent loop + MCP binding | Context, lifecycle, OAuth, and explicit project selection |
+| I / E16 — Project Link | **Implemented (unreleased)** — roles, configured peers, bounded reads, reports |
 | Optional | Trace export, FTS upgrades, native engine |
 
 See [roadmap.md](./roadmap.md) for story tracking.

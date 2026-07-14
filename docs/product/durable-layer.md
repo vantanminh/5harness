@@ -14,13 +14,13 @@ Operational records live as **markdown entity files inside the project**
 | Decision | `docs/decisions/<id>.md` (or `--doc`) | caller id |
 | Intake | `docs/intakes/IN-###.md` | auto `IN-001`… |
 | Backlog | `docs/backlog/BL-###.md` | auto `BL-001`… |
+| Report | `docs/reports/RP-###.md` | auto or caller-supplied `RP-###` |
 
 Frontmatter always includes `id`, `type`, plus type-specific fields. Optional
 `links:` (or CLI `--links`) for graph edges.
 
-**Transition (v0.7):** write commands **always** write markdown. If
-`harness.db` exists they also dual-write SQLite so `query` still works until
-US-008 (query-from-MD) / US-013 (SQLite retirement).
+Write commands use markdown directly. A legacy `harness.db` can be imported,
+but it is not dual-written and is never the current source of truth.
 
 Derived artifacts (search index, optional FTS database) are **rebuildable** and
 are **not** the source of truth.
@@ -33,19 +33,25 @@ are **not** the source of truth.
 | Decisions | `docs/decisions/<id>-….md` | Yes |
 | Intakes | `docs/intakes/<id>.md` | Yes |
 | Backlog items | `docs/backlog/<id>.md` | Yes |
+| Cross-project reports | `docs/reports/<id>.md` in the target project | Yes |
 | Policy docs / templates | `docs/*`, `AGENTS.md` | Yes |
 | Derived index | `.5harness/index/` | No |
 | Traces / noisy runtime | `.5harness/local/` (or global project cache) | No |
 
-Exact paths are finalized in the store implementation story; this doc locks the
-**commit policy**.
+These paths and the **commit policy** are part of the current product contract.
 
 ## Entity rules
 
 1. **One entity = one file** with YAML frontmatter (`id`, `type`, status fields…).
 2. **Links** via wikilinks `[[…]]` and/or frontmatter `links`.
-3. **Only the harness CLI** creates or updates operational entities.
+3. **Only Harness CLI or MCP tools** create or update operational entities.
 4. Agents **must not** hand-edit operational markdown; they call tools only.
+
+Project Link reports are target-owned entities. Their lifecycle is
+`open | acked | fixed | wontfix | needs_info`. `harness report add` writes the
+report into the configured target peer and reindexes that target; local
+`report update` reindexes the target project again so peer reads see the new
+status and resolution.
 
 ## Commands (semantics preserved from v0)
 
@@ -55,6 +61,7 @@ Exact paths are finalized in the store implementation story; this doc locks the
 | `harness story add\|update\|verify\|verify-all` | Story matrix, proof flags, verification |
 | `harness decision add\|verify` | Decision records + optional verify |
 | `harness backlog add\|close` | Harness improvement backlog |
+| `harness report add\|list\|get\|update` | Target-owned cross-project report lifecycle |
 | `harness trace` / `score-trace` | Execution traces (local-only storage) |
 | `harness audit` | Drift findings + entropy score |
 | `harness query …` | matrix, stats, intakes, decisions, backlog, stories, traces |
@@ -64,8 +71,9 @@ Exact paths are finalized in the store implementation story; this doc locks the
 
 1. Target directory: `--dir` / cwd.
 2. Project must be initialized (or linked after clone).
-3. Writes go to markdown under the project; then index is updated (incrementally
-   or via reindex).
+3. Writes go to markdown under the selected project and auto-reindex its local
+   derived index. A cross-project `report add` selects and reindexes the target
+   peer, not the calling project.
 
 Legacy: `HARNESS_DB_PATH` / `harness.db` applied to the **pre-0011** SQLite MVP
 only. New code paths do not use project SQLite as SoT.
@@ -81,6 +89,6 @@ CLI accepts `tiny`, `normal`, `high-risk` (also `high_risk`). Stored as
 
 ## Migration note (from v0.5 SQLite)
 
-Existing SQLite-backed implementations remain until the store rewrite ships.
-New features should follow this markdown SoT design; do not extend `harness.db`
-as the long-term durable store.
+The store rewrite has shipped. `harness import-sqlite` remains only as a
+non-clobbering migration path for old projects; new features must use markdown
+entities rather than extending `harness.db`.

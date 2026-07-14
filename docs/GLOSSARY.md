@@ -54,6 +54,35 @@ The compiled and registered tool manifest exposed by
 `harness query tools`. It lets agents discover available
 commands, arguments, responsibilities, and custom project tools.
 
+## Registry Link
+
+The existing `harness link` operation that registers one project path in the
+machine-local registry. It does not create a relationship between projects.
+
+## Project Link
+
+The opt-in relationship between projects identified by Git-tracked peer
+markers. It enables bounded reads and target-owned reports after both project
+ids resolve through the same machine's registry.
+
+## Project Role and Stack
+
+Compact AGENTS harness-block metadata describing what a repository is
+(`frontend`, `backend`, `mobile`, `service`, `shared`, or `other`) and optional
+lowercase implementation tags. Plain `init` leaves both unconfigured.
+
+## Configured Peer
+
+A durable project id explicitly listed in the calling project's peer markers.
+Registry membership alone does not grant peer access, and tools never traverse
+peer-of-peer relationships.
+
+## Report
+
+A target-owned markdown entity under `docs/reports/` for a cross-project
+finding. Its lifecycle is `open | acked | fixed | wontfix | needs_info`; report
+mutations reindex the target so peers can read current resolution state.
+
 ## Intervention
 
 A durable record of human, reviewer, CI, or agent feedback that corrected,
@@ -102,9 +131,10 @@ closed so future agents can compare expectation with result.
 
 ## Durable Layer
 
-The SQLite database and CLI (`harness`) that stores operational records
-(intakes, stories, decisions, backlog items, traces) as structured, queryable
-data. Policy docs describe how to work; the durable layer stores what happened.
+Git-backed markdown entities and the `harness` commands that manage operational
+records such as intakes, stories, decisions, backlog items, and reports. The
+derived index and machine-local traces are rebuildable or local state; project
+SQLite is not the source of truth.
 
 ## Product Delta
 
