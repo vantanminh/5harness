@@ -92,6 +92,14 @@ export const BUILTIN_TOOLS: ToolEntry[] = [
     source: "compiled",
   },
   {
+    name: "project peer",
+    kind: "builtin",
+    capability: "scaffold",
+    responsibility: "Add, remove, or resolve Project Link peers",
+    status: "present",
+    source: "compiled",
+  },
+  {
     name: "dashboard",
     kind: "builtin",
     capability: "scaffold",

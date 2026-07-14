@@ -4,6 +4,16 @@ import { extractHarnessBlock, HARNESS_BEGIN } from "./upgrade.js";
 const PROJECT_ID_RE = /<!--\s*harness-project-id:\s*([A-Za-z0-9_-]+)\s*-->/;
 const VALID_PROJECT_ID_RE = /^[A-Za-z0-9_-]{16,64}$/;
 
+export function parseProjectId(raw: string): string {
+  const value = raw.trim();
+  if (!VALID_PROJECT_ID_RE.test(value)) {
+    throw new Error(
+      `Invalid harness project id "${raw}". Expected 16-64 letters, numbers, _ or -.`,
+    );
+  }
+  return value;
+}
+
 export function generateProjectId(): string {
   return randomBytes(16).toString("hex");
 }
@@ -19,9 +29,7 @@ export function insertProjectIdMarker(
   agentsText: string,
   projectId: string,
 ): string {
-  if (!VALID_PROJECT_ID_RE.test(projectId)) {
-    throw new Error("Invalid harness project id.");
-  }
+  parseProjectId(projectId);
   if (extractProjectId(agentsText)) return agentsText;
 
   const extracted = extractHarnessBlock(agentsText);

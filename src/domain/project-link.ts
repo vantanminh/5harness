@@ -1,4 +1,5 @@
 import { extractHarnessBlock, HARNESS_BEGIN } from "./upgrade.js";
+import { parseProjectId } from "./project-id.js";
 
 export const PROJECT_ROLES = [
   "frontend",
@@ -24,11 +25,23 @@ const ROLE_MARKER_LINE_RE =
   /^[ \t]*<!--\s*harness-project-role\s*:[^\r\n]*-->[ \t]*(?:\r?\n)?/gm;
 const STACK_MARKER_LINE_RE =
   /^[ \t]*<!--\s*harness-project-stack\s*:[^\r\n]*-->[ \t]*(?:\r?\n)?/gm;
+const PEER_MARKER_RE = /<!--\s*harness-peer:\s*([^\r\n]*?)\s*-->/g;
+const PEER_MARKER_LINE_RE =
+  /^[ \t]*<!--\s*harness-peer\s*:[^\r\n]*-->[ \t]*(?:\r?\n)?/gm;
 const STACK_TOKEN_RE = /^[a-z0-9_-]+$/;
 
 export type ProjectRoleConfig = {
   role: ProjectRole | null;
   stack: string[];
+};
+
+export type ProjectPeer = {
+  id: string;
+  role: ProjectRole;
+};
+
+export type ProjectLinkConfig = ProjectRoleConfig & {
+  peers: ProjectPeer[];
 };
 
 export function parseProjectRole(raw: string): ProjectRole {
@@ -83,6 +96,58 @@ export function extractProjectRoleConfig(agentsText: string): ProjectRoleConfig 
   };
 }
 
+function parseProjectPeerMarker(raw: string): ProjectPeer {
+  const fields = new Map<string, string>();
+  for (const segment of raw.split(";")) {
+    const trimmed = segment.trim();
+    if (!trimmed) continue;
+    const separator = trimmed.indexOf("=");
+    if (separator <= 0 || separator === trimmed.length - 1) {
+      throw new Error(`Invalid harness peer marker field "${trimmed}".`);
+    }
+    const key = trimmed.slice(0, separator).trim();
+    const value = trimmed.slice(separator + 1).trim();
+    if (key !== "id" && key !== "role") {
+      throw new Error(`Invalid harness peer marker key "${key}".`);
+    }
+    if (fields.has(key)) {
+      throw new Error(`Duplicate harness peer marker key "${key}".`);
+    }
+    fields.set(key, value);
+  }
+
+  const id = fields.get("id");
+  const role = fields.get("role");
+  if (!id || !role) {
+    throw new Error("Invalid harness peer marker: id and role are required.");
+  }
+  return { id: parseProjectId(id), role: parseProjectRole(role) };
+}
+
+export function extractProjectPeers(agentsText: string): ProjectPeer[] {
+  const extracted = extractHarnessBlock(agentsText);
+  if (!extracted) return [];
+
+  const peers: ProjectPeer[] = [];
+  const ids = new Set<string>();
+  for (const match of extracted.block.matchAll(PEER_MARKER_RE)) {
+    const peer = parseProjectPeerMarker(match[1] ?? "");
+    if (ids.has(peer.id)) {
+      throw new Error(`Duplicate harness peer marker for project ${peer.id}.`);
+    }
+    ids.add(peer.id);
+    peers.push(peer);
+  }
+  return peers;
+}
+
+export function extractProjectLinkConfig(agentsText: string): ProjectLinkConfig {
+  return {
+    ...extractProjectRoleConfig(agentsText),
+    peers: extractProjectPeers(agentsText),
+  };
+}
+
 function insertMetadataLines(block: string, lines: string[]): string {
   if (lines.length === 0) return block;
   const newline = block.includes("\r\n") ? "\r\n" : "\n";
@@ -95,6 +160,24 @@ function insertMetadataLines(block: string, lines: string[]): string {
   }
   if (versionPattern.test(block)) {
     return block.replace(versionPattern, `$1${newline}${markerText}`);
+  }
+  return block.replace(HARNESS_BEGIN, `${HARNESS_BEGIN}${newline}${markerText}`);
+}
+
+function insertPeerLines(block: string, lines: string[]): string {
+  if (lines.length === 0) return block;
+  const newline = block.includes("\r\n") ? "\r\n" : "\n";
+  const markerText = lines.join(newline);
+  const anchors = [
+    /^[ \t]*<!--\s*harness-project-stack:[^\r\n]*-->[ \t]*$/m,
+    /^[ \t]*<!--\s*harness-project-role:[^\r\n]*-->[ \t]*$/m,
+    /^[ \t]*<!--\s*harness-project-id:[^\r\n]*-->[ \t]*$/m,
+    /^[ \t]*<!--\s*harness-version:[^\r\n]*-->[ \t]*$/m,
+  ];
+  for (const anchor of anchors) {
+    if (anchor.test(block)) {
+      return block.replace(anchor, `$&${newline}${markerText}`);
+    }
   }
   return block.replace(HARNESS_BEGIN, `${HARNESS_BEGIN}${newline}${markerText}`);
 }
@@ -123,6 +206,57 @@ export function setProjectRoleMarkers(
   return extracted.before + updatedBlock + extracted.after;
 }
 
+export function setProjectPeerMarkers(
+  agentsText: string,
+  peers: readonly ProjectPeer[],
+): string {
+  const extracted = extractHarnessBlock(agentsText);
+  if (!extracted) {
+    throw new Error(
+      "AGENTS.md has no harness-managed block. Run `harness init --force` first.",
+    );
+  }
+
+  const normalized = peers.map((peer) => ({
+    id: parseProjectId(peer.id),
+    role: parseProjectRole(peer.role),
+  }));
+  if (new Set(normalized.map((peer) => peer.id)).size !== normalized.length) {
+    throw new Error("Duplicate harness peer project ids are not allowed.");
+  }
+  const stripped = extracted.block.replace(PEER_MARKER_LINE_RE, "");
+  const lines = normalized.map(
+    (peer) => `<!-- harness-peer: id=${peer.id};role=${peer.role} -->`,
+  );
+  const updatedBlock = insertPeerLines(stripped, lines);
+  return extracted.before + updatedBlock + extracted.after;
+}
+
+export function upsertProjectPeerMarker(
+  agentsText: string,
+  peer: ProjectPeer,
+): string {
+  const id = parseProjectId(peer.id);
+  const peers = extractProjectPeers(agentsText).filter(
+    (existing) => existing.id !== id,
+  );
+  peers.push({ id, role: parseProjectRole(peer.role) });
+  return setProjectPeerMarkers(agentsText, peers);
+}
+
+export function removeProjectPeerMarker(
+  agentsText: string,
+  projectId: string,
+): string {
+  const id = parseProjectId(projectId);
+  const peers = extractProjectPeers(agentsText);
+  if (!peers.some((peer) => peer.id === id)) return agentsText;
+  return setProjectPeerMarkers(
+    agentsText,
+    peers.filter((peer) => peer.id !== id),
+  );
+}
+
 /** Preserve opt-in Project Link metadata while the managed template is replaced. */
 export function preserveProjectLinkMarkers(
   templateBlock: string,
@@ -136,10 +270,7 @@ export function preserveProjectLinkMarkers(
   const stripped = templateBlock
     .replace(ROLE_MARKER_LINE_RE, "")
     .replace(STACK_MARKER_LINE_RE, "")
-    .replace(
-      /^[ \t]*<!--\s*harness-peer\s*:[^\r\n]*-->[ \t]*(?:\r?\n)?/gm,
-      "",
-    );
+    .replace(PEER_MARKER_LINE_RE, "");
   return insertMetadataLines(
     stripped,
     markerLines.map((line) => line.trim()),

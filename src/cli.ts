@@ -39,6 +39,9 @@ import { executeHandoff } from "./commands/handoff.js";
 import { executeMcp } from "./commands/mcp.js";
 import {
   executeProjectId,
+  executeProjectPeerAdd,
+  executeProjectPeerList,
+  executeProjectPeerRemove,
   executeProjectRoleSet,
   executeProjectRoleShow,
 } from "./commands/project.js";
@@ -291,6 +294,38 @@ async function main(argv: string[] = process.argv): Promise<void> {
       .option("--json", "print role and stack as JSON")
       .action((role: string, opts) => {
         withErrors(() => executeProjectRoleSet(role, opts));
+      }),
+  );
+
+  const projectPeerCmd = projectCmd
+    .command("peer")
+    .description("Manage opt-in Project Link peer relationships");
+  addDirOptions(
+    projectPeerCmd
+      .command("add")
+      .description("Add a registered harness project as a peer")
+      .argument("<idOrPath>", "peer project id or registered path")
+      .option("--role <role>", "override the peer role")
+      .action((idOrPath: string, opts) => {
+        withErrors(() => executeProjectPeerAdd(idOrPath, opts));
+      }),
+  );
+  addDirOptions(
+    projectPeerCmd
+      .command("remove")
+      .description("Remove a peer by durable project id")
+      .argument("<projectId>", "peer project id")
+      .action((projectId: string, opts) => {
+        withErrors(() => executeProjectPeerRemove(projectId, opts));
+      }),
+  );
+  addDirOptions(
+    projectPeerCmd
+      .command("list")
+      .description("List configured peers and machine-local resolution")
+      .option("--json", "print peer resolution as JSON")
+      .action((opts) => {
+        withErrors(() => executeProjectPeerList(opts));
       }),
   );
   addDirOptions(

@@ -61,6 +61,13 @@ export function findProjectByPath(
   return registry.projects.find((p) => pathsEqual(p.path, absolutePath));
 }
 
+export function findProjectById(
+  registry: ProjectRegistry,
+  projectId: string,
+): RegistryProject | undefined {
+  return registry.projects.find((project) => project.id === projectId);
+}
+
 export function upsertProject(
   registry: ProjectRegistry,
   entry: Omit<RegistryProject, "id" | "linked_at" | "updated_at"> & {

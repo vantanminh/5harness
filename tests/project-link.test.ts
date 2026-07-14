@@ -4,10 +4,13 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   extractProjectRoleConfig,
+  extractProjectPeers,
   parseProjectRole,
   parseProjectStack,
   preserveProjectLinkMarkers,
+  removeProjectPeerMarker,
   setProjectRoleMarkers,
+  upsertProjectPeerMarker,
 } from "../src/domain/project-link.js";
 import { applyHarnessBlockUpgrade } from "../src/infrastructure/upgrade.js";
 
@@ -112,5 +115,69 @@ describe("Project Link role metadata", () => {
     });
     expect(upgraded).toContain("harness-peer: id=abcdef0123456789;role=backend");
     expect(upgraded).toContain("Local tail.");
+  });
+});
+
+describe("Project Link peer metadata", () => {
+  const backendId = "abcdef0123456789abcdef0123456789";
+  const mobileId = "9876543210abcdef9876543210abcdef";
+
+  it("upserts, parses, and removes peers by durable project id", () => {
+    const configured = setProjectRoleMarkers(agents(), "frontend", ["web"]);
+    const withBackend = upsertProjectPeerMarker(configured, {
+      id: backendId,
+      role: "backend",
+    });
+    const withBoth = upsertProjectPeerMarker(withBackend, {
+      id: mobileId,
+      role: "mobile",
+    });
+    const updated = upsertProjectPeerMarker(withBoth, {
+      id: backendId,
+      role: "service",
+    });
+
+    expect(extractProjectPeers(updated)).toEqual([
+      { id: mobileId, role: "mobile" },
+      { id: backendId, role: "service" },
+    ]);
+    expect(updated.match(/harness-peer/g)).toHaveLength(2);
+    expect(updated.indexOf("harness-project-stack")).toBeLessThan(
+      updated.indexOf("harness-peer"),
+    );
+
+    const removed = removeProjectPeerMarker(updated, mobileId);
+    expect(extractProjectPeers(removed)).toEqual([
+      { id: backendId, role: "service" },
+    ]);
+    expect(removeProjectPeerMarker(removed, mobileId)).toBe(removed);
+  });
+
+  it("rejects malformed and duplicate peer markers", () => {
+    const duplicate = agents().replace(
+      "## Harness",
+      `<!-- harness-peer: id=${backendId};role=backend -->\n` +
+        `<!-- harness-peer: id=${backendId};role=service -->\n` +
+        "## Harness",
+    );
+    expect(() => extractProjectPeers(duplicate)).toThrow(/Duplicate/);
+
+    const missingRole = agents().replace(
+      "## Harness",
+      `<!-- harness-peer: id=${backendId} -->\n## Harness`,
+    );
+    expect(() => extractProjectPeers(missingRole)).toThrow(/id and role/);
+  });
+
+  it("preserves CRLF while writing peer markers", () => {
+    const crlf = agents().replaceAll("\n", "\r\n");
+    const updated = upsertProjectPeerMarker(crlf, {
+      id: backendId,
+      role: "backend",
+    });
+    expect(updated).toContain(
+      `<!-- harness-peer: id=${backendId};role=backend -->\r\n`,
+    );
+    expect(updated.replaceAll("\r\n", "")).not.toContain("\n");
   });
 });

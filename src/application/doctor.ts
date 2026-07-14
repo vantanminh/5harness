@@ -3,7 +3,9 @@ import path from "node:path";
 import { buildCatalog } from "./catalog.js";
 import { extractRepoVersion, compareVersions } from "../domain/upgrade.js";
 import { readRegistry } from "../infrastructure/registry.js";
+import type { RegistryIoOptions } from "../infrastructure/registry.js";
 import { findProjectByPath } from "../domain/registry.js";
+import { listProjectPeers } from "./project-link.js";
 import {
   hasMarkdownStore,
   loadProjectIndex,
@@ -82,7 +84,10 @@ function checkNodeEngines(projectRoot: string): DoctorCheck {
 }
 
 
-export function runDoctor(projectRoot: string): DoctorReport {
+export function runDoctor(
+  projectRoot: string,
+  registryOptions: RegistryIoOptions = {},
+): DoctorReport {
   const checks: DoctorCheck[] = [];
 
   // 1. Markdown store present
@@ -102,7 +107,7 @@ export function runDoctor(projectRoot: string): DoctorReport {
 
   // 2. Registry linked
   try {
-    const registry = readRegistry();
+    const registry = readRegistry(registryOptions);
     const linked = findProjectByPath(registry, projectRoot);
     if (linked) {
       checks.push({
@@ -163,6 +168,40 @@ export function runDoctor(projectRoot: string): DoctorReport {
       name: "agents-version",
       status: "fail",
       message: "AGENTS.md not found - run 'harness init'",
+    });
+  }
+
+  // Project Link peers are durable ids, but paths must resolve via this
+  // machine's registry. Unresolved peers are actionable warnings, not a
+  // failure of the calling project's own store.
+  try {
+    const peers = listProjectPeers(projectRoot, registryOptions);
+    const unresolved = peers.filter((peer) => !peer.resolved);
+    if (unresolved.length > 0) {
+      const details = unresolved
+        .slice(0, 3)
+        .map((peer) => `${peer.id} (${peer.reason ?? "unresolved"})`)
+        .join("; ");
+      checks.push({
+        name: "project-peers",
+        status: "warn",
+        message: `${unresolved.length} unresolved peer(s): ${details}. Run \`harness link\` in each peer project.`,
+      });
+    } else {
+      checks.push({
+        name: "project-peers",
+        status: "ok",
+        message:
+          peers.length === 0
+            ? "No project peers configured"
+            : `${peers.length} project peer(s) resolved`,
+      });
+    }
+  } catch (error) {
+    checks.push({
+      name: "project-peers",
+      status: "warn",
+      message: `Could not inspect project peers: ${error instanceof Error ? error.message : String(error)}`,
     });
   }
 
