@@ -42,6 +42,8 @@ describe("CLI e2e", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("init");
     expect(result.stdout).toContain("migrate");
+    expect(result.stdout).toContain("Project Link");
+    expect(result.stdout).toContain("backend reports");
   });
 
   it("init --dry-run and init into temp dir", () => {

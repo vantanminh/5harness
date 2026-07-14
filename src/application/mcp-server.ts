@@ -112,7 +112,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "harness_status",
     description:
-      "Project snapshot: stories, intakes, backlog, version, index.",
+      "Project snapshot: work counts, Project Link role/peers/reports, version, index.",
     inputSchema: { type: "object", properties: {} },
   },
   {
@@ -137,7 +137,7 @@ export const MCP_TOOLS: McpTool[] = [
   {
     name: "harness_doctor",
     description:
-      "Workspace health checks (index, registry, entity dirs). Same as CLI doctor.",
+      "Workspace health checks (index, registry, Project Link peers, entity dirs). Same as CLI doctor.",
     inputSchema: {
       type: "object",
       properties: { json: { type: "boolean" } },

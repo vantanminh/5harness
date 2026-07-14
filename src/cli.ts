@@ -932,7 +932,7 @@ async function main(argv: string[] = process.argv): Promise<void> {
   addDirOptions(
     program
       .command("status")
-      .description("Project snapshot for agents: stories, intakes, backlog, version, index")
+      .description("Project snapshot for agents: work, Project Link, version, index")
       .option("--json", "machine-readable JSON output")
       .action((opts) => {
         withErrors(() => executeStatus(opts));
@@ -942,7 +942,7 @@ async function main(argv: string[] = process.argv): Promise<void> {
   addDirOptions(
     program
       .command("next")
-      .description("Recommend next work item (in_progress stories first, then planned, intakes, backlog)")
+      .description("Recommend next work item (active stories, backend reports, planned work)")
       .option("--json", "machine-readable JSON output")
       .option("--limit <N>", "max items to show (default: 10)")
       .action((opts) => {
