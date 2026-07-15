@@ -3,7 +3,7 @@
 **Status:** implemented (unreleased)
 **Intake:** IN-019  
 **Decision:** 0022-project-peer-link-and-cross-project-reports  
-**Stories:** US-059 … US-063  
+**Stories:** US-059 … US-063, US-068
 **Depends on:** decision 0011 (markdown SoT + registry), 0017 (hard-fail), 0020 (project id + MCP binding)
 
 ---
@@ -176,6 +176,12 @@ remain forced to the project chosen at consent.
 - Cross-project creation is limited to target-owned reports. Lifecycle updates
   run only in the calling/local project, so a peer cannot remotely resolve a
   target report.
+- Optional `HARNESS_PEER_WRITE_ROOTS` hardens report creation on shared
+  machines. Its value is a platform-path-delimited list of existing absolute
+  directories (`;` on Windows, `:` on macOS/Linux). CLI and MCP canonicalize
+  the target path and fail closed if the configuration is invalid or no root
+  contains the target. Unset preserves the explicit-configured-peer v1 trust
+  model; peer reads are unaffected.
 - Report bodies must be sanitized: never include credentials, tokens, secrets,
   or unnecessary personal data.
 - Successful report mutations reindex the project that owns the changed report.
@@ -338,9 +344,11 @@ continue FE implementation with correct contract
 
 ### 5.6 Doctor / status / next (minimal v1)
 
-- `doctor`: warns if peer markers cannot resolve through this machine's registry
-  and separately warns when a resolved peer has no readable index. Both are
-  non-fatal health warnings with recovery guidance.
+- `doctor`: warns if peer markers cannot resolve through this machine's registry,
+  when a resolved peer has no readable index, or when a resolved report target
+  is outside `HARNESS_PEER_WRITE_ROOTS`. Invalid policy syntax is also reported;
+  report creation itself fails closed. These are non-fatal health warnings with
+  recovery guidance.
 - `status`: includes role, stack, configured peer count, and the count of local
   reports whose status is `open`, in both human and JSON output.
 - `next`: for a backend role, orders open reports after in-progress stories and
@@ -396,6 +404,7 @@ Registry `harness link` / `unlink` / `projects` **unchanged**.
 | US-061 | Peer read tools CLI + MCP (search/get/context/links) | high-risk | implemented | US-060, US-009, US-027 |
 | US-062 | Report entity + add/list/get/update + cross-project write | high-risk | implemented | US-060 |
 | US-063 | AGENTS workflow copy, doctor/status/next hooks, product docs finish | normal | implemented (unreleased) | US-061, US-062 |
+| US-068 | Optional report target root allowlist + doctor diagnostics | normal | implemented | US-062 |
 
 ---
 

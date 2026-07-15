@@ -7,6 +7,7 @@ import { writeProjectIndex } from "../src/application/index-store.js";
 import { configureProjectPeer } from "../src/application/project-link.js";
 import { linkProject } from "../src/application/registry.js";
 import { setProjectRoleMarkers } from "../src/domain/project-link.js";
+import { PEER_WRITE_ROOTS_ENV } from "../src/application/peer-write-policy.js";
 
 const tempDirs: string[] = [];
 
@@ -164,6 +165,48 @@ describe("harness doctor (US-018)", () => {
     expect(
       runDoctor(frontend, { harnessHome: home }).checks.find(
         (check) => check.name === "project-peer-indexes",
+      ),
+    ).toMatchObject({ status: "ok" });
+  });
+
+  it("reports whether resolved peers satisfy the report write allowlist", () => {
+    const home = tmp();
+    const frontend = tmp();
+    const backend = tmp();
+    createLinkedProject(
+      frontend,
+      "11111111111111111111111111111111",
+      "frontend",
+    );
+    createLinkedProject(
+      backend,
+      "22222222222222222222222222222222",
+      "backend",
+    );
+    linkProject(frontend, { harnessHome: home });
+    linkProject(backend, { harnessHome: home });
+    configureProjectPeer(backend, undefined, frontend, { harnessHome: home });
+
+    const blocked = runDoctor(frontend, {
+      harnessHome: home,
+      env: { [PEER_WRITE_ROOTS_ENV]: frontend },
+    });
+    expect(
+      blocked.checks.find(
+        (check) => check.name === "project-peer-write-policy",
+      ),
+    ).toMatchObject({
+      status: "warn",
+      message: expect.stringContaining("will fail closed"),
+    });
+
+    const allowed = runDoctor(frontend, {
+      harnessHome: home,
+      env: { [PEER_WRITE_ROOTS_ENV]: backend },
+    });
+    expect(
+      allowed.checks.find(
+        (check) => check.name === "project-peer-write-policy",
       ),
     ).toMatchObject({ status: "ok" });
   });

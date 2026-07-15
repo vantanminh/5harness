@@ -135,10 +135,33 @@ describe("Project Link dynamic MCP report tools", () => {
       ]),
     );
 
+    const denied = JSON.parse(
+      handleMcpRequest(
+        request("tools/call", {
+          name: "harness_report_add",
+          arguments: {
+            to: "backend",
+            summary: "Policy denial proof",
+          },
+        }),
+        frontend,
+        undefined,
+        {
+          harnessHome: home,
+          env: { HARNESS_PEER_WRITE_ROOTS: frontend },
+        },
+      ),
+    ) as RpcResponse;
+    expect(denied.error?.message).toMatch(/outside HARNESS_PEER_WRITE_ROOTS/);
+    expect(readEntityById(backend, "report", "RP-001")).toBeNull();
+
     const monitored = createMonitoredMcpHandler(
       frontend,
       { projectId: frontendId, projectMode: "single" },
-      { harnessHome: home },
+      {
+        harnessHome: home,
+        env: { HARNESS_PEER_WRITE_ROOTS: path.dirname(backend) },
+      },
     );
     const added = JSON.parse(
       monitored(

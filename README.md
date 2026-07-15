@@ -103,7 +103,11 @@ limited to direct configured peers and bounded `search` / `get` / `context` /
 Reports are target-owned Git-backed entities under `docs/reports/`. Create and
 update them only through `harness report` or its MCP tools, never by hand. Keep
 payloads sanitized: do not include credentials, tokens, secrets, or unnecessary
-personal data. `doctor` warns about unresolved peers and missing peer indexes;
+personal data. Multi-user machines can restrict report targets with
+`HARNESS_PEER_WRITE_ROOTS`, an OS-path-delimited list of existing absolute
+directories. When set, CLI and MCP report creation fail closed for targets
+outside those canonical roots. `doctor` reports policy mismatches in addition
+to unresolved peers and missing peer indexes;
 `status` summarizes Project Link state; `next` surfaces open reports before
 planned backend work.
 

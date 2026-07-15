@@ -36,6 +36,7 @@ import {
   type ProjectPeerSelector,
   type ResolvedProjectPeer,
 } from "./project-link.js";
+import { requirePeerReportWriteAllowed } from "./peer-write-policy.js";
 
 export const REPORT_FIELD_LIMITS = {
   summary: 500,
@@ -200,15 +201,19 @@ export function addReportToPeer(
   options: RegistryIoOptions & { cwd?: string } = {},
 ): PeerReportAddResult {
   const target = resolveReportPeer(input.to, pathInput, options);
+  const targetPath = requirePeerReportWriteAllowed(
+    target.path,
+    options.env ?? process.env,
+  );
   const localRole = getProjectRole(target.localProjectRoot).role ?? undefined;
   const { to: _to, ...reportInput } = input;
-  const file = addReport(target.path, {
+  const file = addReport(targetPath, {
     ...reportInput,
     fromProjectId: target.localProjectId,
     fromRole: localRole,
     toProjectId: target.id,
   });
-  return { file, target };
+  return { file, target: { ...target, path: targetPath } };
 }
 
 export function addReport(

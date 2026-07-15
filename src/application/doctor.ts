@@ -7,6 +7,11 @@ import type { RegistryIoOptions } from "../infrastructure/registry.js";
 import { findProjectByPath } from "../domain/registry.js";
 import { listProjectPeers } from "./project-link.js";
 import {
+  checkPeerReportWritePolicy,
+  PEER_WRITE_ROOTS_ENV,
+  readPeerWritePolicy,
+} from "./peer-write-policy.js";
+import {
   hasMarkdownStore,
   loadProjectIndex,
   checkIndexIntegrity,
@@ -202,6 +207,36 @@ export function runDoctor(
       (peer): peer is typeof peer & { path: string } =>
         peer.resolved && peer.path !== null,
     );
+    try {
+      const policy = readPeerWritePolicy(
+        registryOptions.env ?? process.env,
+      );
+      const outsidePolicy = policy.configured
+        ? resolved.filter(
+            (peer) =>
+              !checkPeerReportWritePolicy(
+                peer.path,
+                registryOptions.env ?? process.env,
+              ).allowed,
+          )
+        : [];
+      checks.push({
+        name: "project-peer-write-policy",
+        status: outsidePolicy.length > 0 ? "warn" : "ok",
+        message:
+          outsidePolicy.length > 0
+            ? `${outsidePolicy.length} resolved peer(s) are outside ${PEER_WRITE_ROOTS_ENV}: ${outsidePolicy.map((peer) => peer.id).join(", ")}. Cross-project report writes to them will fail closed.`
+            : policy.configured
+              ? `${PEER_WRITE_ROOTS_ENV} permits report writes to all resolved peers (${policy.roots.length} root(s))`
+              : `${PEER_WRITE_ROOTS_ENV} is not set; configured peers use the default report-write trust model`,
+      });
+    } catch (error) {
+      checks.push({
+        name: "project-peer-write-policy",
+        status: "warn",
+        message: `Invalid ${PEER_WRITE_ROOTS_ENV}; cross-project report writes will fail closed: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
     const withoutReadableIndex = resolved.filter(
       (peer) => loadProjectIndex(peer.path) === null,
     );

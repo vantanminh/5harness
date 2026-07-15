@@ -23,7 +23,12 @@ function temp(prefix: string): string {
   return dir;
 }
 
-function runHarness(args: string[], cwd: string, harnessHome: string) {
+function runHarness(
+  args: string[],
+  cwd: string,
+  harnessHome: string,
+  extraEnv: NodeJS.ProcessEnv = {},
+) {
   return spawnSync(process.execPath, ["--import", "tsx", cliEntry, ...args], {
     cwd,
     encoding: "utf8",
@@ -31,6 +36,7 @@ function runHarness(args: string[], cwd: string, harnessHome: string) {
       ...process.env,
       HARNESS_HOME: harnessHome,
       HARNESS_NO_UPDATE_CHECK: "1",
+      ...extraEnv,
     },
   });
 }
@@ -89,6 +95,25 @@ describe("Project Link report CLI e2e", () => {
 
     const frontendId = projectId(frontend);
     const backendId = projectId(backend);
+    const denied = runHarness(
+      [
+        "report",
+        "add",
+        "--to",
+        "backend",
+        "--summary",
+        "Policy denial proof",
+        "--dir",
+        frontend,
+      ],
+      repoRoot,
+      home,
+      { HARNESS_PEER_WRITE_ROOTS: frontend },
+    );
+    expect(denied.status).toBe(1);
+    expect(denied.stderr).toContain("outside HARNESS_PEER_WRITE_ROOTS");
+    expect(reportCount(backend)).toBe(0);
+
     const add = runHarness(
       [
         "report",
@@ -114,6 +139,7 @@ describe("Project Link report CLI e2e", () => {
       ],
       repoRoot,
       home,
+      { HARNESS_PEER_WRITE_ROOTS: parent },
     );
     expectOk(add);
     expect(add.stdout).toContain(`Report RP-001 added to peer ${backendId}`);

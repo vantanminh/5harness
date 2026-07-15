@@ -76,6 +76,12 @@ before public disclosure when the issue is not already widely known.
   machine-local registry. Peer reads are bounded and direct; its only
   cross-project operational-entity mutation is a target-owned `report`.
   Explicit peer-management commands may also attempt reverse AGENTS markers.
+- On shared or multi-user development machines, set `HARNESS_PEER_WRITE_ROOTS`
+  to an OS-path-delimited list of existing absolute directories. Cross-project
+  report creation canonicalizes the target and fails closed when it is outside
+  every allowed root or the policy is invalid. The policy applies equally to
+  CLI and MCP calls; `harness doctor` shows the effective peer-policy health.
+  Leaving it unset preserves the explicit-configured-peer trust model.
 - Sanitize Git-backed report payloads. Never include credentials, tokens,
   secrets, or unnecessary personal data in `docs/reports/` files.
 - MCP exposes peer/report tools dynamically after binding the calling project.

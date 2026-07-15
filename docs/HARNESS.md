@@ -130,9 +130,17 @@ Reports live under the target's `docs/reports/` and must be created or updated
 through `harness report`, never by hand. Do not put credentials, tokens, secrets,
 or unnecessary personal data in a report.
 
+For tighter machine-local write boundaries, set `HARNESS_PEER_WRITE_ROOTS` to
+existing absolute directories separated by the operating system's path-list
+delimiter (`;` on Windows, `:` on macOS/Linux). Report creation through both
+CLI and MCP canonicalizes the target and fails closed unless it is inside one
+of those roots. An invalid policy also fails closed. The variable is optional;
+unset behavior continues to trust direct, explicitly configured peers.
+
 For a backend project, `harness report list --status open` is the report inbox;
 acknowledge and resolve each item with `harness report update`. `doctor` warns
-about unresolved peers or missing peer indexes, `status` shows role/stack/peer
+about unresolved peers, missing peer indexes, or report targets outside the
+configured write roots; `status` shows role/stack/peer
 and open-report counts, and `next` places open reports after in-progress work
 but before planned stories.
 
