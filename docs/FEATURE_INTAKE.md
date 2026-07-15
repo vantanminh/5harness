@@ -163,3 +163,9 @@ harness intake dismiss IN-002 --notes "Superseded by IN-003"
 Valid statuses are `pending`, `completed`, and `dismissed`. Legacy intake files
 without a status remain pending. `harness next` schedules only pending intakes;
 completed and dismissed records remain in Git as durable history.
+
+When a story becomes `implemented`, Harness reevaluates pending intakes that
+link stories through `stories` (or the legacy singular `story`). It marks an
+intake completed only when at least one story is linked and every linked id
+resolves to an implemented story. Missing, planned, blocked, or changed stories
+keep the intake pending; explicit completed or dismissed states are preserved.

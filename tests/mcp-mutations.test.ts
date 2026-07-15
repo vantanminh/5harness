@@ -176,6 +176,43 @@ describe("MCP mutation tools (US-041)", () => {
     expect(body).toContain("US-2");
   });
 
+  it("auto-completes an MCP-created intake after all linked stories", () => {
+    const root = tmp();
+    toolText(
+      rpc(root, "tools/call", {
+        name: "harness_intake",
+        arguments: {
+          type: "new_initiative",
+          summary: "two MCP stories",
+          lane: "normal",
+          stories: "US-MCP-A,US-MCP-B",
+        },
+      }),
+    );
+    for (const id of ["US-MCP-A", "US-MCP-B"]) {
+      toolText(
+        rpc(root, "tools/call", {
+          name: "harness_story_add",
+          arguments: { id, title: id, lane: "normal" },
+        }),
+      );
+    }
+
+    for (const id of ["US-MCP-A", "US-MCP-B"]) {
+      toolText(
+        rpc(root, "tools/call", {
+          name: "harness_story_update",
+          arguments: { id, status: "implemented" },
+        }),
+      );
+    }
+    const intake = fs.readFileSync(
+      path.join(root, "docs", "intakes", "IN-001.md"),
+      "utf8",
+    );
+    expect(intake).toContain("status: completed");
+  });
+
   it("decision_add and backlog_add write entity files", () => {
     const root = tmp();
     const d = toolText(

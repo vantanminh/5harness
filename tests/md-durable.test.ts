@@ -153,4 +153,118 @@ describe("markdown durable writes (no SQLite)", () => {
       updateIntakeMd({ projectRoot: root }, { id: "IN-001" }),
     ).toThrow(/requires status, stories, or notes/i);
   });
+
+  it("auto-completes only after every linked story is implemented", () => {
+    const root = tempRoot();
+    for (const id of ["US-A", "US-B"]) {
+      addStoryMd(
+        { projectRoot: root },
+        { id, title: id, lane: "normal" },
+      );
+    }
+    const intake = addIntakeMd(
+      { projectRoot: root },
+      {
+        type: "new_initiative",
+        summary: "two stories",
+        lane: "normal",
+        stories: "US-A,US-B",
+      },
+    );
+
+    updateStoryMd(
+      { projectRoot: root },
+      { id: "US-A", status: "implemented" },
+    );
+    expect(
+      parseFrontmatter(fs.readFileSync(intake.file.absolutePath, "utf8")).data
+        .status,
+    ).toBe("pending");
+
+    updateStoryMd(
+      { projectRoot: root },
+      { id: "US-B", status: "implemented" },
+    );
+    expect(
+      parseFrontmatter(fs.readFileSync(intake.file.absolutePath, "utf8")).data
+        .status,
+    ).toBe("completed");
+  });
+
+  it("does not auto-complete missing-story or dismissed intakes", () => {
+    const root = tempRoot();
+    addStoryMd(
+      { projectRoot: root },
+      { id: "US-A", title: "A", lane: "normal" },
+    );
+    const missing = addIntakeMd(
+      { projectRoot: root },
+      {
+        type: "change_request",
+        summary: "missing story",
+        lane: "normal",
+        stories: "US-A,US-MISSING",
+      },
+    );
+    const dismissed = addIntakeMd(
+      { projectRoot: root },
+      {
+        type: "change_request",
+        summary: "dismissed",
+        lane: "normal",
+        stories: "US-A",
+      },
+    );
+    updateIntakeMd(
+      { projectRoot: root },
+      { id: dismissed.id, status: "dismissed" },
+    );
+
+    updateStoryMd(
+      { projectRoot: root },
+      { id: "US-A", status: "implemented" },
+    );
+    expect(
+      parseFrontmatter(fs.readFileSync(missing.file.absolutePath, "utf8")).data
+        .status,
+    ).toBe("pending");
+    expect(
+      parseFrontmatter(fs.readFileSync(dismissed.file.absolutePath, "utf8"))
+        .data.status,
+    ).toBe("dismissed");
+  });
+
+  it("supports legacy singular story links but ignores unlinked intakes", () => {
+    const root = tempRoot();
+    addStoryMd(
+      { projectRoot: root },
+      { id: "US-LEGACY", title: "Legacy", lane: "normal" },
+    );
+    fs.mkdirSync(path.join(root, "docs", "intakes"), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, "docs", "intakes", "IN-LEGACY.md"),
+      "---\nid: IN-LEGACY\ntype: intake\ninput_type: change_request\nsummary: legacy\nstory: US-LEGACY\n---\n\n# legacy\n",
+    );
+    const unlinked = addIntakeMd(
+      { projectRoot: root },
+      { type: "change_request", summary: "unlinked", lane: "normal" },
+    );
+
+    updateStoryMd(
+      { projectRoot: root },
+      { id: "US-LEGACY", status: "implemented" },
+    );
+    expect(
+      parseFrontmatter(
+        fs.readFileSync(
+          path.join(root, "docs", "intakes", "IN-LEGACY.md"),
+          "utf8",
+        ),
+      ).data.status,
+    ).toBe("completed");
+    expect(
+      parseFrontmatter(fs.readFileSync(unlinked.file.absolutePath, "utf8")).data
+        .status,
+    ).toBe("pending");
+  });
 });

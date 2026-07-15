@@ -244,6 +244,10 @@ export function updateStoryMd(
     file.body,
   );
 
+  if (input.status !== undefined && data.status === "implemented") {
+    autoCompleteEligibleIntakes(meta.projectRoot);
+  }
+
   if (meta.db) {
     try {
       updateStoryDb(meta.db, input);
@@ -494,6 +498,45 @@ export function updateIntakeMd(
 
   data.updated_at = nowIso();
   return writeEntityFile(meta.projectRoot, file.relativePath, data, file.body);
+}
+
+export function autoCompleteEligibleIntakes(
+  projectRoot: string,
+): EntityFile[] {
+  const storyStatuses = new Map(
+    listEntityFiles(projectRoot, "story").map((story) => [
+      asString(story.data, "id") ?? "",
+      asString(story.data, "status") ?? "",
+    ]),
+  );
+  const completed: EntityFile[] = [];
+
+  for (const intake of listEntityFiles(projectRoot, "intake")) {
+    const status = asString(intake.data, "status");
+    if (status !== undefined && status !== "pending") continue;
+
+    const explicitStories = asStringArray(intake.data, "stories") ?? [];
+    const legacyStory = asString(intake.data, "story");
+    const stories = (explicitStories.length > 0
+      ? explicitStories
+      : legacyStory
+        ? [legacyStory]
+        : []
+    ).filter((value, index, all) => all.indexOf(value) === index);
+    if (stories.length === 0) continue;
+    if (!stories.every((storyId) => storyStatuses.get(storyId) === "implemented")) {
+      continue;
+    }
+
+    completed.push(
+      updateIntakeMd(
+        { projectRoot },
+        { id: asString(intake.data, "id") ?? "", status: "completed" },
+      ),
+    );
+  }
+
+  return completed;
 }
 
 export type BacklogWriteInput = BacklogAddInput & { links?: string };
