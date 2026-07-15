@@ -79,6 +79,13 @@ git fetch origin && git pull --rebase origin main && git push
 
 Do **not** `git push --force` to `main`.
 
+`safe-push` correlates local commits before and after rebase by stable patch id
+and atomically refreshes matching machine-local worklog commit references. It
+preserves short/full hash length and leaves unmatched references unchanged with
+a warning. If rebase conflicts, resolve them and rerun `npm run push`; the
+pre-rebase mapping snapshot is retained under `.git/` until reconciliation
+succeeds.
+
 ### Authentication (US-036 / decision 0018)
 
 | Method | Role |

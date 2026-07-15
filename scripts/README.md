@@ -45,7 +45,12 @@ by hand unless you are preparing a local publish.
 ## safe-push (developers)
 
 `safe-push.mjs` — `git fetch` + `pull --rebase` + `push`. Use when main may
-have moved (e.g. CI auto-release):
+have advanced in CI (for example, an auto-release). Before rebasing it snapshots
+local commit patch ids; after
+the rebase it refreshes matching commit hashes in `.5harness/worklog.jsonl`.
+Unmatched entries remain unchanged and produce a warning. A snapshot under
+`.git/` survives conflict resolution so rerunning `npm run push` can finish the
+reconciliation:
 
 ```bash
 npm run push
