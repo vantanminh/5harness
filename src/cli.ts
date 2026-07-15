@@ -225,6 +225,8 @@ async function main(argv: string[] = process.argv): Promise<void> {
         "Remove a project from the global registry (does not delete files)",
       )
       .argument("[directory]", "project root (default: cwd)")
+      .option("--id <id>", "unlink a missing project by its exact durable id")
+      .option("--missing", "unlink all projects whose paths are missing")
       .action((directory: string | undefined, opts) => {
         withErrors(() => executeUnlink(directory, opts));
       }),

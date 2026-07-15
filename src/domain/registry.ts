@@ -146,6 +146,23 @@ export function removeProjectByPath(
   };
 }
 
+export function removeProjectById(
+  registry: ProjectRegistry,
+  projectId: string,
+): { registry: ProjectRegistry; removed: RegistryProject | undefined } {
+  const existing = findProjectById(registry, projectId);
+  if (!existing) {
+    return { registry, removed: undefined };
+  }
+  return {
+    registry: {
+      ...registry,
+      projects: registry.projects.filter((p) => p.id !== projectId),
+    },
+    removed: existing,
+  };
+}
+
 export function parseRegistryJson(raw: string): ProjectRegistry {
   const data = JSON.parse(raw) as Partial<ProjectRegistry>;
   if (!data || typeof data !== "object") {

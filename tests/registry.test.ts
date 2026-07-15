@@ -9,6 +9,7 @@ import {
   normalizeProjectPath,
   parseRegistryJson,
   projectIdFromPath,
+  removeProjectById,
   removeProjectByPath,
   upsertProject,
 } from "../src/domain/registry.js";
@@ -16,7 +17,9 @@ import { resolveHarnessHome, registryFilePath } from "../src/domain/paths.js";
 import {
   linkProject,
   listLinkedProjects,
+  unlinkAllMissing,
   unlinkProject,
+  unlinkProjectById,
 } from "../src/application/registry.js";
 import { extractProjectId } from "../src/domain/project-id.js";
 
@@ -112,6 +115,21 @@ describe("domain registry helpers", () => {
     expect(findProjectByPath(registry, p)).toBeUndefined();
   });
 
+  it("removes by exact project id", () => {
+    const projectPath = normalizeProjectPath(path.join(os.tmpdir(), "proj-id"));
+    const original = upsertProject(emptyRegistry(), {
+      id: "project-id",
+      path: projectPath,
+      name: "by-id",
+      remote: null,
+    }).registry;
+
+    expect(removeProjectById(original, "project").removed).toBeUndefined();
+    const result = removeProjectById(original, "project-id");
+    expect(result.removed?.name).toBe("by-id");
+    expect(result.registry.projects).toHaveLength(0);
+  });
+
   it("parseRegistryJson validates version", () => {
     const json = JSON.stringify({
       version: 1,
@@ -163,6 +181,41 @@ describe("link/unlink application", () => {
     const listed = listLinkedProjects({ harnessHome: home });
     expect(listed).toHaveLength(1);
     expect(listed[0]!.missing).toBe(true);
+  });
+
+  it("unlinks a missing project by id but rejects an accessible project", () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-home-id-unlink-"));
+    const project = fs.mkdtempSync(path.join(os.tmpdir(), "harness-proj-id-unlink-"));
+    tempDirs.push(home, project);
+
+    const linked = linkProject(project, { harnessHome: home });
+    expect(() =>
+      unlinkProjectById(linked.entry.id, { harnessHome: home }),
+    ).toThrow(/still accessible/i);
+
+    fs.rmSync(project, { recursive: true, force: true });
+    const result = unlinkProjectById(linked.entry.id, { harnessHome: home });
+    expect(result.removed?.id).toBe(linked.entry.id);
+    expect(listLinkedProjects({ harnessHome: home })).toHaveLength(0);
+  });
+
+  it("prunes every missing project while preserving accessible links", () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-home-prune-"));
+    const live = fs.mkdtempSync(path.join(os.tmpdir(), "harness-live-"));
+    const missingA = fs.mkdtempSync(path.join(os.tmpdir(), "harness-missing-a-"));
+    const missingB = fs.mkdtempSync(path.join(os.tmpdir(), "harness-missing-b-"));
+    tempDirs.push(home, live, missingA, missingB);
+
+    linkProject(live, { harnessHome: home });
+    linkProject(missingA, { harnessHome: home });
+    linkProject(missingB, { harnessHome: home });
+    fs.rmSync(missingA, { recursive: true, force: true });
+    fs.rmSync(missingB, { recursive: true, force: true });
+
+    expect(unlinkAllMissing({ harnessHome: home }).count).toBe(2);
+    const remaining = listLinkedProjects({ harnessHome: home });
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]!.path).toBe(normalizeProjectPath(live));
   });
 
   it("link ensures a marker and uses it as the registry id", () => {

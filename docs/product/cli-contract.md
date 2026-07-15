@@ -80,7 +80,9 @@ They auto-migrate an existing DB; if the DB is missing, run `harness init` first
 | --- | --- |
 | `harness init` | Scaffold markdown + **register** project in global registry |
 | `harness link [path]` | Register existing harness project (clone workflow) + reindex |
-| `harness unlink [path]` | Drop registry entry only |
+| `harness unlink [path]` | Drop the registry entry for an accessible path only |
+| `harness unlink --id <project-id>` | Drop one missing-path registry entry by exact durable id |
+| `harness unlink --missing` | Drop every registry entry whose path is missing |
 | `harness projects` | List linked projects |
 | `harness reindex` | Rebuild derived index from markdown |
 | `harness get <id\|path>` | Load one entity (optional summary) |

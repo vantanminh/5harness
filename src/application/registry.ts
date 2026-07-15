@@ -1,4 +1,5 @@
 import {
+  removeProjectById as removeProjectByIdDomain,
   removeProjectByPath,
   upsertProject,
   type ListedProject,
@@ -83,6 +84,39 @@ export function listLinkedProjects(
 ): ListedProject[] {
   const registry = readRegistry(options);
   return listProjectsWithStatus(registry);
+}
+
+export function unlinkAllMissing(
+  options: RegistryIoOptions = {},
+): { count: number; registryPath: string } {
+  let registry = readRegistry(options);
+  const projectsWithStatus = listProjectsWithStatus(registry);
+  const missing = projectsWithStatus.filter((p) => p.missing);
+  for (const p of missing) {
+    const result = removeProjectByIdDomain(registry, p.id);
+    registry = result.registry;
+  }
+  const registryPath = writeRegistry(registry, options);
+  return { count: missing.length, registryPath };
+}
+
+export function unlinkProjectById(
+  projectId: string,
+  options: RegistryIoOptions = {},
+): { removed: RegistryProject | undefined; registryPath: string } {
+  const registry = readRegistry(options);
+  const existing = registry.projects.find((project) => project.id === projectId);
+  if (existing && pathExists(existing.path)) {
+    throw new Error(
+      `Project ${projectId} is still accessible at ${existing.path}. Use \`harness unlink <path>\` to remove it.`,
+    );
+  }
+  const { registry: next, removed } = removeProjectByIdDomain(
+    registry,
+    projectId,
+  );
+  const registryPath = writeRegistry(next, options);
+  return { removed, registryPath };
 }
 
 export function getRegistryFilePath(options: RegistryIoOptions = {}): string {

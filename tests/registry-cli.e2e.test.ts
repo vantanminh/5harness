@@ -34,6 +34,26 @@ function runHarness(
   );
 }
 
+function writeRegistry(
+  home: string,
+  projects: Array<{ id: string; path: string; name: string }>,
+): void {
+  const now = new Date().toISOString();
+  fs.writeFileSync(
+    path.join(home, "registry.json"),
+    JSON.stringify({
+      version: 1,
+      projects: projects.map((project) => ({
+        ...project,
+        linked_at: now,
+        updated_at: now,
+        remote: null,
+      })),
+    }),
+    "utf8",
+  );
+}
+
 describe("registry CLI e2e", () => {
   it("link → projects → unlink", () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-cli-home-"));
@@ -124,5 +144,60 @@ describe("registry CLI e2e", () => {
       fs.readFileSync(path.join(home, "registry.json"), "utf8"),
     ) as { projects: Array<{ id: string }> };
     expect(registry.projects[0]?.id).toBe(identity.id);
+  });
+
+  it("unlinks a missing project by exact durable id", () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-cli-unlink-id-home-"));
+    const project = fs.mkdtempSync(path.join(os.tmpdir(), "harness-cli-unlink-id-proj-"));
+    tempDirs.push(home, project);
+    const projectId = "exact-project-id";
+    writeRegistry(home, [{ id: projectId, path: project, name: "missing-id" }]);
+
+    const accessible = runHarness(["unlink", "--id", projectId], {
+      harnessHome: home,
+    });
+    expect(accessible.status).toBe(1);
+    expect(accessible.stderr).toMatch(/still accessible/i);
+
+    fs.rmSync(project, { recursive: true, force: true });
+    const removed = runHarness(["unlink", "--id", projectId], {
+      harnessHome: home,
+    });
+    expect(removed.status, removed.stderr + removed.stdout).toBe(0);
+    expect(removed.stdout).toContain(`id: ${projectId}`);
+
+    const empty = runHarness(["projects"], { harnessHome: home });
+    expect(empty.stdout).toMatch(/No linked projects/i);
+  });
+
+  it("prunes all missing links and rejects conflicting selectors", () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "harness-cli-prune-home-"));
+    const live = fs.mkdtempSync(path.join(os.tmpdir(), "harness-cli-prune-live-"));
+    const missingA = fs.mkdtempSync(path.join(os.tmpdir(), "harness-cli-prune-a-"));
+    const missingB = fs.mkdtempSync(path.join(os.tmpdir(), "harness-cli-prune-b-"));
+    tempDirs.push(home, live, missingA, missingB);
+    writeRegistry(home, [
+      { id: "live-id", path: live, name: path.basename(live) },
+      { id: "missing-a-id", path: missingA, name: path.basename(missingA) },
+      { id: "missing-b-id", path: missingB, name: path.basename(missingB) },
+    ]);
+    fs.rmSync(missingA, { recursive: true, force: true });
+    fs.rmSync(missingB, { recursive: true, force: true });
+
+    const conflict = runHarness(["unlink", live, "--missing"], {
+      harnessHome: home,
+    });
+    expect(conflict.status).toBe(1);
+    expect(conflict.stderr).toMatch(/cannot be combined/i);
+
+    const pruned = runHarness(["unlink", "--missing"], { harnessHome: home });
+    expect(pruned.status, pruned.stderr + pruned.stdout).toBe(0);
+    expect(pruned.stdout).toMatch(/Pruned 2 missing project link/);
+
+    const remaining = runHarness(["projects"], { harnessHome: home });
+    expect(remaining.status, remaining.stderr + remaining.stdout).toBe(0);
+    expect(remaining.stdout).toContain(path.basename(live));
+    expect(remaining.stdout).not.toContain(path.basename(missingA));
+    expect(remaining.stdout).not.toContain(path.basename(missingB));
   });
 });
