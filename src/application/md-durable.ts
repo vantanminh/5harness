@@ -3,6 +3,7 @@ import {
   parseBacklogStatus,
   parseDecisionStatus,
   parseInputType,
+  parseIntakeStatus,
   parseProofFlag,
   parseRiskLane,
   parseStoryStatus,
@@ -17,6 +18,7 @@ import {
 import {
   asBoolean01,
   asString,
+  asStringArray,
   type FrontmatterData,
 } from "../domain/frontmatter.js";
 import {
@@ -392,7 +394,10 @@ export function addDecisionMd(
   return file;
 }
 
-export type IntakeWriteInput = IntakeInput & { links?: string };
+export type IntakeWriteInput = IntakeInput & {
+  links?: string;
+  stories?: string;
+};
 
 export function addIntakeMd(
   meta: MdWriteMeta,
@@ -404,23 +409,31 @@ export function addIntakeMd(
 
   const id = nextNumericEntityId(meta.projectRoot, "intake", "IN-");
   const relativePath = entityRelativePath("intake", id);
+  const storyIds = [
+    ...(input.story ? [sanitizeEntityId(input.story)] : []),
+    ...(parseLinksCsv(input.stories) ?? []).map(sanitizeEntityId),
+  ].filter((value, index, all) => all.indexOf(value) === index);
+  const links = [
+    ...(parseLinksCsv(input.links) ?? []),
+    ...storyIds,
+  ].filter((value, index, all) => all.indexOf(value) === index);
 
-  const data: FrontmatterData = withLinks(
-    {
+  const data: FrontmatterData = {
       id,
       type: "intake",
+      status: "pending",
       input_type: inputType,
       summary: input.summary,
       lane,
       flags: input.flags ?? null,
       docs: input.docs ?? null,
-      story: input.story ?? null,
+      story: input.story ? sanitizeEntityId(input.story) : null,
+      stories: storyIds,
       notes: input.notes ?? null,
       created_at: nowIso(),
       updated_at: nowIso(),
-    },
-    input.links,
-  );
+      links,
+    };
 
   const body = `# Intake ${id}\n\n${input.summary}\n`;
   const file = writeEntityFile(meta.projectRoot, relativePath, data, body);
@@ -433,6 +446,54 @@ export function addIntakeMd(
     writeEntityFile(meta.projectRoot, relativePath, data, body);
   }
   return { file, id, numericId };
+}
+
+export type IntakeUpdateWriteInput = {
+  id: string;
+  status?: string;
+  stories?: string;
+  notes?: string;
+};
+
+export function updateIntakeMd(
+  meta: MdWriteMeta,
+  input: IntakeUpdateWriteInput,
+): EntityFile {
+  const id = sanitizeEntityId(input.id);
+  ensureEntityDirs(meta.projectRoot);
+  const file = readEntityById(meta.projectRoot, "intake", id);
+  if (!file) {
+    throw new Error(`Intake ${id} not found`);
+  }
+
+  const data: FrontmatterData = { ...file.data, id, type: "intake" };
+  let changed = false;
+  if (input.status !== undefined) {
+    data.status = parseIntakeStatus(input.status);
+    changed = true;
+  }
+  if (input.stories !== undefined) {
+    const previousStories = asStringArray(data, "stories") ?? [];
+    const stories = (parseLinksCsv(input.stories) ?? []).map(sanitizeEntityId);
+    data.stories = stories;
+    data.links = [
+      ...(asStringArray(data, "links") ?? []).filter(
+        (link) => !previousStories.includes(link),
+      ),
+      ...stories,
+    ].filter((value, index, all) => all.indexOf(value) === index);
+    changed = true;
+  }
+  if (input.notes !== undefined) {
+    data.notes = input.notes;
+    changed = true;
+  }
+  if (!changed) {
+    throw new Error("intake update requires status, stories, or notes");
+  }
+
+  data.updated_at = nowIso();
+  return writeEntityFile(meta.projectRoot, file.relativePath, data, file.body);
 }
 
 export type BacklogWriteInput = BacklogAddInput & { links?: string };

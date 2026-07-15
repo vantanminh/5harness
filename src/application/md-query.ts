@@ -82,6 +82,7 @@ export function queryIntakesMd(
     .slice(0, 50)
     .map((e) => ({
       id: e.id,
+      status: e.status || "pending",
       created_at: asString(e.data, "created_at") ?? "",
       input_type: asString(e.data, "input_type") ?? "",
       risk_lane: laneDisplay(asString(e.data, "lane") ?? "normal"),
@@ -89,6 +90,7 @@ export function queryIntakesMd(
     }));
   return formatTable(rows, [
     "id",
+    "status",
     "created_at",
     "input_type",
     "risk_lane",

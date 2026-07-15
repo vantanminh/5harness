@@ -148,3 +148,18 @@ Docs: permissions, account-settings, audit-log.
 Story: docs/stories/epics/E02-access-control/US-014-manager-updates-role.md.
 Validation: unit, integration, E2E.
 ```
+
+## Intake Lifecycle
+
+New intakes start with `status: pending`. Link implementation stories and move
+an intake out of the pending queue through the CLI or equivalent MCP tool:
+
+```bash
+harness intake update --id IN-001 --stories US-101,US-102
+harness intake close IN-001 --notes "All linked work shipped"
+harness intake dismiss IN-002 --notes "Superseded by IN-003"
+```
+
+Valid statuses are `pending`, `completed`, and `dismissed`. Legacy intake files
+without a status remain pending. `harness next` schedules only pending intakes;
+completed and dismissed records remain in Git as durable history.

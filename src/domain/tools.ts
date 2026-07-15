@@ -133,6 +133,14 @@ export const BUILTIN_TOOLS: ToolEntry[] = [
     source: "compiled",
   },
   {
+    name: "intake update",
+    kind: "builtin",
+    capability: "task-specification",
+    responsibility: "Update intake status and linked stories",
+    status: "present",
+    source: "compiled",
+  },
+  {
     name: "story add",
     kind: "builtin",
     capability: "task-state",

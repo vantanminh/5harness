@@ -19,7 +19,10 @@ import {
 } from "../commands/index-tools.js";
 import { executeContext } from "../commands/context.js";
 import { executeQuery } from "../commands/query.js";
-import { executeIntake } from "../commands/intake.js";
+import {
+  executeIntake,
+  executeIntakeUpdate,
+} from "../commands/intake.js";
 import {
   executeStoryAdd,
   executeStoryUpdate,
@@ -173,10 +176,26 @@ export const MCP_TOOLS: McpTool[] = [
         flags: { type: "string" },
         docs: { type: "string" },
         story: { type: "string" },
+        stories: { type: "string" },
         notes: { type: "string" },
         links: { type: "string" },
       },
       required: ["type", "summary", "lane"],
+    },
+  },
+  {
+    name: "harness_intake_update",
+    description:
+      "Update intake status, linked story ids, or notes. Mutates durable markdown.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        status: { type: "string" },
+        stories: { type: "string" },
+        notes: { type: "string" },
+      },
+      required: ["id"],
     },
   },
   {
@@ -597,8 +616,20 @@ function callTool(
           flags: optStr(args, "flags"),
           docs: optStr(args, "docs"),
           story: optStr(args, "story"),
+          stories: optStr(args, "stories"),
           notes: optStr(args, "notes"),
           links: optStr(args, "links"),
+        }),
+      );
+      break;
+    case "harness_intake_update":
+      t = capture(() =>
+        executeIntakeUpdate({
+          dir: root,
+          id: String(args.id ?? ""),
+          status: optStr(args, "status"),
+          stories: optStr(args, "stories"),
+          notes: optStr(args, "notes"),
         }),
       );
       break;

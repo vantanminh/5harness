@@ -77,7 +77,8 @@ export function buildNextList(
   }
 
   // Tier 4: open intakes (recent first)
-  const openIntakes = [...catalog.byType.intake]
+  const openIntakes = catalog.byType.intake
+    .filter((intake) => intake.status === "" || intake.status === "pending")
     .sort((a, b) => b.id.localeCompare(a.id));
   for (const i of openIntakes) {
     items.push({

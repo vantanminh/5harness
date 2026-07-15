@@ -11,6 +11,9 @@ export const INPUT_TYPES = [
 ] as const;
 export type InputType = (typeof INPUT_TYPES)[number];
 
+export const INTAKE_STATUSES = ["pending", "completed", "dismissed"] as const;
+export type IntakeStatus = (typeof INTAKE_STATUSES)[number];
+
 export const STORY_STATUSES = [
   "planned",
   "in_progress",
@@ -78,6 +81,16 @@ export function parseInputType(raw: string): InputType {
     );
   }
   return value;
+}
+
+export function parseIntakeStatus(raw: string): IntakeStatus {
+  const normalized = slugify(raw);
+  if ((INTAKE_STATUSES as readonly string[]).includes(normalized)) {
+    return normalized as IntakeStatus;
+  }
+  throw new Error(
+    `Invalid intake status "${raw}". Use ${INTAKE_STATUSES.join(" | ")}`,
+  );
 }
 
 export function parseStoryStatus(raw: string): StoryStatus {

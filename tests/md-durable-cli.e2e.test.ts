@@ -114,4 +114,52 @@ describe("markdown durable CLI e2e", () => {
     expect(matrix.status, matrix.stderr + matrix.stdout).toBe(0);
     expect(matrix.stdout).toContain("US-201");
   });
+
+  it("updates and closes an intake", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-intake-cli-"));
+    tempDirs.push(dir);
+
+    const add = runHarness(
+      [
+        "intake",
+        "--type",
+        "change_request",
+        "--summary",
+        "Lifecycle",
+        "--lane",
+        "normal",
+        "--dir",
+        dir,
+      ],
+      repoRoot,
+    );
+    expect(add.status, add.stderr + add.stdout).toBe(0);
+
+    const update = runHarness(
+      [
+        "intake",
+        "update",
+        "--id",
+        "IN-001",
+        "--stories",
+        "US-1,US-2",
+        "--dir",
+        dir,
+      ],
+      repoRoot,
+    );
+    expect(update.status, update.stderr + update.stdout).toBe(0);
+
+    const close = runHarness(
+      ["intake", "close", "IN-001", "--notes", "done", "--dir", dir],
+      repoRoot,
+    );
+    expect(close.status, close.stderr + close.stdout).toBe(0);
+    const { data } = parseFrontmatter(
+      fs.readFileSync(path.join(dir, "docs", "intakes", "IN-001.md"), "utf8"),
+    );
+    expect(data.status).toBe("completed");
+    expect(data.stories).toEqual(["US-1", "US-2"]);
+    expect(data.notes).toBe("done");
+  });
 });

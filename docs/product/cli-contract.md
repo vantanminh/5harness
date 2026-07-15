@@ -88,6 +88,9 @@ They auto-migrate an existing DB; if the DB is missing, run `harness init` first
 | `harness get <id\|path>` | Load one entity (optional summary) |
 | `harness search <query>` | Ranked hits with snippets |
 | `harness links <id>` | Outbound + backlinks |
+| `harness intake update --id <id> [--status <status>] [--stories <csv>]` | Update intake lifecycle metadata |
+| `harness intake close <id>` | Mark an intake completed |
+| `harness intake dismiss <id>` | Dismiss an intake without implementation |
 
 Write commands (`intake`, `story`, `decision`, `backlog`) keep the same *intent*
 but persist to markdown entities. Agents **must** use these tools; they must not

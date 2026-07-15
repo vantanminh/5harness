@@ -42,7 +42,6 @@ function entryTitle(type: EntityType, data: FrontmatterData, id: string): string
 }
 
 function entryStatus(type: EntityType, data: FrontmatterData): string {
-  if (type === "intake") return asString(data, "input_type") ?? "";
   return asString(data, "status") ?? "";
 }
 

@@ -76,6 +76,7 @@ describe("MCP mutation tools (US-041)", () => {
     const names = MCP_TOOLS.map((t) => t.name);
     expect(names).toContain("harness_get");
     expect(names).toContain("harness_intake");
+    expect(names).toContain("harness_intake_update");
     expect(names).toContain("harness_story_add");
     expect(names).toContain("harness_story_update");
     expect(names).toContain("harness_decision_add");
@@ -139,6 +140,40 @@ describe("MCP mutation tools (US-041)", () => {
     );
     expect(body).toContain("implemented");
     expect(body).toContain("mcp unit test");
+  });
+
+  it("updates intake lifecycle through MCP", () => {
+    const root = tmp();
+    toolText(
+      rpc(root, "tools/call", {
+        name: "harness_intake",
+        arguments: {
+          type: "change_request",
+          summary: "close me",
+          lane: "normal",
+        },
+      }),
+    );
+
+    const updated = toolText(
+      rpc(root, "tools/call", {
+        name: "harness_intake_update",
+        arguments: {
+          id: "IN-001",
+          status: "completed",
+          stories: "US-1,US-2",
+          notes: "both shipped",
+        },
+      }),
+    );
+    expect(updated).toContain("Intake IN-001 updated");
+    const body = fs.readFileSync(
+      path.join(root, "docs", "intakes", "IN-001.md"),
+      "utf8",
+    );
+    expect(body).toContain("status: completed");
+    expect(body).toContain("US-1");
+    expect(body).toContain("US-2");
   });
 
   it("decision_add and backlog_add write entity files", () => {

@@ -47,6 +47,8 @@ harness init                 # scaffold markdown + register this project
 harness link                 # register path + reindex committed history
 
 harness intake --type spec_slice --summary "Add export API" --lane normal
+harness intake update --id IN-001 --stories US-001
+harness intake close IN-001
 harness story add --id US-001 --title "Export API" --lane normal
 harness story update --id US-001 --status implemented --unit 1 --integration 1 --e2e 0 --platform 0
 harness decision add --id 0001 --title "Use markdown SoT" --doc docs/decisions/0001.md

@@ -5,14 +5,17 @@ import { afterEach, describe, expect, it } from "vitest";
 import { buildCatalog } from "../src/application/catalog.js";
 import {
   queryBacklogMd,
+  queryIntakesMd,
   queryMatrixMd,
   queryStatsMd,
   queryStoriesMd,
 } from "../src/application/md-query.js";
 import {
   addBacklogMd,
+  addIntakeMd,
   addStoryMd,
   closeBacklogMd,
+  updateIntakeMd,
   updateStoryMd,
 } from "../src/application/md-durable.js";
 import { addReport } from "../src/application/report.js";
@@ -102,6 +105,21 @@ describe("markdown query (US-008)", () => {
     const all = queryBacklogMd(root, "all");
     expect(all).toMatch(/Open item/);
     expect(all).toMatch(/Done item/);
+  });
+
+  it("shows intake lifecycle status", () => {
+    const root = tmp();
+    const intake = addIntakeMd(
+      { projectRoot: root },
+      { type: "change_request", summary: "lifecycle", lane: "normal" },
+    );
+    updateIntakeMd(
+      { projectRoot: root },
+      { id: intake.id, status: "dismissed" },
+    );
+    const output = queryIntakesMd(root);
+    expect(output).toContain("status");
+    expect(output).toContain("dismissed");
   });
 
   it("buildCatalog indexes multi-type entities by id", () => {

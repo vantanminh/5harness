@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   parseInputType,
+  parseIntakeStatus,
   parseProofFlag,
   parseRiskLane,
   proofDisplay,
@@ -22,6 +23,15 @@ describe("parseInputType", () => {
   it("normalizes dashed forms", () => {
     expect(parseInputType("spec-slice")).toBe("spec_slice");
     expect(parseInputType("maintenance request")).toBe("maintenance");
+  });
+});
+
+describe("parseIntakeStatus", () => {
+  it("accepts lifecycle values and rejects aliases", () => {
+    expect(parseIntakeStatus("pending")).toBe("pending");
+    expect(parseIntakeStatus("completed")).toBe("completed");
+    expect(parseIntakeStatus("dismissed")).toBe("dismissed");
+    expect(() => parseIntakeStatus("closed")).toThrow(/Invalid intake status/);
   });
 });
 

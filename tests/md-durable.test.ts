@@ -8,6 +8,7 @@ import {
   addIntakeMd,
   addStoryMd,
   closeBacklogMd,
+  updateIntakeMd,
   updateStoryMd,
 } from "../src/application/md-durable.js";
 import { parseFrontmatter } from "../src/domain/frontmatter.js";
@@ -42,6 +43,25 @@ describe("markdown durable writes (no SQLite)", () => {
     );
     expect(intake.id).toBe("IN-001");
     expect(fs.existsSync(intake.file.absolutePath)).toBe(true);
+    expect(intake.file.data.status).toBe("pending");
+
+    const updatedIntake = updateIntakeMd(
+      { projectRoot: root, db: null },
+      {
+        id: "IN-001",
+        status: "completed",
+        stories: "US-100,US-101",
+        notes: "shipped",
+      },
+    );
+    expect(updatedIntake.data.status).toBe("completed");
+    expect(updatedIntake.data.stories).toEqual(["US-100", "US-101"]);
+    expect(updatedIntake.data.links).toEqual([
+      "stories/US-100",
+      "US-100",
+      "US-101",
+    ]);
+    expect(updatedIntake.data.notes).toBe("shipped");
 
     const story = addStoryMd(
       { projectRoot: root, db: null },
@@ -115,5 +135,22 @@ describe("markdown durable writes (no SQLite)", () => {
         { id: "US-2", title: "x", lane: "nope" },
       ),
     ).toThrow(/Invalid risk lane/i);
+  });
+
+  it("validates intake lifecycle updates", () => {
+    const root = tempRoot();
+    addIntakeMd(
+      { projectRoot: root, db: null },
+      { type: "change_request", summary: "lifecycle", lane: "normal" },
+    );
+    expect(() =>
+      updateIntakeMd(
+        { projectRoot: root },
+        { id: "IN-001", status: "closed" },
+      ),
+    ).toThrow(/Invalid intake status/i);
+    expect(() =>
+      updateIntakeMd({ projectRoot: root }, { id: "IN-001" }),
+    ).toThrow(/requires status, stories, or notes/i);
   });
 });

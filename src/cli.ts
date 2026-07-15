@@ -31,7 +31,12 @@ import {
   executeSearch,
 } from "./commands/index-tools.js";
 import { executeInit } from "./commands/init.js";
-import { executeIntake } from "./commands/intake.js";
+import {
+  executeIntake,
+  executeIntakeClose,
+  executeIntakeDismiss,
+  executeIntakeUpdate,
+} from "./commands/intake.js";
 import { executeIntakeRun } from "./commands/intake-run.js";
 import { executeExportChangelog } from "./commands/export-cmd.js";
 import { executeWatch } from "./commands/watch.js";
@@ -591,8 +596,7 @@ async function main(argv: string[] = process.argv): Promise<void> {
   );
 
 
-  addDirOptions(
-    program
+  const intake = program
       .command("intake")
       .description("Record a feature intake classification")
       .requiredOption("--type <type>", "input type (e.g. spec_slice, maintenance)")
@@ -604,10 +608,47 @@ async function main(argv: string[] = process.argv): Promise<void> {
       .option("--flags <csv>", "risk flags")
       .option("--docs <csv>", "affected docs")
       .option("--story <id>", "linked story id")
+      .option("--stories <csv>", "linked story ids")
       .option("--notes <text>", "notes")
       .option("--links <csv>", "related entity links (wikilink-style ids)")
       .action((opts) => {
         withErrors(() => executeIntake(opts));
+      });
+  addDirOptions(intake);
+
+  addDirOptions(
+    intake
+      .command("update")
+      .description("Update intake status, linked stories, or notes")
+      .requiredOption("--id <id>", "intake id")
+      .option("--status <status>", "pending | completed | dismissed")
+      .option("--stories <csv>", "linked story ids")
+      .option("--notes <text>", "notes")
+      .action((opts) => {
+        withErrors(() => executeIntakeUpdate(opts));
+      }),
+  );
+
+  addDirOptions(
+    intake
+      .command("close")
+      .description("Mark an intake completed")
+      .argument("<id>", "intake id")
+      .option("--stories <csv>", "linked story ids")
+      .option("--notes <text>", "notes")
+      .action((id: string, opts) => {
+        withErrors(() => executeIntakeClose(id, opts));
+      }),
+  );
+
+  addDirOptions(
+    intake
+      .command("dismiss")
+      .description("Dismiss an intake without implementation")
+      .argument("<id>", "intake id")
+      .option("--notes <text>", "dismissal reason")
+      .action((id: string, opts) => {
+        withErrors(() => executeIntakeDismiss(id, opts));
       }),
   );
 

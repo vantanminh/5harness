@@ -118,6 +118,27 @@ describe("harness next (US-020)", () => {
     expect(bl!.type).toBe("backlog");
   });
 
+  it("schedules only pending and legacy intakes", () => {
+    const root = tmp();
+    fs.mkdirSync(path.join(root, "docs", "intakes"), { recursive: true });
+    const writeIntake = (id: string, status?: string) => {
+      const statusLine = status === undefined ? "" : `status: ${status}\n`;
+      fs.writeFileSync(
+        path.join(root, "docs", "intakes", `${id}.md`),
+        `---\nid: ${id}\ntype: intake\n${statusLine}input_type: change_request\nsummary: ${id}\n---\n\n# ${id}\n`,
+      );
+    };
+    writeIntake("IN-001");
+    writeIntake("IN-002", "pending");
+    writeIntake("IN-003", "completed");
+    writeIntake("IN-004", "dismissed");
+
+    expect(buildNextList(root).map((item) => item.id)).toEqual([
+      "IN-002",
+      "IN-001",
+    ]);
+  });
+
   it("formats empty as human text", () => {
     const out = formatNextList([], false);
     expect(out).toContain("No pending");
