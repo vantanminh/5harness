@@ -3,8 +3,8 @@
 Phase 5 starts the self-improvement loop:
 
 ```text
-friction + interventions + audit findings
-  -> harness-cli propose
+trace friction + audit findings
+  -> harness propose
   -> proposed backlog item
   -> human review
   -> implementation with predicted impact
@@ -19,8 +19,7 @@ harness propose
 
 The command is rule-based. It looks for:
 
-- repeated trace friction,
-- repeated intervention patterns,
+- repeated trace friction (`harness_friction` on traces),
 - non-zero audit categories.
 
 Each proposal includes title, component, evidence, predicted impact, risk,
@@ -52,6 +51,6 @@ harness query backlog --open
 After implementation, compare the predicted impact with:
 
 - `harness audit`,
-- `harness query friction`,
-- `harness query interventions`,
-- benchmark trace quality and harness compliance when benchmark proof applies.
+- `harness query traces` (look for `harness_friction`),
+- `harness query backlog --closed`,
+- story verify / release checks when those apply.

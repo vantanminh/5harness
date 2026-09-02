@@ -50,6 +50,7 @@ project out.
 | `docs/backlog/` | Backlog entities (when store lands) |
 | `docs/reports/` | Target-owned Project Link report entities |
 | `docs/templates/*` | story, decision, validation, spec-intake templates |
+| `.agents/skills/harness/SKILL.md` | Official agent skill (intake, mutation, hard-fail) |
 | `.gitignore` entries | `.5harness/index/`, `.5harness/local/`, legacy `harness.db*` |
 
 `docs/reports/` is created as an empty entity directory, but init adds no report

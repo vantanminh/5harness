@@ -300,7 +300,7 @@ harness backlog close --id BL-001 --outcome "Đã thêm, tất cả pass"
 
 ```bash
 harness trace --story US-001 --summary "Implemented export" --outcome success
-harness score-context <trace-id>
+harness score-trace --id <trace-id>
 ```
 
 

@@ -19,11 +19,11 @@ describe("Project Link release documentation (US-063)", () => {
   const harnessTemplate = read("templates/docs/HARNESS.md");
 
   it("marks the initiative implemented and removes declaration-only wording", () => {
-    expect(spec).toMatch(/Status:\*\* Implemented \(unreleased\)/i);
+    expect(spec).toMatch(/Status:\*\* done \(shipped v0\.21\+\)/i);
     expect(spec).not.toMatch(/planned\/declaration only/i);
     expect(roadmap).not.toMatch(/No implementation yet/i);
     expect(roadmap).toMatch(
-      /\| I \| E16 \|[^\n]*Project Link[^\n]*implemented[^\n]*unreleased/i,
+      /\| I \| E16 \|[^\n]*Project Link[^\n]*\*\*done\*\*/i,
     );
   });
 

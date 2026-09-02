@@ -13,7 +13,7 @@ export const BUILTIN_TOOLS: ToolEntry[] = [
     name: "init",
     kind: "builtin",
     capability: "scaffold",
-    responsibility: "Install operating files and create DB",
+    responsibility: "Install operating files and register the project",
     status: "present",
     source: "compiled",
   },

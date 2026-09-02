@@ -50,7 +50,8 @@ git clone → npm i -g → harness link → reindex → same history + dashboard
 | H1 | E12 | Agent loop Tier 1 (doctor/status/next/context + inbound tools) | **done** (v0.10) |
 | H2 | E13 | Agent loop Tier 2 (lifecycle, worklog, intake run, dashboard mutations) | **done** (v0.10) |
 | H3 | E14 | Agent loop Tier 3 (MCP, export, watch, handoff) | **done** (v0.10.1) |
-| I | E16 | Project Link (peer projects + cross-project reports) | **implemented** (unreleased; IN-019 / 0022) |
+| I | E16 | Project Link (peer projects + cross-project reports) | **done** (v0.21+; IN-019 / 0022) |
+| J | E17 | 1.0 maturity (contract, MCP parity, FTS, dashboard 2.0) | **in_progress** (IN-024 / 0023) |
 
 ## Dependency graph
 
@@ -71,10 +72,12 @@ E07 markdown store ──► E08 agent index ──────────┘  
                           └──► E14 Tier 3 MCP / export / watch / handoff
                                       │
                                       └──► E16 Project Link / peer reports
+                                                │
+                                                └──► E17 1.0 maturity (IN-024)
 ```
 
 **Implemented order:** E06 → E07 → E08 → E09 → E10 → E11 →
-**E12 → E13 → E14 → E16**.
+**E12 → E13 → E14 → E16**. **E17 in progress.**
 
 Rationale:
 
@@ -133,8 +136,8 @@ Declared via harness CLI (decision **0014**, intake **IN-003**). Packets live un
 ## Story checklist (Phase I — Project Link)
 
 Declared via harness CLI (decision **0022**, intake **IN-019**). Spec:
-`docs/product/project-link.md`. Implementation is complete and awaiting release.
-Status: implemented (unreleased).
+`docs/product/project-link.md`. Shipped in v0.21.0 (follow-up US-064–068 in
+v0.22.0). Status: **done**.
 
 | ID | Epic | Title | Depends on | Status |
 | --- | --- | --- | --- | --- |
@@ -142,9 +145,37 @@ Status: implemented (unreleased).
 | [US-060](../stories/US-060.md) | E16 | Peer add/remove/list + registry path resolution | US-059, US-006 | **implemented** |
 | [US-061](../stories/US-061.md) | E16 | Peer read tools CLI + MCP (search/get/context/links) | US-060, US-009, US-027 | **implemented** |
 | [US-062](../stories/US-062.md) | E16 | Cross-project report entity + lifecycle tools | US-060, US-007 | **implemented** |
-| [US-063](../stories/US-063.md) | E16 | AGENTS workflow, doctor/status/next, product docs finish | US-061, US-062 | **implemented** (unreleased) |
+| [US-063](../stories/US-063.md) | E16 | AGENTS workflow, doctor/status/next, product docs finish | US-061, US-062 | **done** |
 
 Dependency order: **US-059 → US-060 → (US-061 ∥ US-062) → US-063**.
+
+## Story checklist (Phase J — 1.0 maturity)
+
+Declared via harness CLI (decision **0023**, intake **IN-024**). Status:
+in_progress. Canonical proof: `harness query matrix`.
+
+| ID | Wave | Title | Depends on | Status |
+| --- | --- | --- | --- | --- |
+| [US-069](../stories/US-069.md) | 0 | Remove undocumented phantom commands | 0023 | in_progress |
+| [US-070](../stories/US-070.md) | 0 | Policy and help-text sweep | US-069 | in_progress |
+| [US-071](../stories/US-071.md) | 0 | Sync changelog, roadmap, test matrix, story index | — | in_progress |
+| [US-072](../stories/US-072.md) | 0 | Remove leftover debug scripts | — | in_progress |
+| [US-073](../stories/US-073.md) | 1 | Structured JSON on agent-facing reads | US-009 | planned |
+| [US-074](../stories/US-074.md) | 1 | MCP parity for agent reads | US-073 | planned |
+| [US-075](../stories/US-075.md) | 1 | MCP parity for lifecycle mutations | US-076 | planned |
+| [US-076](../stories/US-076.md) | 1 | decision update and query reports | US-007 | planned |
+| [US-078](../stories/US-078.md) | 1 | Official Harness agent skill on init | US-011 | planned |
+| [US-079](../stories/US-079.md) | 1 | Next scheduling includes reports and blocked work | US-020 | planned |
+| [US-080](../stories/US-080.md) | 2 | Derived SQLite FTS for agent search | US-009 | planned |
+| [US-081](../stories/US-081.md) | 2 | Doctor depth (links, duplicates, sqlite, password) | US-018 | planned |
+| [US-082](../stories/US-082.md) | 2 | Retire SQLite dual-write | US-013 | planned |
+| [US-083](../stories/US-083.md) | 2 | Link resolution hygiene | US-081 | planned |
+| [US-084](../stories/US-084.md) | 3 | Dashboard password hardening | US-042 | planned |
+| [US-085](../stories/US-085.md) | 3 | Dashboard 2.0 project cockpit | US-084 | planned |
+| [US-086](../stories/US-086.md) | 3 | Completions and harness-check Action | — | planned |
+| [US-087](../stories/US-087.md) | 3 | 1.0 public contract freeze | US-069, 0023 | planned |
+
+US-077 was dropped (would have implemented `query friction`).
 
 ## Versioning intent
 
@@ -156,7 +187,8 @@ Dependency order: **US-059 → US-060 → (US-061 ∥ US-062) → US-063**.
 | 0.9.x | E11 dashboard MVP |
 | 0.10.x+ | E12+ agent-loop tools (incremental) |
 | 0.21.x+ | First E16 Project Link release (role/peers/reports) |
-| 1.0.0 | Public contract stable; publish confidence |
+| 0.22.x | Intake lifecycle, unlink prune, peer write-root allowlist |
+| 1.0.0 | Public contract stable after E17 (decision 0023 + US-087) |
 
 Exact versions may shift; keep `CHANGELOG.md` as release truth.
 

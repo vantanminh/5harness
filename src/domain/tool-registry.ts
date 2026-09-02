@@ -32,7 +32,7 @@ export function normalizeCapability(raw: string): string {
 }
 
 export const VALID_RESPONSIBILITIES = [
-  "Install operating files and create DB",
+  "Install operating files and register the project",
   "Legacy: migrate existing harness.db if present",
   "Import legacy harness.db into markdown entities",
   "Register project in global registry",

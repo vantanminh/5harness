@@ -51,7 +51,33 @@ SQLite is no longer the source of truth; the active store is markdown.
 | US-060 | Configured peers; registry resolution; reverse edge | yes | yes | yes | yes | implemented | peer domain/CLI suites; Windows path cases |
 | US-061 | Bounded peer search/get/context/links through CLI and MCP | yes | yes | yes | yes | implemented | peer tool and project-binding suites |
 | US-062 | Target-owned report entity and lifecycle through CLI and MCP | yes | yes | yes | yes | implemented | report store, round-trip CLI, and MCP suites |
-| US-063 | Conditional workflow; doctor/status/next hooks; release docs | yes | yes | yes | yes | implemented (unreleased) | Windows workflow/health/docs proof; `release:check`: 65 files / 398 tests; pack check: 420 paths |
+| US-063 | Conditional workflow; doctor/status/next hooks; release docs | yes | yes | yes | yes | done | Shipped v0.21+; Windows workflow/health/docs proof |
+
+The durable matrix (`harness query matrix`) is canonical for US-015–US-068.
+Those stories are implemented; do not treat this file as a second SoT.
+
+## Matrix — Phase J / E17 1.0 maturity (IN-024)
+
+| Story | Contract | Unit | Integration | E2E | Platform | Status | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| US-069 | Shipped CLI is the command contract; no phantom commands in policy docs | yes | no | no | no | in_progress | docs contract tests |
+| US-070 | Policy/help match markdown SoT | yes | no | no | no | in_progress | docs + init help |
+| US-071 | Changelog/roadmap/matrix/story index current | yes | no | no | no | in_progress | changelog hygiene |
+| US-072 | No leftover debug scripts in the tree | yes | no | no | no | in_progress | pack:check |
+| US-073 | `--json` on agent reads | yes | yes | yes | no | planned | |
+| US-074 | MCP read parity | yes | yes | yes | no | planned | |
+| US-075 | MCP lifecycle mutation parity | yes | yes | yes | no | planned | |
+| US-076 | `decision update` + `query reports` | yes | yes | yes | no | planned | |
+| US-078 | Official skill on init | yes | yes | no | no | planned | |
+| US-079 | `next` includes reports + blocked | yes | yes | no | no | planned | |
+| US-080 | Derived FTS search | yes | yes | yes | no | planned | |
+| US-081 | Doctor depth | yes | yes | no | no | planned | |
+| US-082 | No SQLite dual-write | yes | yes | yes | no | planned | |
+| US-083 | Broken-link listing | yes | yes | no | no | planned | |
+| US-084 | Dashboard password hardening | yes | yes | yes | no | planned | |
+| US-085 | Dashboard 2.0 | yes | yes | yes | yes | planned | |
+| US-086 | Completions + harness-check action | yes | no | no | no | planned | |
+| US-087 | 1.0 contract freeze | yes | yes | yes | yes | planned | |
 
 ## Evidence Rules
 

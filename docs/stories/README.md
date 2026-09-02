@@ -20,9 +20,10 @@ and validation work.
 | [E09-init-link-pivot](./epics/E09-init-link-pivot/README.md) | Phase F4: init + templates pivot | US-010–011 **implemented** |
 | [E10-quality-on-md](./epics/E10-quality-on-md/README.md) | Phase F5: quality + SQLite retire | US-012–013 **implemented** |
 | [E11-dashboard](./epics/E11-dashboard/README.md) | Phase G: local dashboard | US-014 **implemented** |
-| [E16 Project Link](../product/project-link.md) | Phase I: roles, configured peers, bounded reads, reports | US-059–063 **implemented (unreleased)** |
+| [E16 Project Link](../product/project-link.md) | Phase I: roles, configured peers, bounded reads, reports | US-059–063 **done** (v0.21+) |
+| E17 1.0 maturity | Phase J: contract truth, MCP parity, FTS, dashboard 2.0 | US-069–087 **in_progress** |
 
-The complete Phase H / E12–E15 story history remains indexed in the
+The complete Phase H / E12–E15 and US-015–US-068 history remains indexed in the
 [roadmap](../product/roadmap.md) and `harness query matrix`.
 
 ## Story Index
@@ -47,7 +48,11 @@ The complete Phase H / E12–E15 story history remains indexed in the
 | [US-060](./US-060.md) | Project peer add/remove/list | normal | implemented | [Project Link](../product/project-link.md) |
 | [US-061](./US-061.md) | Bounded peer reads through CLI and MCP | high-risk | implemented | [Project Link](../product/project-link.md) |
 | [US-062](./US-062.md) | Target-owned report lifecycle | high-risk | implemented | [Project Link](../product/project-link.md) |
-| [US-063](./US-063.md) | Project Link workflow, health hooks, and docs | normal | implemented (unreleased) | [Project Link](../product/project-link.md) |
+| [US-063](./US-063.md) | Project Link workflow, health hooks, and docs | normal | done | [Project Link](../product/project-link.md) |
+| [US-069](./US-069.md) | Remove undocumented phantom commands | high-risk | in_progress | [cli-contract](../product/cli-contract.md) |
+| [US-070](./US-070.md) | Policy and help-text sweep | normal | in_progress | [HARNESS.md](../HARNESS.md) |
+| [US-071](./US-071.md) | Sync changelog, roadmap, matrix, story index | tiny | in_progress | [roadmap](../product/roadmap.md) |
+| [US-072](./US-072.md) | Remove leftover debug scripts | tiny | in_progress | [distribution](../product/distribution.md) |
 
 ## Recommended implement order
 

@@ -6,6 +6,7 @@ import { formatTable } from "../infrastructure/table.js";
 export type DocsCliOptions = {
   /** Override package root (testing hook). */
   packageRoot?: string;
+  json?: boolean;
 };
 
 function resolveDocsDir(options: DocsCliOptions): string {
@@ -146,6 +147,10 @@ export function executeDocsSearch(
       });
     }
   }
+  if (options.json) {
+    console.log(JSON.stringify(results, null, 2));
+    return;
+  }
   console.log(formatDocsSearchResults(results));
 }
 
@@ -160,6 +165,10 @@ export function executeDocsList(options: DocsCliOptions = {}): void {
       title: firstHeading(content),
     };
   });
+  if (options.json) {
+    console.log(JSON.stringify(rows, null, 2));
+    return;
+  }
   if (rows.length === 0) {
     console.log("No docs found.");
     return;
@@ -176,6 +185,10 @@ export function executeDocsRead(
     throw new Error("docs read requires a path (e.g. HARNESS.md)");
   const docsDir = resolveDocsDir(options);
   const { rel, content } = readDocsFile(docsDir, docPath.trim());
+  if (options.json) {
+    console.log(JSON.stringify({ path: rel, content }, null, 2));
+    return;
+  }
   console.log(`# ${rel}`);
   console.log("");
   console.log(content);

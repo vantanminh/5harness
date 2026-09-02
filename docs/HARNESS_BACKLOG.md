@@ -37,4 +37,11 @@ proposed | accepted | implemented | rejected
 
 ## Items
 
-No backlog items yet.
+Operational backlog lives as Git-backed entities under `docs/backlog/`
+(`BL-001` …). Do not add items here by hand.
+
+```bash
+harness backlog add --title "…" --pain "…"
+harness query backlog --open
+harness query backlog --closed
+```

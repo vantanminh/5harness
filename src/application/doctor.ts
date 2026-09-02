@@ -22,6 +22,7 @@ import {
   resolveGlobalLogDir,
   isDebugEnabled,
 } from "../infrastructure/logger.js";
+import { isDefaultDashboardPassword } from "../infrastructure/dashboard-auth.js";
 
 export type DoctorCheck = {
   name: string;
@@ -355,6 +356,74 @@ export function runDoctor(
       ? `Debug logging on (HARNESS_DEBUG); log file: ${logFile} (global dir: ${globalLogs})`
       : `Log file path: ${logFile} (set HARNESS_DEBUG=1 for debug; global: ${globalLogs})`,
   });
+
+  // 8. Duplicate catalog ids
+  try {
+    const catalog = buildCatalog(projectRoot);
+    const dupes = [...catalog.byId.entries()]
+      .filter(([, list]) => list.length > 1)
+      .map(([id, list]) => `${id} (${list.length})`);
+    checks.push({
+      name: "duplicate-ids",
+      status: dupes.length > 0 ? "warn" : "ok",
+      message:
+        dupes.length > 0
+          ? `Duplicate catalog ids: ${dupes.slice(0, 8).join(", ")}`
+          : "No duplicate entity ids",
+    });
+  } catch {
+    checks.push({
+      name: "duplicate-ids",
+      status: "warn",
+      message: "Could not scan catalog for duplicate ids",
+    });
+  }
+
+  // 9. Broken link samples
+  if (index) {
+    const broken = index.edges
+      .filter((e) => !e.resolved)
+      .slice(0, 8)
+      .map((e) => `${e.from}→${e.to}`);
+    checks.push({
+      name: "broken-links",
+      status: broken.length > 0 ? "warn" : "ok",
+      message:
+        broken.length > 0
+          ? `Unresolved edges: ${broken.join(", ")}`
+          : "No unresolved link edges",
+    });
+  }
+
+  // 10. Leftover project SQLite
+  const sqlitePath = path.join(projectRoot, "harness.db");
+  checks.push({
+    name: "legacy-sqlite",
+    status: fs.existsSync(sqlitePath) ? "warn" : "ok",
+    message: fs.existsSync(sqlitePath)
+      ? "harness.db is present (legacy; markdown is SoT). Safe to delete after import-sqlite."
+      : "No leftover project harness.db",
+  });
+
+  // 11. Default dashboard password
+  try {
+    const defaultPw = isDefaultDashboardPassword({
+      harnessHome: registryOptions.harnessHome,
+    });
+    checks.push({
+      name: "dashboard-password",
+      status: defaultPw ? "warn" : "ok",
+      message: defaultPw
+        ? "Dashboard password is still the default (admin/admin). Run `harness dashboard set-password`."
+        : "Dashboard password is not the factory default",
+    });
+  } catch {
+    checks.push({
+      name: "dashboard-password",
+      status: "warn",
+      message: "Could not inspect dashboard password",
+    });
+  }
 
   const hasFailure = checks.some((c) => c.status === "fail");
   return { cliVersion: VERSION, projectRoot, checks, healthy: !hasFailure };

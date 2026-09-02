@@ -168,20 +168,16 @@ without parsing the human table.
 | `tool register` | Tool access | Register an external project tool. | `--name`, `--command`, `--description`, `--responsibility`, optional `--kind`, `--capability`, `--scan`, `--args`, `--force` |
 | `tool check` | Tool access | Scan registered tools and persist present/missing/unknown status. | optional `--name`, `--json` |
 | `tool remove` | Tool access | Remove a registered external tool. | `--name` |
-| `intervention add` | Intervention recording | Record a human, reviewer, CI, or agent intervention. | `--type`, `--description`, `--source`, optional `--trace`, `--story`, `--impact` |
 | `trace` | Observability | Record an agent execution trace and print trace quality. | `--summary`, optional trace fields |
 | `score-trace` | Observability | Score trace detail against lane requirements. | optional `--id` |
-| `score-context` | Context selection | Score trace reads against compiled context rules. | trace id |
 | `audit` | Entropy auditing | Run drift checks and compute entropy score. | none |
-| `propose` | Entropy auditing | Generate improvement proposals from friction, interventions, and audit findings. | optional `--commit` |
+| `propose` | Entropy auditing | Generate improvement proposals from audit findings and recorded trace friction. | optional `--commit` |
 | `query matrix` | Task state | Show durable story proof matrix. | optional `--numeric` |
 | `query backlog` | Entropy auditing | Show harness improvement backlog. | optional `--open`, `--closed` |
 | `query decisions` | Project memory | Show durable decision records. | none |
 | `query intakes` | Task specification | Show recent intake records. | none |
 | `query traces` | Observability | Show recent trace records. | none |
-| `query friction` | Failure attribution | Show traces with harness friction. | none |
 | `query tools` | Tool access | Show compiled and registered tool entries. | optional `--json`, `--summary`, `--responsibility`, `--capability`, `--status` |
-| `query interventions` | Intervention recording | Show intervention records. | optional `--trace`, `--story`, `--type` |
 | `query stats` | Task state | Show durable record counts. | none |
 
 Project Link MCP tools are advertised only when the calling project has

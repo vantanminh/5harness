@@ -8,6 +8,7 @@ import {
   addIntakeMd,
   addStoryMd,
   closeBacklogMd,
+  updateDecisionMd,
   updateIntakeMd,
   updateStoryMd,
 } from "../src/application/md-durable.js";
@@ -111,6 +112,24 @@ describe("markdown durable writes (no SQLite)", () => {
     );
     const blRaw = fs.readFileSync(bl.file.absolutePath, "utf8");
     expect(parseFrontmatter(blRaw).data.status).toBe("implemented");
+  });
+
+  it("updates a decision without rewriting the body", () => {
+    const root = tempRoot();
+    const added = addDecisionMd(
+      { projectRoot: root, db: null },
+      { id: "D-2", title: "Keep body", notes: "v1" },
+    );
+    fs.appendFileSync(added.absolutePath, "Preserved paragraph.\n");
+    updateDecisionMd(
+      { projectRoot: root, db: null },
+      { id: "D-2", status: "superseded", notes: "v2" },
+    );
+    const raw = fs.readFileSync(added.absolutePath, "utf8");
+    const parsed = parseFrontmatter(raw);
+    expect(parsed.data.status).toBe("superseded");
+    expect(parsed.data.notes).toBe("v2");
+    expect(parsed.body).toContain("Preserved paragraph.");
   });
 
   it("rejects duplicate story without db", () => {

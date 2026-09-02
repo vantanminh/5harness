@@ -81,6 +81,11 @@ describe("MCP mutation tools (US-041)", () => {
     expect(names).toContain("harness_story_update");
     expect(names).toContain("harness_decision_add");
     expect(names).toContain("harness_backlog_add");
+    expect(names).toContain("harness_next");
+    expect(names).toContain("harness_query_reports");
+    expect(names).toContain("harness_decision_update");
+    expect(names).toContain("harness_story_start");
+    expect(names).toContain("harness_docs_search");
     expect(names).toContain("harness_reindex");
     expect(names).toContain("harness_doctor");
     expect(names.length).toBeGreaterThanOrEqual(15);

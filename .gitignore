@@ -23,3 +23,10 @@ coverage/
 *.log
 mcp-stderr.log
 mcp-stdout.log
+
+# Local one-off edit/debug scripts (never ship)
+_debug.cjs
+_edit.cjs
+_edit2.cjs
+_edit3.cjs
+_edit*.cjs

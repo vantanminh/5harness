@@ -182,6 +182,8 @@ describe("dashboard (US-014)", () => {
     expect(detail!.stories).toBeDefined();
     expect(detail!.backlog).toBeDefined();
     expect(detail!.traces).toBeDefined();
+    expect(detail!.reports).toBeDefined();
+    expect(detail!.next).toBeDefined();
     expect(detail!.stories).toMatch(/US-D3/);
 
     // project page HTML includes all tabs
@@ -193,6 +195,8 @@ describe("dashboard (US-014)", () => {
     expect(html.status).toBe(200);
     expect(html.body).toMatch(/section-tabs/);
     expect(html.body).toMatch(/Stats/);
+    expect(html.body).toMatch(/Next/);
+    expect(html.body).toMatch(/Reports/);
     expect(html.body).toMatch(/Stories/);
     expect(html.body).toMatch(/Decisions/);
     expect(html.body).toMatch(/Intakes/);

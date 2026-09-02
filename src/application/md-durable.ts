@@ -398,6 +398,67 @@ export function addDecisionMd(
   return file;
 }
 
+export type DecisionUpdateInput = {
+  id: string;
+  title?: string;
+  status?: string;
+  doc?: string;
+  verify?: string;
+  notes?: string;
+  links?: string;
+};
+
+export function updateDecisionMd(
+  meta: MdWriteMeta,
+  input: DecisionUpdateInput,
+): EntityFile {
+  const id = sanitizeEntityId(input.id);
+  const file = readEntityById(meta.projectRoot, "decision", id);
+  if (!file) {
+    throw new Error(`Decision ${id} not found. Use decision add.`);
+  }
+
+  const data: FrontmatterData = { ...file.data, id, type: "decision" };
+  let changed = false;
+
+  if (input.title !== undefined) {
+    data.title = input.title;
+    changed = true;
+  }
+  if (input.status !== undefined) {
+    data.status = parseDecisionStatus(input.status);
+    changed = true;
+  }
+  if (input.doc !== undefined) {
+    data.doc = input.doc;
+    changed = true;
+  }
+  if (input.verify !== undefined) {
+    data.verify = input.verify;
+    changed = true;
+  }
+  if (input.notes !== undefined) {
+    data.notes = input.notes;
+    changed = true;
+  }
+  if (input.links !== undefined) {
+    data.links = parseLinksCsv(input.links) ?? [];
+    changed = true;
+  }
+
+  if (!changed) {
+    throw new Error("decision update requires at least one field to change");
+  }
+
+  data.updated_at = nowIso();
+  return writeEntityFile(
+    meta.projectRoot,
+    file.relativePath,
+    data,
+    file.body,
+  );
+}
+
 export type IntakeWriteInput = IntakeInput & {
   links?: string;
   stories?: string;

@@ -21,6 +21,7 @@ export function executeReindex(options: TargetOptions = {}): void {
 
 export type GetCliOptions = TargetOptions & {
   summary?: boolean;
+  json?: boolean;
 };
 
 export function executeGet(
@@ -39,6 +40,24 @@ export function executeGet(
   if (!result) {
     throw new Error(`Entity not found: ${idOrPath}`);
   }
+  if (options.json) {
+    console.log(
+      JSON.stringify(
+        {
+          id: result.entry.id,
+          type: result.entry.type,
+          path: result.entry.path,
+          title: result.entry.title,
+          status: result.entry.status,
+          frontmatter: result.frontmatter,
+          body: options.summary ? undefined : result.body,
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
   console.log(`# ${result.entry.id} (${result.entry.type})`);
   console.log(`path: ${result.entry.path}`);
   console.log("---");
@@ -51,6 +70,8 @@ export function executeGet(
 
 export type SearchCliOptions = TargetOptions & {
   limit?: string;
+  json?: boolean;
+  type?: string;
 };
 
 export function executeSearch(
@@ -68,13 +89,17 @@ export function executeSearch(
   if (!Number.isFinite(limit) || limit < 1) {
     throw new Error(`Invalid --limit "${options.limit}"`);
   }
-  const hits = searchIndex(index, query, limit);
+  const hits = searchIndex(index, query, limit, { type: options.type });
+  if (options.json) {
+    console.log(JSON.stringify(hits, null, 2));
+    return;
+  }
   console.log(formatSearchHits(hits));
 }
 
 export function executeLinks(
   id: string,
-  options: TargetOptions = {},
+  options: TargetOptions & { json?: boolean; broken?: boolean } = {},
 ): void {
   if (!id?.trim()) {
     throw new Error("links requires an entity id");
@@ -84,11 +109,33 @@ export function executeLinks(
   // resolve bare id even if only in catalog
   const row = index.catalog.find((c) => c.id === id);
   if (!row) {
-    // still show empty links without crash
-    console.log(formatLinksView({ id, outbound: [], backlinks: [], broken: [] }));
+    const empty = { id, outbound: [], backlinks: [], broken: [] };
+    if (options.json) {
+      console.log(JSON.stringify({ ...empty, note: "not in index" }, null, 2));
+      return;
+    }
+    console.log(formatLinksView(empty));
     console.log("");
     console.log(`note: ${id} not in index (run harness reindex)`);
     return;
   }
-  console.log(formatLinksView(linksFor(index, id)));
+  const full = linksFor(index, id);
+  const view = options.broken
+    ? { ...full, outbound: full.outbound.filter((o) => !o.resolved) }
+    : full;
+  if (options.broken && !options.json) {
+    const broken = view.broken;
+    if (broken.length === 0) {
+      console.log(`No broken links from ${id}.`);
+      return;
+    }
+    console.log(`Broken links from ${id}:`);
+    for (const target of broken) console.log(`  → ${target}`);
+    return;
+  }
+  if (options.json) {
+    console.log(JSON.stringify(view, null, 2));
+    return;
+  }
+  console.log(formatLinksView(view));
 }

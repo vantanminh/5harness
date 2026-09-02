@@ -42,6 +42,7 @@ Merge/override policy for existing `AGENTS.md` / `docs/` may be a follow-up stor
 | `harness story add` | Add a story matrix row |
 | `harness story update` | Update status, proof flags (`0\|1`), evidence, verify command |
 | `harness decision add` | Add a decision row |
+| `harness decision update` | Update status, notes, verify command, or links (US-076) |
 | `harness backlog add` | Add a backlog item |
 | `harness backlog close` | Close backlog (`implemented` / `rejected`) |
 | `harness query matrix` | Story matrix (`--numeric` for 0/1) |
@@ -50,6 +51,8 @@ Merge/override policy for existing `AGENTS.md` / `docs/` may be a follow-up stor
 | `harness query decisions` | Decisions |
 | `harness query stories` | Story list |
 | `harness query backlog` | Backlog (`--open` / `--closed`) |
+| `harness query reports` | Target-owned reports (US-076) |
+| `harness query * --json` | Structured JSON for agent reads (US-073) |
 
 Most durable commands accept `-d, --dir <path>` for the target project (default: cwd).
 They auto-migrate an existing DB; if the DB is missing, run `harness init` first.
@@ -104,7 +107,7 @@ hand-edit operational markdown.
 | --- | --- |
 | `harness doctor [--json]` | Workspace health checks (store, registry, index, Node, logs); Project Link adds non-fatal unresolved-peer and unreadable peer index warnings |
 | `harness status [--json]` | Project snapshot: stories, intakes, backlog, Project Link role/stack/peer count/open local reports, version, index age |
-| `harness next [--limit <n>] [--json]` | Recommend next work item; backend projects place open reports after in-progress stories and before planned stories |
+| `harness next [--limit <n>] [--json]` | Recommend next work item; open reports after in-progress, then blocked, then planned (any role) |
 | `harness context <id> [--depth 0\|1] [--max-chars N] [--json]` | Budgeted entity context pack |
 | `harness tool register [--name] [--command] ...` | Register external project tool |
 | `harness tool check [--name] [--json]` | Scan registered tools |
@@ -133,7 +136,7 @@ hand-edit operational markdown.
 | `harness watch` | Watch entity directories and auto-reindex on markdown changes (debounced 500ms) |
 | `harness handoff [--story <id>] [--json]` | Emit concise session summary: recent traces, worklog, status, next steps |
 
-## Commands in scope for Phase I (E16, Project Link) — implemented, unreleased
+## Commands in scope for Phase I (E16, Project Link) — shipped (v0.21+)
 
 Project Link is opt-in. Project ids and peer intent are durable markers in the
 Harness-managed `AGENTS.md` block; peer paths resolve only through the
@@ -172,7 +175,9 @@ project. When that project has peers it additionally exposes
 
 ## Commands deferred (later)
 
-Custom tool registration, changesets, score-context, cloud registry.
+Changesets; cloud registry (BL-003). Custom tool registration is shipped
+(`harness tool register|check|remove`). `score-context` and a dedicated
+intervention store are **not** in the product (decision 0023).
 
 ## Exit codes
 

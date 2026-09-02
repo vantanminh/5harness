@@ -150,9 +150,9 @@ describe("harness next (US-020)", () => {
     expect(Array.isArray(parsed)).toBe(true);
   });
 
-  it("prioritizes open reports after active work for backend projects", () => {
+  it("prioritizes open reports after active work for every role", () => {
     const root = tmp();
-    configureRole(root, "backend");
+    configureRole(root, "frontend");
     addStoriesAndReports(root);
 
     const items = buildNextList(root);
@@ -167,12 +167,19 @@ describe("harness next (US-020)", () => {
     expect(items.some((item) => item.id === "RP-002")).toBe(false);
   });
 
-  it("does not schedule reports for frontend projects", () => {
+  it("schedules blocked stories after reports and before planned work", () => {
     const root = tmp();
-    configureRole(root, "frontend");
-    addStoriesAndReports(root);
-
+    fs.mkdirSync(path.join(root, "docs", "stories"), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, "docs", "stories", "US-A.md"),
+      "---\nid: US-A\ntype: story\ntitle: Alpha\nstatus: planned\n---\n\n# A\n",
+    );
+    fs.writeFileSync(
+      path.join(root, "docs", "stories", "US-C.md"),
+      "---\nid: US-C\ntype: story\ntitle: Gamma\nstatus: blocked\n---\n\n# C\n",
+    );
     const items = buildNextList(root);
-    expect(items.map((item) => item.id)).toEqual(["US-B", "US-A"]);
+    expect(items.map((item) => item.id)).toEqual(["US-C", "US-A"]);
+    expect(items[0]!.reason).toContain("blocked");
   });
 });

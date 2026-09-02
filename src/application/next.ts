@@ -1,6 +1,5 @@
-import { buildCatalog, type CatalogEntry } from "./catalog.js";
+import { buildCatalog } from "./catalog.js";
 import { asString } from "../domain/frontmatter.js";
-import { readProjectLink } from "../infrastructure/project-link.js";
 
 export type NextItem = {
   id: string;
@@ -38,30 +37,35 @@ export function buildNextList(
     });
   }
 
-  // Tier 2: open reports are the backend's cross-project work queue.
-  let isBackend = false;
-  try {
-    isBackend = readProjectLink(projectRoot).role === "backend";
-  } catch {
-    // Uninitialized projects retain the pre-Project Link ordering.
-  }
-  if (isBackend) {
-    const openReports = catalog.byType.report.filter(
-      (report) => report.status === "open",
-    );
-    openReports.sort((a, b) => a.id.localeCompare(b.id));
-    for (const report of openReports) {
-      items.push({
-        id: report.id,
-        type: "report",
-        title: report.title,
-        status: report.status,
-        reason: "open report — review before planned work",
-      });
-    }
+  // Tier 2: open reports are the cross-project work queue (any role).
+  const openReports = catalog.byType.report.filter(
+    (report) => report.status === "open",
+  );
+  openReports.sort((a, b) => a.id.localeCompare(b.id));
+  for (const report of openReports) {
+    items.push({
+      id: report.id,
+      type: "report",
+      title: report.title,
+      status: report.status,
+      reason: "open report — review before planned work",
+    });
   }
 
-  // Tier 3: planned stories
+  // Tier 3: blocked stories (unblock before starting new planned work)
+  const blocked = catalog.byType.story.filter((s) => s.status === "blocked");
+  blocked.sort((a, b) => a.id.localeCompare(b.id));
+  for (const s of blocked) {
+    items.push({
+      id: s.id,
+      type: "story",
+      title: s.title,
+      status: s.status,
+      reason: "blocked — unblock or replan",
+    });
+  }
+
+  // Tier 4: planned stories
   const planned = catalog.byType.story.filter(
     (s) => s.status === "planned",
   );
@@ -76,7 +80,7 @@ export function buildNextList(
     });
   }
 
-  // Tier 4: open intakes (recent first)
+  // Tier 5: open intakes (recent first)
   const openIntakes = catalog.byType.intake
     .filter((intake) => intake.status === "" || intake.status === "pending")
     .sort((a, b) => b.id.localeCompare(a.id));
@@ -90,7 +94,7 @@ export function buildNextList(
     });
   }
 
-  // Tier 5: open backlog (proposed/accepted)
+  // Tier 6: open backlog (proposed/accepted)
   const openBacklogStatuses = new Set(["proposed", "accepted"]);
   const openBacklog = catalog.byType.backlog.filter((b) =>
     openBacklogStatuses.has(b.status),

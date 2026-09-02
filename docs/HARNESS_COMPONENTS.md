@@ -22,7 +22,7 @@ Status values:
 | 8 | Verification | Covered | `story verify`, proof flags, release `pack:check` / CI |
 | 9 | Permissions | Partial | Policy docs (tools-only mutation); no hard sandbox |
 | 10 | Entropy auditing | Covered | `audit`, `propose`, backlog, maturity notes |
-| 11 | Intervention recording | Partial | Trace/decision notes; not a dedicated intervention store |
+| 11 | Correction recording | Partial | Story evidence, worklog, and traces; no dedicated intervention store (decision 0023) |
 
 ## Surfaces
 

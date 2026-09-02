@@ -1,5 +1,8 @@
 # Agent Instructions
 
+If `.agents/skills/harness/SKILL.md` exists, use it for intake, mutation
+rules, and tool-only durable writes. `harness init` installs that skill.
+
 <!-- HARNESS:BEGIN -->
 <!-- harness-version: 0.22.0 -->
 ## Harness

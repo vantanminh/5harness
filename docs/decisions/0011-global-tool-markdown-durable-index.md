@@ -6,6 +6,11 @@ Date: 2026-07-10
 
 Accepted
 
+**Current names (decision 0016 / path rename):** npm package **`5harness`**,
+global home **`~/.5harness`**, project derived state **`.5harness/`**. Historical
+tables below still show the v0.5–0.11 names `@vantanminh/harness` and
+`~/.harness/`.
+
 ## Context
 
 v0.5 of this product followed decision **0004**: operational records in

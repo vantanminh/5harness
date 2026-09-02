@@ -20,15 +20,31 @@ import {
 import { executeContext } from "../commands/context.js";
 import { executeQuery } from "../commands/query.js";
 import {
+  executeDocsList,
+  executeDocsRead,
+  executeDocsSearch,
+} from "../commands/docs.js";
+import {
   executeIntake,
+  executeIntakeClose,
+  executeIntakeDismiss,
   executeIntakeUpdate,
 } from "../commands/intake.js";
 import {
   executeStoryAdd,
+  executeStoryBlock,
+  executeStoryDone,
+  executeStoryStart,
   executeStoryUpdate,
 } from "../commands/story.js";
-import { executeDecisionAdd } from "../commands/decision.js";
-import { executeBacklogAdd } from "../commands/backlog.js";
+import {
+  executeDecisionAdd,
+  executeDecisionUpdate,
+} from "../commands/decision.js";
+import { executeBacklogAdd, executeBacklogClose } from "../commands/backlog.js";
+import { executeWorklogAdd, executeWorklogList } from "../commands/worklog.js";
+import { executeTrace } from "../commands/trace.js";
+import { buildNextList, formatNextList } from "./next.js";
 import { maybeReindex } from "../commands/_reindex-helper.js";
 import type { McpCallInput } from "../domain/mcp-call-record.js";
 import { appendMcpCall } from "./mcp-monitor.js";
@@ -274,6 +290,183 @@ export const MCP_TOOLS: McpTool[] = [
       required: ["title"],
     },
   },
+  {
+    name: "harness_next",
+    description: "Recommend next work items (in-progress, reports, blocked, planned).",
+    inputSchema: {
+      type: "object",
+      properties: { limit: { type: "number" } },
+    },
+  },
+  {
+    name: "harness_query_intakes",
+    description: "List intake records as JSON.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "harness_query_stories",
+    description: "List stories as JSON.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "harness_query_decisions",
+    description: "List decisions as JSON.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "harness_query_backlog",
+    description: "List backlog items as JSON.",
+    inputSchema: {
+      type: "object",
+      properties: { open: { type: "boolean" }, closed: { type: "boolean" } },
+    },
+  },
+  {
+    name: "harness_query_traces",
+    description: "List recent traces as JSON.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "harness_query_tools",
+    description: "List compiled and registered tools as JSON.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "harness_query_reports",
+    description: "List target-owned reports as JSON.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "harness_docs_search",
+    description: "Search harness package documentation.",
+    inputSchema: {
+      type: "object",
+      properties: { query: { type: "string" } },
+      required: ["query"],
+    },
+  },
+  {
+    name: "harness_docs_list",
+    description: "List harness package documentation files.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "harness_docs_read",
+    description: "Read one harness package documentation file.",
+    inputSchema: {
+      type: "object",
+      properties: { path: { type: "string" } },
+      required: ["path"],
+    },
+  },
+  {
+    name: "harness_story_start",
+    description: "Mark a story in_progress.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string" } },
+      required: ["id"],
+    },
+  },
+  {
+    name: "harness_story_done",
+    description: "Mark a story implemented.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string" } },
+      required: ["id"],
+    },
+  },
+  {
+    name: "harness_story_block",
+    description: "Mark a story blocked.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string" }, reason: { type: "string" } },
+      required: ["id"],
+    },
+  },
+  {
+    name: "harness_backlog_close",
+    description: "Close a backlog item.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        status: { type: "string" },
+        outcome: { type: "string" },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "harness_worklog_add",
+    description: "Add a worklog entry for a story.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        story: { type: "string" },
+        summary: { type: "string" },
+        pr: { type: "string" },
+        commit: { type: "string" },
+      },
+      required: ["story", "summary"],
+    },
+  },
+  {
+    name: "harness_worklog_list",
+    description: "List worklog entries.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "harness_trace",
+    description: "Record an execution trace.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        summary: { type: "string" },
+        outcome: { type: "string" },
+        storyId: { type: "string" },
+        friction: { type: "string" },
+      },
+      required: ["summary"],
+    },
+  },
+  {
+    name: "harness_intake_close",
+    description: "Mark an intake completed.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string" }, notes: { type: "string" } },
+      required: ["id"],
+    },
+  },
+  {
+    name: "harness_intake_dismiss",
+    description: "Dismiss an intake without implementation.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string" }, notes: { type: "string" } },
+      required: ["id"],
+    },
+  },
+  {
+    name: "harness_decision_update",
+    description: "Update a decision. Mutates durable markdown.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        title: { type: "string" },
+        status: { type: "string" },
+        doc: { type: "string" },
+        verify: { type: "string" },
+        notes: { type: "string" },
+        links: { type: "string" },
+      },
+      required: ["id"],
+    },
+  },
 ];
 
 const PEER_MCP_TOOLS: McpTool[] = [
@@ -469,17 +662,24 @@ function callTool(
         executeGet(String(args.id ?? ""), {
           dir: root,
           summary: Boolean(args.summary),
+          json: true,
         } as never),
       );
       break;
     case "harness_search":
       t = capture(() =>
-        executeSearch(String(args.query ?? ""), { dir: root } as never),
+        executeSearch(String(args.query ?? ""), {
+          dir: root,
+          json: true,
+        } as never),
       );
       break;
     case "harness_links":
       t = capture(() =>
-        executeLinks(String(args.id ?? ""), { dir: root } as never),
+        executeLinks(String(args.id ?? ""), {
+          dir: root,
+          json: true,
+        } as never),
       );
       break;
     case "harness_context":
@@ -495,10 +695,14 @@ function callTool(
       t = formatStatus(buildStatus(root), false);
       break;
     case "harness_query_matrix":
-      t = capture(() => executeQuery("matrix", { dir: root } as never));
+      t = capture(() =>
+        executeQuery("matrix", { dir: root, json: true } as never),
+      );
       break;
     case "harness_query_stats":
-      t = capture(() => executeQuery("stats", { dir: root } as never));
+      t = capture(() =>
+        executeQuery("stats", { dir: root, json: true } as never),
+      );
       break;
     case "harness_handoff": {
       const sid = args.storyId ? String(args.storyId) : undefined;
@@ -691,6 +895,152 @@ function callTool(
           suggestion: optStr(args, "suggestion"),
           risk: optStr(args, "risk"),
           predicted: optStr(args, "predicted"),
+          notes: optStr(args, "notes"),
+          links: optStr(args, "links"),
+        }),
+      );
+      break;
+    case "harness_next":
+      t = formatNextList(
+        buildNextList(root, {
+          limit: Number(args.limit ?? 10) || 10,
+        }),
+        true,
+      );
+      break;
+    case "harness_query_intakes":
+      t = capture(() =>
+        executeQuery("intakes", { dir: root, json: true } as never),
+      );
+      break;
+    case "harness_query_stories":
+      t = capture(() =>
+        executeQuery("stories", { dir: root, json: true } as never),
+      );
+      break;
+    case "harness_query_decisions":
+      t = capture(() =>
+        executeQuery("decisions", { dir: root, json: true } as never),
+      );
+      break;
+    case "harness_query_backlog":
+      t = capture(() =>
+        executeQuery("backlog", {
+          dir: root,
+          json: true,
+          open: Boolean(args.open),
+          closed: Boolean(args.closed),
+        } as never),
+      );
+      break;
+    case "harness_query_traces":
+      t = capture(() =>
+        executeQuery("traces", { dir: root, json: true } as never),
+      );
+      break;
+    case "harness_query_tools":
+      t = capture(() =>
+        executeQuery("tools", { dir: root, json: true } as never),
+      );
+      break;
+    case "harness_query_reports":
+      t = capture(() =>
+        executeQuery("reports", { dir: root, json: true } as never),
+      );
+      break;
+    case "harness_docs_search":
+      t = capture(() =>
+        executeDocsSearch(String(args.query ?? ""), { json: true }),
+      );
+      break;
+    case "harness_docs_list":
+      t = capture(() => executeDocsList({ json: true }));
+      break;
+    case "harness_docs_read":
+      t = capture(() =>
+        executeDocsRead(String(args.path ?? ""), { json: true }),
+      );
+      break;
+    case "harness_story_start":
+      t = capture(() =>
+        executeStoryStart(String(args.id ?? ""), { dir: root }),
+      );
+      break;
+    case "harness_story_done":
+      t = capture(() =>
+        executeStoryDone(String(args.id ?? ""), { dir: root }),
+      );
+      break;
+    case "harness_story_block":
+      t = capture(() =>
+        executeStoryBlock(String(args.id ?? ""), {
+          dir: root,
+          reason: optStr(args, "reason"),
+        }),
+      );
+      break;
+    case "harness_backlog_close":
+      t = capture(() =>
+        executeBacklogClose({
+          dir: root,
+          id: String(args.id ?? ""),
+          status: optStr(args, "status"),
+          outcome: optStr(args, "outcome"),
+        }),
+      );
+      break;
+    case "harness_worklog_add":
+      t = capture(() =>
+        executeWorklogAdd({
+          dir: root,
+          story: String(args.story ?? ""),
+          summary: String(args.summary ?? ""),
+          pr: optStr(args, "pr"),
+          commit: optStr(args, "commit"),
+        }),
+      );
+      break;
+    case "harness_worklog_list":
+      t = capture(() =>
+        executeWorklogList({ dir: root, json: true }),
+      );
+      break;
+    case "harness_trace":
+      t = capture(() =>
+        executeTrace({
+          dir: root,
+          summary: String(args.summary ?? ""),
+          outcome: optStr(args, "outcome"),
+          story: optStr(args, "storyId"),
+          friction: optStr(args, "friction"),
+        }),
+      );
+      break;
+    case "harness_intake_close":
+      t = capture(() =>
+        executeIntakeClose(String(args.id ?? ""), {
+          dir: root,
+          notes: optStr(args, "notes"),
+        }),
+      );
+      break;
+    case "harness_intake_dismiss":
+      t = capture(() =>
+        executeIntakeDismiss(String(args.id ?? ""), {
+          dir: root,
+          notes: optStr(args, "notes"),
+        }),
+      );
+      break;
+    case "harness_decision_update":
+      t = capture(() =>
+        executeDecisionUpdate({
+          dir: root,
+          id: String(args.id ?? ""),
+          title: optStr(args, "title"),
+          status: optStr(args, "status"),
+          doc: optStr(args, "doc"),
+          verify: optStr(args, "verify"),
           notes: optStr(args, "notes"),
           links: optStr(args, "links"),
         }),

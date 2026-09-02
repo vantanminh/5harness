@@ -15,7 +15,7 @@ docs over one monolithic SPEC.
 | `global-registry.md` | Machine-local project registry + clone→link workflow |
 | `agent-index.md` | Derived index + get/search/links for agents |
 | `mcp-project-binding.md` | OAuth project grant + durable project id |
-| `project-link.md` | Implemented (unreleased) Project Link: role/stack, same-machine peers, bounded reads, and target-owned reports |
+| `project-link.md` | Project Link (shipped v0.21+): role/stack, same-machine peers, bounded reads, and target-owned reports |
 | `distribution.md` | npm packaging, global-first install, release checklist |
 
 ## Update Rule

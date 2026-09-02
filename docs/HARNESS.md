@@ -273,11 +273,9 @@ behavior or validation results:
    with outcomes after implementation.
 
 The `harness_friction` field on traces also captures per-task friction so
-patterns can be queried later:
-
-```bash
-harness query friction
-```
+later audits and `harness propose` can see repeated patterns. Review traces
+with `harness query traces`. There is no separate `query friction` command
+(decision 0023).
 
 Backlog risk uses the same lane vocabulary as intake and stories:
 `tiny`, `normal`, or `high-risk`. Use `--risk tiny` for low-risk follow-up
@@ -308,8 +306,8 @@ For every task:
 Stories may carry a mechanical proof command:
 
 ```bash
-harness story add --id US-012 --title "Story verification" --lane normal --verify "cargo test --workspace"
-harness story update --id US-012 --verify "cargo test --workspace"
+harness story add --id US-012 --title "Story verification" --lane normal --verify "npm test"
+harness story update --id US-012 --verify "npm test"
 harness story verify US-012
 ```
 
@@ -325,14 +323,14 @@ fails.
 
 `story verify` accepts only the story id. Configure the command with
 `story add --verify` or `story update --verify`. Record proof booleans with
-`story update`, using numeric values: `1` means yes and `0` means no. The Rust
-CLI rejects text values such as `yes` and `no`.
+`story update`, using numeric values: `1` means yes and `0` means no. The CLI
+rejects text values such as `yes` and `no`.
 
 Use `harness query matrix --numeric` when copying proof values
 back into `story update`. The default matrix output is human-readable
 `yes`/`no`; the numeric output mirrors CLI input.
 
-## Phase 5 Evolution Commands
+## Evolution Commands
 
 Tool discovery:
 
@@ -342,26 +340,16 @@ harness query tools --json
 harness tool register --name <name> --command <cmd> --description <text> --responsibility Verification
 ```
 
-Context and drift checks:
+Drift checks:
 
 ```bash
-harness score-context <trace-id>
 harness audit
 ```
 
-`score-context` is advisory; it reports context-rule coverage without changing
-the trace. `audit` reports drift categories and an entropy score documented in
-`docs/HARNESS_AUDIT.md`.
-
-Interventions are separate from traces:
-
-```bash
-harness intervention add --trace <id> --type correction --description <text> --source human
-harness query interventions --story US-024
-```
-
-Record an intervention when a human, reviewer, CI system, or another agent
-corrects, overrides, escalates, or approves work.
+`audit` reports drift categories and an entropy score documented in
+`docs/HARNESS_AUDIT.md`. Human, reviewer, CI, or agent corrections belong in
+the story evidence, worklog, or a new trace — there is no separate
+intervention store (decision 0023).
 
 Improvement proposals:
 
@@ -370,8 +358,8 @@ harness propose
 harness propose --commit
 ```
 
-`propose` prints deterministic proposals from repeated friction, interventions,
-and audit drift. `--commit` creates proposed backlog items only; it does not
+`propose` prints deterministic proposals from audit findings and recorded
+trace friction. `--commit` creates proposed backlog items only; it does not
 edit policy docs or approve the proposal.
 
 ## Decision Records
@@ -428,26 +416,24 @@ A task is done only when:
   `harness backlog add`.
 - The final response says what changed and what was not attempted.
 
-## Future Validation Ladder
+## Validation Ladder (this product)
 
-No validation scripts exist yet. When implementation begins, the expected ladder
-is:
+This repository's mechanical proof is npm scripts, not a generic cargo ladder:
 
 ```text
-validate:quick
-  format, lint, typecheck, unit tests, architecture check
+npm run typecheck
+  TypeScript --noEmit
 
-test:integration
-  backend, database, provider, or service checks as the stack requires
+npm test
+  Vitest unit, integration, and CLI e2e suites
 
-test:e2e
-  user-visible end-to-end flows
+npm run pack:check
+  npm pack dry-run and published-file assertions
 
-test:platform
-  shell, mobile, desktop, or deployment smoke checks as the stack requires
-
-test:release
-  full suite, log checks, and performance smoke
+npm run release:check
+  typecheck + test + pack:check (CI matrix: Ubuntu/Windows/macOS × Node 22/24)
 ```
 
-Agents must not claim these commands pass until they exist and have been run.
+Target projects may set their own `verify` commands on stories
+(`npm test`, `cargo test`, `go test`, …). Agents must not claim a command
+passes until it exists and has been run.

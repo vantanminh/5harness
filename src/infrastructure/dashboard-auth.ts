@@ -85,6 +85,15 @@ export function ensureDefaultAuth(options?: {
  * Verify a username + password against stored credentials.
  * Only "admin" is a valid username.
  */
+/** True when no auth file exists or the stored hash is still admin/admin. */
+export function isDefaultDashboardPassword(options?: {
+  harnessHome?: string;
+}): boolean {
+  const data = readAuthData(options);
+  if (!data) return true;
+  return hashPassword(DEFAULT_PASSWORD, data.salt) === data.passwordHash;
+}
+
 export function verifyCredentials(
   username: string,
   password: string,

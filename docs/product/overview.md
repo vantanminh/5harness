@@ -90,7 +90,8 @@ Agents **only** mutate durable state through CLI tools (mandatory).
 | F — Store pivot | Markdown SoT + registry + link + reindex + get/search/links |
 | G — Dashboard | Local browser multi-project view |
 | H — Agent loop + MCP binding | Context, lifecycle, OAuth, and explicit project selection |
-| I / E16 — Project Link | **Implemented (unreleased)** — roles, configured peers, bounded reads, reports |
+| I / E16 — Project Link | **Done (v0.21+)** — roles, configured peers, bounded reads, reports |
+| J / E17 — 1.0 maturity | Contract truth, MCP/CLI parity, FTS, dashboard 2.0, public freeze |
 | Optional | Trace export, FTS upgrades, native engine |
 
 See [roadmap.md](./roadmap.md) for story tracking.

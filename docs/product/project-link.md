@@ -1,6 +1,6 @@
 # Spec: Project Link (peer projects + cross-project reports)
 
-**Status:** implemented (unreleased)
+**Status:** done (shipped v0.21+)
 **Intake:** IN-019  
 **Decision:** 0022-project-peer-link-and-cross-project-reports  
 **Stories:** US-059 … US-063, US-068
@@ -403,7 +403,7 @@ Registry `harness link` / `unlink` / `projects` **unchanged**.
 | US-060 | Peer add/remove/list + reverse edge + registry resolve | normal | implemented | US-059 |
 | US-061 | Peer read tools CLI + MCP (search/get/context/links) | high-risk | implemented | US-060, US-009, US-027 |
 | US-062 | Report entity + add/list/get/update + cross-project write | high-risk | implemented | US-060 |
-| US-063 | AGENTS workflow copy, doctor/status/next hooks, product docs finish | normal | implemented (unreleased) | US-061, US-062 |
+| US-063 | AGENTS workflow copy, doctor/status/next hooks, product docs finish | normal | done (v0.21+) | US-061, US-062 |
 | US-068 | Optional report target root allowlist + doctor diagnostics | normal | implemented | US-062 |
 
 ---

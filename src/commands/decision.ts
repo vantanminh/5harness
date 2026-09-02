@@ -1,4 +1,4 @@
-import { addDecisionMd } from "../application/md-durable.js";
+import { addDecisionMd, updateDecisionMd } from "../application/md-durable.js";
 import {
   resolveTargetFromOptions,
   type TargetOptions,
@@ -35,6 +35,38 @@ export function executeDecisionAdd(options: DecisionAddCliOptions): void {
     },
   );
   console.log(`Decision ${options.id} added.`);
+  console.log(`  file: ${file.relativePath}`);
+  maybeReindex(targetDir);
+}
+
+export type DecisionUpdateCliOptions = TargetOptions & {
+  id: string;
+  title?: string;
+  status?: string;
+  doc?: string;
+  verify?: string;
+  notes?: string;
+  links?: string;
+};
+
+export function executeDecisionUpdate(options: DecisionUpdateCliOptions): void {
+  if (!options.id) {
+    throw new Error("decision update requires --id");
+  }
+  const { targetDir } = resolveTargetFromOptions(options);
+  const file = updateDecisionMd(
+    { projectRoot: targetDir },
+    {
+      id: options.id,
+      title: options.title,
+      status: options.status,
+      doc: options.doc,
+      verify: options.verify,
+      notes: options.notes,
+      links: options.links,
+    },
+  );
+  console.log(`Decision ${options.id} updated.`);
   console.log(`  file: ${file.relativePath}`);
   maybeReindex(targetDir);
 }

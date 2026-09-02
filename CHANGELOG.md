@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `harness decision update`, `harness query reports`, and `--json` on
+  query/get/search/links/docs (IN-024 / US-073 / US-076).
+- MCP tools for `next`, query lists, reports, docs, story lifecycle,
+  backlog close, worklog, trace, intake close/dismiss, and decision update
+  (US-074 / US-075).
+- Official agent skill at `.agents/skills/harness/SKILL.md` (installed by
+  `harness init`) (US-078).
+- `harness next` surfaces open reports for every role and blocked stories
+  (US-079).
+- `harness search --type`, `harness links --broken`, and extra `doctor`
+  checks (duplicate ids, broken edges, leftover sqlite, default dashboard
+  password) (US-080–US-084).
+- Dashboard Next/Reports tabs (US-085).
+- `harness completion bash|zsh|pwsh` and `.github/actions/harness-check`
+  (US-086).
+
+### Changed
+
+- Policy docs now match the shipped CLI (decision 0023): removed undocumented
+  `score-context`, `intervention add`, `query interventions`, and
+  `query friction` commands. `harness init --help` describes markdown
+  scaffold + registry, not `harness.db`.
+
+## [0.22.0] - 2026-07-15
+
+### Added
+
+- `harness unlink --id <project-id>` and `harness unlink --missing` prune
+  stale registry entries whose paths are gone (IN-020 / US-064).
+- Intake lifecycle: `pending` / `completed` / `dismissed`, CLI
+  `intake update|close|dismiss`, MCP `harness_intake_update`, and automatic
+  completion when every linked story is implemented (IN-021 / US-065–US-066).
+- Optional `HARNESS_PEER_WRITE_ROOTS` allowlist for cross-project report
+  targets, enforced by CLI, MCP, and doctor (IN-023 / US-068).
+
+### Fixed
+
+- `npm run push` reconciles worklog commit hashes after `pull --rebase`
+  (IN-022 / US-067).
+
 ## [0.21.0] - 2026-07-14
 
 ### Added

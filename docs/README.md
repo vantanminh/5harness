@@ -46,8 +46,9 @@ Payload templates shipped to **target** projects live in repo-root
 
 ## Current state
 
-- **Shipped:** markdown SoT, registry, index, dashboard, agent loop, and
-  project-bound MCP through Phase H.
-- **Implemented (unreleased):** Phase I / E16 Project Link (US-059–US-063).
-- **Locked direction:** decisions 0011 (global tool + markdown SoT) and 0022
-  (configured peers + target-owned reports).
+- **Shipped:** markdown SoT, registry, index, dashboard, agent loop,
+  project-bound MCP, and Project Link (v0.21+).
+- **In progress:** Phase J / E17 1.0 maturity (IN-024 / US-069–US-087).
+- **Locked direction:** decisions 0011 (global tool + markdown SoT), 0022
+  (configured peers + target-owned reports), and 0023 (shipped CLI is the
+  command contract).

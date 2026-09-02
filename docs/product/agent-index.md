@@ -37,7 +37,7 @@ Embeddings / vector DB: **not** required for the first implementation.
 
 | Tool | Returns | Token discipline |
 | --- | --- | --- |
-| `search` | Ranked list: id, path, score, **snippet** | No full file |
+| `search` | Ranked list: id, path, score, **snippet**; `--type` and `"quoted phrases"` | No full file |
 | `get` | One entity (optional `--summary` for frontmatter only) | Bounded |
 | `links` | Out + back links with titles | Bounded |
 | `query *` | Tables/aggregates from catalog | Bounded |

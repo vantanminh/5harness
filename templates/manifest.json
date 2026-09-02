@@ -15,6 +15,7 @@
     "docs/templates/story.md",
     "docs/templates/decision.md",
     "docs/templates/validation-report.md",
-    "docs/templates/spec-intake.md"
+    "docs/templates/spec-intake.md",
+    ".agents/skills/harness/SKILL.md"
   ]
 }

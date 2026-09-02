@@ -7,6 +7,7 @@ import {
   executeDocsList,
   executeDocsRead,
 } from "./commands/docs.js";
+import { executeCompletion } from "./commands/completion.js";
 
 import { executeDoctor } from "./commands/doctor.js";
 
@@ -23,7 +24,7 @@ import {
 } from "./commands/tool.js";
 
 import { executeBacklogAdd, executeBacklogClose } from "./commands/backlog.js";
-import { executeDecisionAdd } from "./commands/decision.js";
+import { executeDecisionAdd, executeDecisionUpdate } from "./commands/decision.js";
 import {
   executeGet,
   executeLinks,
@@ -171,7 +172,7 @@ async function main(argv: string[] = process.argv): Promise<void> {
     program
       .command("init")
       .description(
-        "Scaffold Phase A operating files and create/migrate harness.db",
+        "Scaffold markdown operating files and register the project",
       )
       .argument("[directory]", "target project directory (default: cwd)")
       .option("-y, --yes", "non-interactive (reserved)")
@@ -501,23 +502,34 @@ async function main(argv: string[] = process.argv): Promise<void> {
     .command("search")
     .description("Search harness docs for text (snippet results)")
     .argument("<query>", "search query text")
-    .action((query: string) => {
-      withErrors(() => executeDocsSearch(query));
+    .option("--json", "machine-readable JSON output")
+    .action((query: string, opts: { json?: boolean }) => {
+      withErrors(() => executeDocsSearch(query, opts));
     });
   docsCmd
     .command("list")
     .description("List all available harness documentation files")
-    .action(() => {
-      withErrors(() => executeDocsList());
+    .option("--json", "machine-readable JSON output")
+    .action((opts: { json?: boolean }) => {
+      withErrors(() => executeDocsList(opts));
     });
   docsCmd
     .command("read")
     .description("Read a harness documentation file in full")
     .argument("<path>", "relative path within docs/ (e.g. HARNESS.md)")
-    .action((docPath: string) => {
-      withErrors(() => executeDocsRead(docPath));
+    .option("--json", "machine-readable JSON output")
+    .action((docPath: string, opts: { json?: boolean }) => {
+      withErrors(() => executeDocsRead(docPath, opts));
     });
 
+
+  program
+    .command("completion")
+    .description("Print shell completion script (bash | zsh | pwsh)")
+    .argument("<shell>", "bash | zsh | pwsh")
+    .action((shell: string) => {
+      withErrors(() => executeCompletion(shell));
+    });
 
   program
     .command("update")
@@ -556,6 +568,7 @@ async function main(argv: string[] = process.argv): Promise<void> {
       .description("Print one durable entity by id or path")
       .argument("<idOrPath>", "entity id (e.g. US-001) or relative path")
       .option("--summary", "frontmatter only (no body)")
+      .option("--json", "machine-readable JSON output")
       .action((idOrPath: string, opts) => {
         withErrors(() => executeGet(idOrPath, opts));
       }),
@@ -567,6 +580,8 @@ async function main(argv: string[] = process.argv): Promise<void> {
       .description("Search entity catalog (path + snippet, not full dump)")
       .argument("<query>", "search query")
       .option("--limit <n>", "max hits", "20")
+      .option("--type <type>", "filter by entity type (story, decision, …)")
+      .option("--json", "machine-readable JSON output")
       .action((query: string, opts) => {
         withErrors(() => executeSearch(query, opts));
       }),
@@ -577,6 +592,8 @@ async function main(argv: string[] = process.argv): Promise<void> {
       .command("links")
       .description("Show outbound links and backlinks for an entity")
       .argument("<id>", "entity id")
+      .option("--json", "machine-readable JSON output")
+      .option("--broken", "list unresolved outbound targets only")
       .action((id: string, opts) => {
         withErrors(() => executeLinks(id, opts));
       }),
@@ -771,6 +788,22 @@ async function main(argv: string[] = process.argv): Promise<void> {
 
   addDirOptions(
     decision
+      .command("update")
+      .description("Update a decision status, notes, verify command, or links")
+      .requiredOption("--id <id>", "decision id")
+      .option("--title <text>", "title")
+      .option("--status <status>", "proposed|accepted|superseded|rejected")
+      .option("--doc <path>", "markdown decision path")
+      .option("--verify <command>", "optional verify command")
+      .option("--notes <text>", "notes")
+      .option("--links <csv>", "related entity links")
+      .action((opts) => {
+        withErrors(() => executeDecisionUpdate(opts));
+      }),
+  );
+
+  addDirOptions(
+    decision
       .command("verify")
       .description("Run a decision verify_command and record pass/fail")
       .argument("<id>", "decision id")
@@ -821,6 +854,7 @@ async function main(argv: string[] = process.argv): Promise<void> {
       .command("matrix")
       .description("Story test matrix")
       .option("--numeric", "render proof flags as 1/0")
+      .option("--json", "machine-readable JSON output")
       .action((opts) => {
         withErrors(() => executeQuery("matrix", opts));
       }),
@@ -830,6 +864,7 @@ async function main(argv: string[] = process.argv): Promise<void> {
     query
       .command("stats")
       .description("Summary counts")
+      .option("--json", "machine-readable JSON output")
       .action((opts) => {
         withErrors(() => executeQuery("stats", opts));
       }),
@@ -839,6 +874,7 @@ async function main(argv: string[] = process.argv): Promise<void> {
     query
       .command("intakes")
       .description("Recent intake classifications")
+      .option("--json", "machine-readable JSON output")
       .action((opts) => {
         withErrors(() => executeQuery("intakes", opts));
       }),
@@ -848,6 +884,7 @@ async function main(argv: string[] = process.argv): Promise<void> {
     query
       .command("decisions")
       .description("Decision records")
+      .option("--json", "machine-readable JSON output")
       .action((opts) => {
         withErrors(() => executeQuery("decisions", opts));
       }),
@@ -857,6 +894,7 @@ async function main(argv: string[] = process.argv): Promise<void> {
     query
       .command("stories")
       .description("Story list")
+      .option("--json", "machine-readable JSON output")
       .action((opts) => {
         withErrors(() => executeQuery("stories", opts));
       }),
@@ -868,6 +906,7 @@ async function main(argv: string[] = process.argv): Promise<void> {
       .description("Backlog items")
       .option("--open", "only proposed/accepted")
       .option("--closed", "only implemented/rejected")
+      .option("--json", "machine-readable JSON output")
       .action((opts) => {
         withErrors(() => executeQuery("backlog", opts));
       }),
@@ -877,8 +916,19 @@ async function main(argv: string[] = process.argv): Promise<void> {
     query
       .command("traces")
       .description("Recent execution traces")
+      .option("--json", "machine-readable JSON output")
       .action((opts) => {
         withErrors(() => executeQuery("traces", opts));
+      }),
+  );
+
+  addDirOptions(
+    query
+      .command("reports")
+      .description("Target-owned report inbox")
+      .option("--json", "machine-readable JSON output")
+      .action((opts) => {
+        withErrors(() => executeQuery("reports", opts));
       }),
   );
 
@@ -1087,6 +1137,7 @@ async function main(argv: string[] = process.argv): Promise<void> {
       .description("List built-in harness tools (compiled registry)")
       .option("--capability <name>", "filter by capability")
       .option("--status <status>", "filter by status (e.g. present)")
+      .option("--json", "machine-readable JSON output")
       .action((opts) => {
         withErrors(() => executeQuery("tools", opts));
       }),

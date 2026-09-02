@@ -44,6 +44,8 @@ describe("CLI e2e", () => {
     expect(result.stdout).toContain("migrate");
     expect(result.stdout).toContain("Project Link");
     expect(result.stdout).toContain("backend reports");
+    expect(result.stdout).not.toContain("create/migrate harness.db");
+    expect(result.stdout).toContain("register the project");
   });
 
   it("init --dry-run and init into temp dir", () => {

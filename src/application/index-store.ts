@@ -339,16 +339,26 @@ export function searchIndex(
   index: ProjectIndex,
   query: string,
   limit = 20,
+  options: { type?: string } = {},
 ): SearchHit[] {
   const q = query.trim();
   if (!q) return [];
-  const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const phraseMatch = q.match(/"([^"]+)"/);
+  const phrase = phraseMatch?.[1]?.toLowerCase();
+  const tokens = q
+    .replace(/"[^"]+"/g, " ")
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  const typeFilter = options.type?.trim().toLowerCase();
   const hits: SearchHit[] = [];
 
   for (const row of index.catalog) {
+    if (typeFilter && row.type.toLowerCase() !== typeFilter) continue;
     const text = index.texts[row.id] ?? `${row.id} ${row.title} ${row.status}`;
     const lower = text.toLowerCase();
     let score = 0;
+    if (phrase && lower.includes(phrase)) score += 8;
     for (const t of tokens) {
       if (row.id.toLowerCase() === t) score += 10;
       else if (row.id.toLowerCase().includes(t)) score += 5;
@@ -362,7 +372,7 @@ export function searchIndex(
       type: row.type,
       title: row.title,
       score,
-      snippet: snippetAround(text, tokens[0]!),
+      snippet: snippetAround(text, phrase ?? tokens[0] ?? q),
     });
   }
 

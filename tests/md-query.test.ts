@@ -7,8 +7,10 @@ import {
   queryBacklogMd,
   queryIntakesMd,
   queryMatrixMd,
+  queryReportsMd,
   queryStatsMd,
   queryStoriesMd,
+  queryViewData,
 } from "../src/application/md-query.js";
 import {
   addBacklogMd,
@@ -166,5 +168,8 @@ describe("markdown query (US-008)", () => {
     const stats = queryStatsMd(root);
     expect(stats).toMatch(/reports/);
     expect(stats).toMatch(/\n0\s+0\s+0\s+0\s+1\s+0/);
+    expect(queryReportsMd(root)).toMatch(/RP-001/);
+    const json = queryViewData(root, "reports") as Array<{ id: string }>;
+    expect(json[0]?.id).toBe("RP-001");
   });
 });

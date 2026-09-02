@@ -55,9 +55,10 @@ Users install via **npm** (`-g` preferred).
 
 ## Project Skills
 
-If `.codex/skills/harness-intake-griller/SKILL.md` exists, use it when a request
-needs discussion, feature intake, docs, or story shaping. The skill is
-project-scoped; do not use a global copy as the source of truth.
+If `.agents/skills/harness/SKILL.md` exists, use it when a request needs
+discussion, feature intake, docs, or story shaping. The skill is
+project-scoped; `harness init` installs it. Do not use a global copy as the
+source of truth.
 
 <!-- HARNESS:BEGIN -->
 <!-- harness-version: 0.22.0 -->

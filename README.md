@@ -200,7 +200,7 @@ harness export changelog [--since 2026-07-01]
 | Query + agent index | Shipped |
 | Quality (verify / trace / audit / propose) | Shipped |
 | Agent-loop tools (doctor / status / next / …) | Shipped |
-| Project Link (roles / peers / reports) | Implemented (unreleased) |
+| Project Link (roles / peers / reports) | Shipped (v0.21+) |
 | MCP core (reads + intake/story/decision/backlog mutations) | Shipped |
 | Local dashboard + MCP monitor | Shipped |
 | CI multi-OS + OIDC provenance releases | Shipped |

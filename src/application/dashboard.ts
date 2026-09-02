@@ -7,9 +7,11 @@ import {
   queryDecisionsMd,
   queryIntakesMd,
   queryMatrixMd,
+  queryReportsMd,
   queryStatsMd,
   queryStoriesMd,
 } from "./md-query.js";
+import { buildNextList, formatNextList } from "./next.js";
 import { queryTracesMd } from "./local-traces.js";
 import type { ListedProject } from "../domain/registry.js";
 import { isLoopbackBindHost } from "../domain/paths.js";
@@ -109,6 +111,8 @@ export type ProjectDetail = {
   stories: string;
   backlog: string;
   traces: string;
+  reports: string;
+  next: string;
 };
 
 export function getProjectDetail(
@@ -133,6 +137,8 @@ export function getProjectDetail(
     stories: queryStoriesMd(project.path),
     backlog: queryBacklogMd(project.path, "open"),
     traces: queryTracesMd(project.path),
+    reports: queryReportsMd(project.path),
+    next: formatNextList(buildNextList(project.path), false),
   };
 }
 
@@ -297,29 +303,29 @@ function htmlEscape(s: string): string {
 
 const CSS = `
   :root {
-    --bg: #fff;
-    --fg: #111;
-    --muted: #666;
-    --border: #ddd;
-    --th-bg: #f4f4f4;
-    --pre-bg: #f8f8f8;
-    --link: #06c;
-    --status-ok: #1a7f37;
-    --status-missing: #cf222e;
-    --status-error: #bf8700;
+    --bg: #f4efe4;
+    --fg: #1c1914;
+    --muted: #6b6258;
+    --border: #d4cbbd;
+    --th-bg: #ebe3d4;
+    --pre-bg: #fffaf1;
+    --link: #b45309;
+    --status-ok: #3f6b4a;
+    --status-missing: #9f2d2d;
+    --status-error: #b45309;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0d1117;
-      --fg: #c9d1d9;
-      --muted: #8b949e;
-      --border: #30363d;
-      --th-bg: #161b22;
-      --pre-bg: #161b22;
-      --link: #58a6ff;
-      --status-ok: #3fb950;
-      --status-missing: #f85149;
-      --status-error: #d29922;
+      --bg: #16130f;
+      --fg: #f0e6d6;
+      --muted: #a89884;
+      --border: #3a3228;
+      --th-bg: #221c16;
+      --pre-bg: #1c1712;
+      --link: #f0a05a;
+      --status-ok: #7dba8a;
+      --status-missing: #e07070;
+      --status-error: #e0b060;
     }
   }
   * { box-sizing: border-box; }
@@ -474,7 +480,7 @@ function renderHome(projects: ProjectSummary[]): string {
   </div>
 
   <h1>Harness Dashboard</h1>
-  <p class="muted">Local read-only view of registry projects (markdown SoT).</p>
+  <p class="muted">Local cockpit for linked projects — next work, matrix, reports, MCP.</p>
   <p><a href="/api/projects">JSON /api/projects</a></p>
 
   ${projects.length > 0 ? `
@@ -503,9 +509,11 @@ function renderProject(detail: ProjectDetail): string {
   const monitorHref = `/monitor?id=${encodeURIComponent(p.id)}`;
 
   const tabs: Array<{ id: string; label: string; content: string; html?: boolean }> = [
+    { id: "next", label: "Next", content: detail.next },
     { id: "stats", label: "Stats", content: detail.stats },
     { id: "matrix", label: "Matrix", content: detail.matrix },
     { id: "stories", label: "Stories", content: detail.stories },
+    { id: "reports", label: "Reports", content: detail.reports },
     { id: "decisions", label: "Decisions", content: detail.decisions },
     { id: "intakes", label: "Intakes", content: detail.intakes },
     { id: "backlog", label: "Backlog", content: detail.backlog },
