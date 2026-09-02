@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Harden the npm native launcher: remove the environment-controlled binary
+  override and filesystem probing, enforce fixed package-relative paths with
+  `shell: false`, and keep build-only shim sources out of the published tarball.
+
 ## [0.25.0] - 2026-09-02
 
 ### Changed

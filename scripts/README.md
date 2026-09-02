@@ -4,8 +4,8 @@ Dev and release helpers for **5harness**.
 
 ## Product CLI
 
-The user-facing CLI is the npm bin `harness` (source: `src/cli.ts`, build output
-`dist/cli.js`). Local development:
+The user-facing CLI is the npm bin `harness` (source: `npm/shim.mjs`, build
+output `dist/cli.js`; product runtime is the Rust binary). Local development:
 
 ```bash
 npm run harness -- --help

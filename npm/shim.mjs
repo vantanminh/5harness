@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 /**
  * Thin npm bin shim. Product runtime is the native Rust binary.
- * This file only locates and execs that binary; it does not implement CLI logic.
+ *
+ * The npm package contains one binary per supported target, so the shim has to
+ * choose the current target before handing over control. Keep this boundary
+ * deliberately small: paths are package-relative constants, argv is passed as
+ * an array, and no shell or environment-provided executable is accepted.
  */
 import { spawnSync } from "node:child_process";
-import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -23,40 +26,39 @@ function rustTriple() {
   throw new Error(`5harness: unsupported platform ${p}-${a}`);
 }
 
-function candidates() {
+function packageBinaryCandidates() {
   const ext = process.platform === "win32" ? ".exe" : "";
   const t = rustTriple();
   return [
-    process.env.HARNESS_NATIVE_BIN,
-    path.join(here, `harness-${t}${ext}`),
     path.join(root, "bin", `harness-${t}${ext}`),
     path.join(root, "bin", `harness${ext}`),
-    path.join(root, "target", "release", `harness${ext}`),
-    path.join(root, "target", "debug", `harness${ext}`),
-  ].filter(Boolean);
+  ];
 }
 
-const bin = candidates().find((p) => {
-  try {
-    return fs.existsSync(p) && fs.statSync(p).isFile();
-  } catch {
-    return false;
+let result;
+let bin;
+for (const candidate of packageBinaryCandidates()) {
+  const attempt = spawnSync(candidate, process.argv.slice(2), {
+    stdio: "inherit",
+    shell: false,
+    windowsHide: true,
+  });
+  if (attempt.error?.code === "ENOENT") {
+    continue;
   }
-});
+  result = attempt;
+  bin = candidate;
+  break;
+}
 
-if (!bin) {
+if (!result) {
   console.error(
-    "5harness: native binary not found. Reinstall with `npm i -g 5harness` or run `cargo build --release`.",
+    "5harness: native binary not found in the package. Reinstall with `npm i -g 5harness`.",
   );
-  process.exit(1);
-}
-
-const result = spawnSync(bin, process.argv.slice(2), {
-  stdio: "inherit",
-  windowsHide: true,
-});
-if (result.error) {
+  process.exitCode = 1;
+} else if (result.error) {
   console.error(`5harness: failed to launch ${bin}: ${result.error.message}`);
-  process.exit(1);
+  process.exitCode = 1;
+} else {
+  process.exitCode = result.status === null ? 1 : result.status;
 }
-process.exit(result.status === null ? 1 : result.status);

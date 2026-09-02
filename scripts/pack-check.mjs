@@ -15,14 +15,23 @@ function fail(message) {
 }
 
 function run(cmd, args) {
-  const result = spawnSync(cmd, args, {
+  const npmExecPath = cmd === "npm" ? process.env.npm_execpath : undefined;
+  const executable = npmExecPath
+    ? process.execPath
+    : process.platform === "win32" && cmd === "npm"
+      ? "npm.cmd"
+      : cmd;
+  const commandArgs = npmExecPath ? [npmExecPath, ...args] : args;
+  const result = spawnSync(executable, commandArgs, {
     cwd: root,
     encoding: "utf8",
-    shell: process.platform === "win32",
+    // npm.cmd needs a shell only when this helper is run outside `npm run`.
+    // Normal release checks use npm_execpath and stay shell-free.
+    shell: !npmExecPath && process.platform === "win32" && cmd === "npm",
   });
   if (result.status !== 0) {
     fail(
-      `${cmd} ${args.join(" ")} exited ${result.status}\n${result.stdout}\n${result.stderr}`,
+      `${executable} ${commandArgs.join(" ")} exited ${result.status}\n${result.error?.message ?? ""}\n${result.stdout ?? ""}\n${result.stderr ?? ""}`,
     );
   }
   return `${result.stdout ?? ""}${result.stderr ?? ""}`;
@@ -33,6 +42,21 @@ run("npm", ["run", "build"]);
 const pkg = JSON.parse(
   fs.readFileSync(path.join(root, "package.json"), "utf8"),
 );
+
+if (pkg.license !== "MIT") {
+  fail(`package.json must declare the MIT license (got ${JSON.stringify(pkg.license)})`);
+}
+
+const installHooks = ["preinstall", "install", "postinstall"];
+const configuredHooks = installHooks.filter((name) => pkg.scripts?.[name]);
+if (configuredHooks.length > 0) {
+  fail(`published package must not define install hooks: ${configuredHooks.join(", ")}`);
+}
+
+if (pkg.files?.some((entry) => entry === "npm" || entry === "npm/")) {
+  fail("build-only npm shim sources must not be included in the published files list");
+}
+
 const cargo = fs.readFileSync(path.join(root, "Cargo.toml"), "utf8");
 const cargoMatch = cargo.match(/name = "harness"[\s\S]*?version = "([^"]+)"/);
 if (!cargoMatch || cargoMatch[1] !== pkg.version) {
@@ -83,6 +107,14 @@ if (!head.startsWith("#!/usr/bin/env node")) {
 const shim = fs.readFileSync(cliPath, "utf8");
 if (shim.includes("src/cli.ts") || shim.includes("from \"./commands/")) {
   fail("dist/cli.js must be a native-binary shim, not the TypeScript CLI");
+}
+for (const forbidden of ["node:fs", "process.env", "HARNESS_NATIVE_BIN", "shell: true"]) {
+  if (shim.includes(forbidden)) {
+    fail(`dist/cli.js contains forbidden launcher capability: ${forbidden}`);
+  }
+}
+if (!shim.includes("shell: false")) {
+  fail("dist/cli.js must disable shell invocation explicitly");
 }
 
 const ext = process.platform === "win32" ? ".exe" : "";

@@ -18,7 +18,7 @@ function run(cmd, args) {
   const r = spawnSync(cmd, args, {
     cwd: root,
     stdio: "inherit",
-    shell: process.platform === "win32",
+    shell: false,
   });
   if (r.status !== 0) fail(`${cmd} ${args.join(" ")} exited ${r.status}`);
 }

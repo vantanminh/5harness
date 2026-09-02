@@ -10,9 +10,21 @@ fn package_json_keeps_5harness_bins() {
     let pkg: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(root().join("package.json")).unwrap()).unwrap();
     assert_eq!(pkg["name"], "5harness");
+    assert_eq!(pkg["license"], "MIT");
     assert_eq!(pkg["bin"]["harness"], "dist/cli.js");
     assert_eq!(pkg["bin"]["5harness"], "dist/cli.js");
     assert_eq!(pkg["bin"]["5hn"], "dist/cli.js");
+    assert!(pkg["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|entry| entry != "npm" && entry != "npm/"));
+    for hook in ["preinstall", "install", "postinstall"] {
+        assert!(
+            pkg["scripts"].get(hook).is_none(),
+            "unexpected install hook: {hook}"
+        );
+    }
 }
 
 #[test]
@@ -47,5 +59,9 @@ fn ci_still_publishes_to_npmjs_with_provenance() {
 fn native_shim_does_not_load_typescript_cli() {
     let shim = fs::read_to_string(root().join("npm").join("shim.mjs")).unwrap();
     assert!(!shim.contains("src/cli.ts"));
-    assert!(shim.contains("spawn") || shim.contains("spawnSync") || shim.contains("execFileSync"));
+    assert!(shim.contains("spawnSync"));
+    assert!(shim.contains("shell: false"));
+    assert!(!shim.contains("node:fs"));
+    assert!(!shim.contains("process.env"));
+    assert!(!shim.contains("HARNESS_NATIVE_BIN"));
 }

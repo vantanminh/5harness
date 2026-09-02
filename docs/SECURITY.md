@@ -25,6 +25,21 @@ and CI. Implementation references point into `src/` where useful.
 edit the project, run the CLI as your user, or reach a non-loopback bind can
 affect local project state.
 
+## npm launcher
+
+The published npm entrypoint (`dist/cli.js`) is a deliberately narrow bridge
+to the Rust executable. It selects only fixed paths inside the installed
+package, passes `process.argv` as an argument array, and uses `shell: false`.
+It does not import `node:fs`, read `HARNESS_NATIVE_BIN`, or accept an
+environment-controlled executable path. The remaining `child_process` finding
+is expected: a Node npm bin must delegate to the packaged native executable;
+it is not an arbitrary shell command surface.
+
+The package has no runtime npm dependencies, no `preinstall`/`install`/
+`postinstall` hook, and declares the MIT license. `npm audit` and the release
+pack check are required before publication. Socket's “unpopular package” item
+is an adoption signal and cannot be resolved by changing launcher code.
+
 ---
 
 ## Verify commands (`harness story verify` / `decision verify`)

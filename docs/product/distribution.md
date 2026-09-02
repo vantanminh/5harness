@@ -5,7 +5,7 @@
 | Field | Value |
 | --- | --- |
 | npm name | `5harness` |
-| bin | `harness` / `5harness` / `5hn` → `dist/cli.js` (shim → native Rust binary) |
+| bin | `harness` / `5harness` / `5hn` → `dist/cli.js` (fixed-path shim → native Rust binary) |
 | GitHub | [vantanminh/5harness](https://github.com/vantanminh/5harness) |
 | **Preferred install** | `npm i -g 5harness` |
 | Windows auto-install | `irm https://raw.githubusercontent.com/vantanminh/5harness/main/install/windows.ps1 \| iex` |
@@ -32,7 +32,7 @@ files (markdown) remain in the repo for GitHub backup and collaborator clones.
 
 The npm tarball **must** include:
 
-- `dist/cli.js` (thin Node shim with shebang that execs the native binary)
+- `dist/cli.js` (thin Node shim with shebang that launches the target native binary)
 - `bin/harness-*` platform binaries (Rust CLI)
 - `templates/**` (init payload + `manifest.json`)
 - `install/windows.ps1` and `install/macos.sh`
@@ -41,6 +41,20 @@ The npm tarball **must** include:
 
 > Note: `migrations/**` remain only for legacy `harness import-sqlite`.
 > Operational SoT is markdown under `docs/`.
+
+### npm launcher security boundary
+
+The npm entrypoint is intentionally a small Node bridge because one npm
+package contains native binaries for multiple OS/CPU targets. It chooses only
+package-relative `bin/harness-*` paths, passes command-line arguments as an
+array, and sets `shell: false`. It does not read an environment-provided
+executable path and does not probe the filesystem before launching.
+
+The `child_process` capability reported by package scanners is therefore an
+intentional, bounded delegation to the Rust CLI; it is not a shell command
+interpreter. The native CLI itself necessarily reads and writes project files
+and selected configuration environment variables as part of its documented
+functionality.
 
 ## Release checklist
 
@@ -195,10 +209,11 @@ npm audit signatures
 
 GitHub Releases for each `vX.Y.Z` include release notes and `sbom.spdx.json`.
 
-## Native engine (future)
+## Native engine packaging
 
-If a native engine is added later:
-
-- Keep the user-facing `harness` npm bin.
-- Ship platform packages or downloadable artifacts with checksums.
-- Document optionalDependencies / postinstall in a new decision.
+The current package ships the supported native artifacts under `bin/` and uses
+the fixed-path npm bridge above. Release jobs build each target independently,
+stage the binaries, and publish with npm provenance. Do not add a postinstall
+downloader or an environment-controlled executable override; use a separately
+reviewed platform-package design if the target matrix grows beyond the current
+artifacts.
