@@ -83,6 +83,94 @@ describe("markdown durable CLI e2e", () => {
     expect(d2.unit).toBe(1);
   });
 
+  it("story start accepts positional id and --id alias", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-story-start-"));
+    tempDirs.push(dir);
+
+    const add = runHarness(
+      [
+        "story",
+        "add",
+        "--id",
+        "US-210",
+        "--title",
+        "Start alias",
+        "--lane",
+        "tiny",
+        "--dir",
+        dir,
+      ],
+      repoRoot,
+    );
+    expect(add.status, add.stderr + add.stdout).toBe(0);
+
+    const viaFlag = runHarness(
+      ["story", "start", "--id", "US-210", "--dir", dir],
+      repoRoot,
+    );
+    expect(viaFlag.status, viaFlag.stderr + viaFlag.stdout).toBe(0);
+    expect(viaFlag.stdout).toMatch(/US-210/);
+    const { data } = parseFrontmatter(
+      fs.readFileSync(path.join(dir, "docs", "stories", "US-210.md"), "utf8"),
+    );
+    expect(data.status).toBe("in_progress");
+
+    const add2 = runHarness(
+      [
+        "story",
+        "add",
+        "--id",
+        "US-211",
+        "--title",
+        "Start positional",
+        "--lane",
+        "tiny",
+        "--dir",
+        dir,
+      ],
+      repoRoot,
+    );
+    expect(add2.status, add2.stderr + add2.stdout).toBe(0);
+    const viaPos = runHarness(
+      ["story", "start", "US-211", "--dir", dir],
+      repoRoot,
+    );
+    expect(viaPos.status, viaPos.stderr + viaPos.stdout).toBe(0);
+    const { data: d3 } = parseFrontmatter(
+      fs.readFileSync(path.join(dir, "docs", "stories", "US-211.md"), "utf8"),
+    );
+    expect(d3.status).toBe("in_progress");
+  });
+
+  it("intake close accepts --id alias", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-intake-id-"));
+    tempDirs.push(dir);
+    const add = runHarness(
+      [
+        "intake",
+        "--type",
+        "change_request",
+        "--summary",
+        "Close via --id",
+        "--lane",
+        "tiny",
+        "--dir",
+        dir,
+      ],
+      repoRoot,
+    );
+    expect(add.status, add.stderr + add.stdout).toBe(0);
+    const close = runHarness(
+      ["intake", "close", "--id", "IN-001", "--dir", dir],
+      repoRoot,
+    );
+    expect(close.status, close.stderr + close.stdout).toBe(0);
+    const { data } = parseFrontmatter(
+      fs.readFileSync(path.join(dir, "docs", "intakes", "IN-001.md"), "utf8"),
+    );
+    expect(data.status).toBe("completed");
+  });
+
   it("init project then story query matrix from markdown", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "harness-md-dual-"));
     tempDirs.push(dir);

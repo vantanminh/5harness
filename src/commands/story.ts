@@ -7,6 +7,7 @@ import {
   type TargetOptions,
 } from "../infrastructure/context.js";
 import { maybeReindex } from "./_reindex-helper.js";
+import { resolveEntityId } from "./_entity-id.js";
 import { appendLocalTrace } from "../application/local-traces.js";
 
 export type StoryAddCliOptions = TargetOptions & {
@@ -95,7 +96,9 @@ function doLifecycle(
   verb: string,
 ): void {
   if (!options.id) {
-    throw new Error(`story ${verb} requires an entity id (positional arg)`);
+    throw new Error(
+      `story ${verb} requires an entity id (positional <id> or --id <id>)`,
+    );
   }
   const { targetDir } = resolveTargetFromOptions(options);
   const updateInput: Record<string, string> = { id: options.id, status };
@@ -141,23 +144,26 @@ function doLifecycle(
 }
 
 export function executeStoryStart(
-  id: string,
+  id: string | undefined,
   options: StoryLifecycleOptions = {},
 ): void {
-  doLifecycle({ ...options, id }, "in_progress", "started");
+  const resolved = resolveEntityId(id, options.id, "story start");
+  doLifecycle({ ...options, id: resolved }, "in_progress", "started");
 }
 
 export function executeStoryDone(
-  id: string,
+  id: string | undefined,
   options: StoryLifecycleOptions = {},
 ): void {
-  doLifecycle({ ...options, id }, "implemented", "done");
+  const resolved = resolveEntityId(id, options.id, "story done");
+  doLifecycle({ ...options, id: resolved }, "implemented", "done");
 }
 
 export function executeStoryBlock(
-  id: string,
+  id: string | undefined,
   options: StoryLifecycleOptions = {},
 ): void {
+  const resolved = resolveEntityId(id, options.id, "story block");
   const reason = options.reason ?? options.evidence ?? "no reason given";
-  doLifecycle({ ...options, id, reason }, "blocked", "blocked");
+  doLifecycle({ ...options, id: resolved, reason }, "blocked", "blocked");
 }

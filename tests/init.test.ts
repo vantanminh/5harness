@@ -199,7 +199,7 @@ describe("runInit", () => {
     expect(after).toContain("prefer peer tools over inventing schemas");
     expect(after.match(/HARNESS:PROJECT-LINK:BEGIN/g)).toHaveLength(1);
     expect(after.indexOf(PROJECT_LINK_WORKFLOW_BEGIN)).toBeLessThan(
-      after.indexOf("### Before work"),
+      after.indexOf("### First commands"),
     );
   });
 

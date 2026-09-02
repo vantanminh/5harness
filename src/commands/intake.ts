@@ -7,6 +7,7 @@ import {
   type TargetOptions,
 } from "../infrastructure/context.js";
 import { maybeReindex } from "./_reindex-helper.js";
+import { resolveEntityId } from "./_entity-id.js";
 
 export type IntakeCliOptions = TargetOptions & {
   type: string;
@@ -72,15 +73,17 @@ export function executeIntakeUpdate(options: IntakeUpdateCliOptions): void {
 }
 
 export function executeIntakeClose(
-  id: string,
-  options: Omit<IntakeUpdateCliOptions, "id" | "status">,
+  id: string | undefined,
+  options: Omit<IntakeUpdateCliOptions, "id" | "status"> & { id?: string },
 ): void {
-  executeIntakeUpdate({ ...options, id, status: "completed" });
+  const resolved = resolveEntityId(id, options.id, "intake close");
+  executeIntakeUpdate({ ...options, id: resolved, status: "completed" });
 }
 
 export function executeIntakeDismiss(
-  id: string,
-  options: Omit<IntakeUpdateCliOptions, "id" | "status">,
+  id: string | undefined,
+  options: Omit<IntakeUpdateCliOptions, "id" | "status"> & { id?: string },
 ): void {
-  executeIntakeUpdate({ ...options, id, status: "dismissed" });
+  const resolved = resolveEntityId(id, options.id, "intake dismiss");
+  executeIntakeUpdate({ ...options, id: resolved, status: "dismissed" });
 }

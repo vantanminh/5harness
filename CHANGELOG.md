@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Agent-first harness block: what 5harness is, first commands
+  (`doctor` / `status` / `next`), `--json` reads, and **commit after each
+  completed slice** (IN-025 / US-088).
+- `--id` alias on `story start|done|block`, `intake close|dismiss`, and
+  `story|decision verify` (US-089).
+
+### Changed
+
+- FEATURE_INTAKE, CONTEXT_RULES, README, and the agent skill no longer tell
+  agents to create story files by hand or dump policy docs before `harness
+  next` (US-090).
+
 ## [0.23.0] - 2026-09-02
 
 ### Added

@@ -249,7 +249,7 @@ export class Command {
           i++;
           continue;
         }
-        this._error(`unknown option '${token}'`);
+        this._unknownOption(token);
       }
 
       // --long=value
@@ -259,7 +259,7 @@ export class Command {
         const value = token.slice(eqIdx + 1);
         const opt = this._options.find((o) => o.long === longName);
         if (!opt) {
-          this._error(`unknown option '--${longName}'`);
+          this._unknownOption(`--${longName}`);
         }
         this._parsedOpts[this._optionKey(opt)] = opt.takesValue ? value : true;
         i++;
@@ -271,7 +271,7 @@ export class Command {
         const longName = token.slice(2);
         const opt = this._options.find((o) => o.long === longName);
         if (!opt) {
-          this._error(`unknown option '--${longName}'`);
+          this._unknownOption(`--${longName}`);
         }
         if (opt.takesValue) {
           i++;
@@ -293,7 +293,7 @@ export class Command {
           const ch = shortChars[ci];
           const opt = this._options.find((o) => o.short === ch);
           if (!opt) {
-            this._error(`unknown option '-${ch}'`);
+            this._unknownOption(`-${ch}`);
           }
           if (opt.takesValue) {
             if (ci + 1 < shortChars.length) {
@@ -580,6 +580,18 @@ export class Command {
   private _printVersionAndExit(): never {
     console.log(this._version);
     process.exit(0);
+  }
+
+  private _unknownOption(token: string): never {
+    const longName = token.replace(/^-+/, "");
+    const hasIdArg = this._args.some((a) => a.name === "id");
+    if (longName === "id" && hasIdArg) {
+      const cmd = this._name || "command";
+      this._error(
+        `unknown option '${token}' (hint: ${cmd} <id>  or  ${cmd} --id <id>)`,
+      );
+    }
+    this._error(`unknown option '${token}'. See --help.`);
   }
 
   private _error(message: string): never {

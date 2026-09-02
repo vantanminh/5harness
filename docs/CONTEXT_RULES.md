@@ -32,7 +32,7 @@ Read to decide the smallest safe approach and expected proof.
 | Document Or Source | Tiny | Normal | High-Risk |
 | --- | --- | --- | --- |
 | Current files to edit | Must | Must | Must |
-| `docs/templates/story.md` | Skip | Must when creating/updating a story | Should |
+| `docs/templates/story.md` | Skip | Should when reading CLI-generated story shape | Should |
 | `docs/templates/high-risk-story/*` | Skip | Skip unless risk escalates | Must |
 | `docs/ARCHITECTURE.md` | Skip | Should for code or boundary changes | Must |
 | `docs/TEST_MATRIX.md` / roadmap / `harness query matrix` | Should | Must | Must |
@@ -97,9 +97,9 @@ Read to leave useful evidence for the next agent and for benchmark scoring.
 | Task touches auth, authorization, audit/security, data loss, or external providers | Treat as high-risk, read `docs/templates/high-risk-story/*`, and check prior decisions before implementation. |
 | Task changes public API shape, product behavior, or user-visible workflow | Read relevant `docs/product/*`, story packets, and validation expectations before editing. |
 | Task changes Harness policy, source hierarchy, risk classification, or validation requirements | Read `docs/HARNESS.md`, `docs/FEATURE_INTAKE.md`, `docs/ARCHITECTURE.md`, and `docs/decisions/*`; pause if direction is ambiguous. |
-| Task discovers repeated confusion, stale docs, or missing proof | Read `docs/HARNESS_BACKLOG.md`, record `harness_friction`, and add a backlog item when the fix is out of scope. |
+| Task discovers repeated confusion, stale docs, or missing proof | `harness backlog add` when the fix is out of scope; record friction on `harness trace`. Do not hand-edit `HARNESS_BACKLOG.md` as SoT. |
 | Task makes a maturity, observability, trace quality, or benchmark claim | Read `docs/HARNESS_COMPONENTS.md`, `docs/HARNESS_MATURITY.md`, and `docs/TRACE_SPEC.md`. |
-| Task is normal or high-risk and spans multiple iterations | Create or update a story/progress file under `docs/stories/` and keep it current. |
+| Task is normal or high-risk and spans multiple iterations | `harness story add` / `harness story update` — do not hand-create story files. |
 | Final response is being prepared | Re-read the validation evidence, `git status --short`, and `docs/TRACE_SPEC.md` before recording the final trace. |
 
 ## Token Budget Guidance

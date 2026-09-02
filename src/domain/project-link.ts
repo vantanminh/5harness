@@ -262,11 +262,17 @@ export function syncProjectLinkWorkflow(agentsText: string): string {
 
   const newline = stripped.includes("\r\n") ? "\r\n" : "\n";
   const section = projectLinkWorkflowLines(config).join(newline);
+  const firstCommands = /^### First commands[^\r\n]*$/m;
   const beforeWork = /^### Before work[^\r\n]*$/m;
+  const insertBefore = firstCommands.test(stripped)
+    ? firstCommands
+    : beforeWork.test(stripped)
+      ? beforeWork
+      : null;
   let updatedBlock: string;
-  if (beforeWork.test(stripped)) {
+  if (insertBefore) {
     updatedBlock = stripped.replace(
-      beforeWork,
+      insertBefore,
       `${section}${newline}${newline}$&`,
     );
   } else {

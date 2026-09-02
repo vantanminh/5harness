@@ -72,12 +72,12 @@ Use for story-sized behavior with bounded blast radius.
 
 Requirements:
 
-- Create or update one story file from `docs/templates/story.md`.
-- Link relevant product docs.
-- Add or update validation expectations.
+- Record the story with `harness story add` (do **not** create
+  `docs/stories/*.md` by hand; templates are for reading generated files).
+- Link relevant product docs via `--links` / `--contract`.
+- Add or update validation expectations with `harness story update`.
 - Implement the smallest vertical slice when implementation exists.
-- Record or update proof status with `harness story add` and
-  `harness story update`.
+- Record or update proof status with `harness story update`.
 
 ### High-Risk
 
@@ -86,13 +86,16 @@ roles/platforms.
 
 Requirements:
 
-- Create a story folder using `docs/templates/high-risk-story/`.
-- Fill in `execplan.md`, `overview.md`, `design.md`, and `validation.md`.
+- Record the story with `harness story add --lane high-risk`. Do **not**
+  hand-create a story folder as the source of truth.
+- Put design and proof in story notes, linked product docs, or a design file
+  passed to `harness decision add --doc`. High-risk templates under
+  `docs/templates/` are reference structure, not files to copy into
+  `docs/stories/`.
 - Ask for human confirmation before implementation if direction is ambiguous.
 - Record a durable decision when behavior, architecture, authorization, data
-  ownership, API shape, or validation requirements change meaningfully. Use a
-  `docs/decisions/NNNN-*.md` file from `docs/templates/decision.md`, then add
-  or refresh the durable row with `harness decision add`.
+  ownership, API shape, or validation requirements change meaningfully:
+  `harness decision add --id … --title … --doc <path>`.
   Decision text in a trace is not a durable decision record.
 
 ## Risk Checklist

@@ -449,6 +449,31 @@ describe("real-world CLI patterns", () => {
     expect(cmd.args).toEqual(["US-001"]);
     expect(cmd.opts()).toEqual({ evidence: "tests pass" });
   });
+
+  it("story start: optional positional plus --id alias", async () => {
+    const cmd = new Command();
+    let captured: { id?: string; opts?: Record<string, unknown> } = {};
+    cmd.argument("[id]", "story id");
+    cmd.option("--id <id>", "alias for positional");
+    cmd.action((id: string | undefined, opts: Record<string, unknown>) => {
+      captured = { id, opts };
+    });
+    await runParse(cmd, ["node", "cli", "--id", "US-069"]);
+    expect(captured.id).toBeUndefined();
+    expect(captured.opts).toMatchObject({ id: "US-069" });
+  });
+
+  it("hints both id forms when --id is unknown on a command with an id arg", () => {
+    const cmd = new Command();
+    cmd.name("start");
+    cmd.argument("<id>", "story id");
+    captureExit(() => {
+      cmd.parseAsync(["node", "cli", "--id", "US-001"]).catch(() => {});
+    });
+    expect(consoleErrorSpy.mock.calls.flat().join("\n")).toMatch(
+      /hint: start <id>/,
+    );
+  });
 });
 
 

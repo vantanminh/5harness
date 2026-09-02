@@ -92,8 +92,8 @@ They auto-migrate an existing DB; if the DB is missing, run `harness init` first
 | `harness search <query>` | Ranked hits with snippets |
 | `harness links <id>` | Outbound + backlinks |
 | `harness intake update --id <id> [--status <status>] [--stories <csv>]` | Update intake lifecycle metadata |
-| `harness intake close <id>` | Mark an intake completed |
-| `harness intake dismiss <id>` | Dismiss an intake without implementation |
+| `harness intake close <id>` | Mark an intake completed. `--id <id>` is an alias. |
+| `harness intake dismiss <id>` | Dismiss an intake without implementation. `--id <id>` is an alias. |
 
 Write commands (`intake`, `story`, `decision`, `backlog`) keep the same *intent*
 but persist to markdown entities. Agents **must** use these tools; they must not
@@ -117,9 +117,9 @@ hand-edit operational markdown.
 
 | Command | Behavior |
 | --- | --- |
-| `harness story start --id <id>` | Mark story as in_progress |
-| `harness story done --id <id>` | Mark story as implemented |
-| `harness story block --id <id> [--reason]` | Mark story as blocked |
+| `harness story start <id>` | Mark story as in_progress. `--id <id>` is an alias. |
+| `harness story done <id>` | Mark story as implemented. `--id <id>` is an alias. |
+| `harness story block <id> [--reason]` | Mark story as blocked. `--id <id>` is an alias. |
 | `harness worklog add --story <id> --summary <text> [--pr] [--commit]` | Add worklog entry |
 | `harness worklog list [--json]` | List worklog entries |
 | `harness worklog from-git --story <id> [--since]` | Link recent git commits to a story |

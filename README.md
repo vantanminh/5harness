@@ -160,14 +160,17 @@ Product pivot: [decision 0011](docs/decisions/0011-global-tool-markdown-durable-
 
 ## Agent rules (summary)
 
-1. **Read first:** `AGENTS.md`, `docs/HARNESS.md`, `docs/FEATURE_INTAKE.md`,
-   active story under `docs/stories/`.
+1. **First commands:** `harness doctor --json`, `harness next --json`. Then
+   the harness block in `AGENTS.md` or `.agents/skills/harness/SKILL.md`.
+   Do not dump the whole docs tree.
 2. **Mutate only via tools:** `harness intake` / `story` / `decision` /
    `backlog` / `report` — **never** hand-edit operational entity markdown.
 3. **Hard-fail (decision 0017):** if harness CLI or MCP fails for a required
    step → **HARD STOP**. Recover with `doctor` / `link` / `reindex`, then
    retry. Do not bypass with hand-edits.
-4. **Prefer queries:** `search`, `get`, `links`, `query matrix|stats`, `next`.
+4. **Prefer queries:** `search`, `get`, `links`, `query matrix|stats`, `next`
+   with `--json`.
+5. **Commit after each completed slice.** Do not push unless asked.
 
 Full contract: [AGENTS.md](AGENTS.md) · [docs/CONTEXT_RULES.md](docs/CONTEXT_RULES.md).
 

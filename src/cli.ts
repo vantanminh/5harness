@@ -650,10 +650,11 @@ async function main(argv: string[] = process.argv): Promise<void> {
     intake
       .command("close")
       .description("Mark an intake completed")
-      .argument("<id>", "intake id")
+      .argument("[id]", "intake id")
+      .option("--id <id>", "intake id (alias for positional)")
       .option("--stories <csv>", "linked story ids")
       .option("--notes <text>", "notes")
-      .action((id: string, opts) => {
+      .action((id: string | undefined, opts) => {
         withErrors(() => executeIntakeClose(id, opts));
       }),
   );
@@ -662,9 +663,10 @@ async function main(argv: string[] = process.argv): Promise<void> {
     intake
       .command("dismiss")
       .description("Dismiss an intake without implementation")
-      .argument("<id>", "intake id")
+      .argument("[id]", "intake id")
+      .option("--id <id>", "intake id (alias for positional)")
       .option("--notes <text>", "dismissal reason")
-      .action((id: string, opts) => {
+      .action((id: string | undefined, opts) => {
         withErrors(() => executeIntakeDismiss(id, opts));
       }),
   );
@@ -714,7 +716,8 @@ async function main(argv: string[] = process.argv): Promise<void> {
     story
       .command("start")
       .description("Mark a story as in_progress (lifecycle verb)")
-      .argument("<id>", "story id")
+      .argument("[id]", "story id")
+      .option("--id <id>", "story id (alias for positional)")
       .option("--evidence <text>", "evidence label")
       .action((id, opts) => {
         withErrors(() => executeStoryStart(id, opts));
@@ -725,7 +728,8 @@ async function main(argv: string[] = process.argv): Promise<void> {
     story
       .command("done")
       .description("Mark a story as implemented (lifecycle verb)")
-      .argument("<id>", "story id")
+      .argument("[id]", "story id")
+      .option("--id <id>", "story id (alias for positional)")
       .option("--evidence <text>", "evidence label")
       .action((id, opts) => {
         withErrors(() => executeStoryDone(id, opts));
@@ -736,7 +740,8 @@ async function main(argv: string[] = process.argv): Promise<void> {
     story
       .command("block")
       .description("Mark a story as blocked (lifecycle verb)")
-      .argument("<id>", "story id")
+      .argument("[id]", "story id")
+      .option("--id <id>", "story id (alias for positional)")
       .option("--reason <text>", "block reason")
       .action((id, opts) => {
         withErrors(() => executeStoryBlock(id, opts));
@@ -749,8 +754,9 @@ async function main(argv: string[] = process.argv): Promise<void> {
     story
       .command("verify")
       .description("Run a story verify_command and record pass/fail")
-      .argument("<id>", "story id")
-      .action((id: string, opts) => {
+      .argument("[id]", "story id")
+      .option("--id <id>", "story id (alias for positional)")
+      .action((id: string | undefined, opts) => {
         withErrors(() => executeStoryVerify(id, opts));
       }),
   );
@@ -806,8 +812,9 @@ async function main(argv: string[] = process.argv): Promise<void> {
     decision
       .command("verify")
       .description("Run a decision verify_command and record pass/fail")
-      .argument("<id>", "decision id")
-      .action((id: string, opts) => {
+      .argument("[id]", "decision id")
+      .option("--id <id>", "decision id (alias for positional)")
+      .action((id: string | undefined, opts) => {
         withErrors(() => executeDecisionVerify(id, opts));
       }),
   );

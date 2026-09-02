@@ -8,6 +8,7 @@ import {
   resolveTargetFromOptions,
   type TargetOptions,
 } from "../infrastructure/context.js";
+import { resolveEntityId } from "./_entity-id.js";
 
 function printStoryResult(result: StoryVerifyResult): void {
   if (result.skipped) {
@@ -22,14 +23,12 @@ function printStoryResult(result: StoryVerifyResult): void {
 }
 
 export function executeStoryVerify(
-  id: string,
-  options: TargetOptions,
+  id: string | undefined,
+  options: TargetOptions & { id?: string },
 ): void {
-  if (!id?.trim()) {
-    throw new Error("story verify requires a story id");
-  }
+  const resolved = resolveEntityId(id, options.id, "story verify");
   const { targetDir } = resolveTargetFromOptions(options);
-  const result = verifyStory(targetDir, id);
+  const result = verifyStory(targetDir, resolved);
   printStoryResult(result);
   if (!result.skipped && !result.pass) {
     process.exitCode = 1;
@@ -55,14 +54,12 @@ export function executeStoryVerifyAll(options: TargetOptions): void {
 }
 
 export function executeDecisionVerify(
-  id: string,
-  options: TargetOptions,
+  id: string | undefined,
+  options: TargetOptions & { id?: string },
 ): void {
-  if (!id?.trim()) {
-    throw new Error("decision verify requires a decision id");
-  }
+  const resolved = resolveEntityId(id, options.id, "decision verify");
   const { targetDir } = resolveTargetFromOptions(options);
-  const result = verifyDecision(targetDir, id);
+  const result = verifyDecision(targetDir, resolved);
   if (result.skipped) {
     console.log(`Decision ${result.id}: skipped (${result.reason})`);
     return;

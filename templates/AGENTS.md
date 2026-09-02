@@ -1,65 +1,75 @@
 # Agent Instructions
 
-If `.agents/skills/harness/SKILL.md` exists, use it for intake, mutation
-rules, and tool-only durable writes. `harness init` installs that skill.
+If `.agents/skills/harness/SKILL.md` exists, use it for the work loop,
+mutation rules, and tool-only durable writes. `harness init` installs that
+skill.
 
 <!-- HARNESS:BEGIN -->
 <!-- harness-version: 0.23.0 -->
 ## Harness
 
-This repo uses **Harness** (`5harness`, bin `harness`).
+**5harness** (bin `harness`) is this repo's operating system for **coding
+agents**. Durable work — stories, decisions, intakes, backlog, reports — is
+Git-backed markdown. **You** (the agent) read and write that history through
+the CLI. You do not invent commands. You do not hand-edit those files.
 
-### Install / day-to-day
-
-```bash
-# preferred on a machine that works on many projects
-npm i -g 5harness
-harness --help
-
-# after cloning a repo that already has harness markdown history:
-harness link
-```
-
-### Project identity for MCP
-
-Each harnessed clone has a durable random project id in this managed block.
-Discover it from `<!-- harness-project-id: ... -->` or run:
+### First commands
 
 ```bash
-harness project id
+npm i -g 5harness          # if `harness` is missing
+harness link               # after cloning a harnessed repo
+harness doctor --json
+harness status --json
+harness next --json
 ```
 
-For a single-project OAuth grant, MCP tools are forced to the project selected
-at consent. For an all-projects grant, send that target id on every MCP request
-as `X-Harness-Project: <id>` (preferred) or `?project=<id>`. Never rely on cwd or
-registry order to select a project; a missing or invalid id fails closed.
+Do **not** start by dumping `docs/HARNESS.md`, `ARCHITECTURE.md`, or
+`CONTEXT_RULES.md`. Open those only when the task changes harness or product
+rules. Prefer `.agents/skills/harness/SKILL.md` when present.
 
-### Before work — read
+### Work loop
 
-- `README.md` (if present)
-- `docs/HARNESS.md`
-- `docs/FEATURE_INTAKE.md`
-- `docs/ARCHITECTURE.md`
-- `docs/CONTEXT_RULES.md`
-- Active story packet under `docs/stories/` when implementing a story
+```bash
+harness intake --type <type> --summary "…" --lane tiny|normal|high-risk
+harness story add --id US-… --title "…" --lane normal
+harness story start US-…                 # also: --id US-…
+# implement the slice
+git add <slice files> && git commit -m "feat: …"
+harness story done US-…                  # or: story update --id … --status implemented
+harness next --json
+```
+
+`story add` / `update` use `--id`. `story start` / `done` / `block` take a
+positional id (`--id` also works).
 
 ### Mutation rule (mandatory)
 
 **Do not** create or edit operational durable markdown by hand
-(stories / decisions / intakes / backlog entities).
-
-Use the CLI only, for example:
+(stories / decisions / intakes / backlog / reports).
 
 ```bash
 harness intake --type … --summary "…" --lane normal
 harness story add --id US-… --title "…" --lane normal
 harness story update --id US-… --status implemented --unit 1 --integration 1 --e2e 0 --platform 0
 harness decision add --id … --title "…" --doc docs/decisions/….md
-harness query matrix
+harness query matrix --json
 ```
 
 All mutation commands auto-reindex after writing. You do NOT need to call
 `harness reindex` manually after mutations.
+
+### Commit after each completed slice (mandatory)
+
+When a small task is actually done (code + tests/docs for that slice, or a
+durable write that should travel with the repo):
+
+1. `git add` only the files for that slice.
+2. `git commit` with a conventional message (`feat:`, `fix:`, `docs:`, `chore:`).
+3. Do **not** wait for the whole epic.
+4. Do **not** `git push` unless the user asked.
+5. Never commit `.5harness/`, secrets, `node_modules`, or unrelated dirty files.
+
+Skip if there is nothing to commit, or the user forbade commits.
 
 ### HARD STOP — harness failure contract (decision 0017)
 
@@ -83,18 +93,28 @@ error result for a step you need:
 (**stop**, fix, retry); `2` = reserved — treat as non-success unless that
 command’s docs say otherwise. Non-zero exit is never success.
 
-### Read with tools (prefer over dumping large trees)
+### Read with tools (prefer `--json`)
 
 ```bash
-harness search "…"
-harness get <id>
-harness links <id>
-harness query matrix
-harness query stats
+harness search "…" --json
+harness get <id> --json
+harness links <id> --json
+harness context <id> --json
+harness query matrix --json
+harness query stats --json
+harness query reports --json
 ```
 
 Classify work with feature intake before large edits. Record durable decisions
 when architecture or product rules change.
+
+### MCP (optional)
+
+Prefer the CLI. If MCP is connected, use JSON tools (`harness_next`,
+`harness_get`, `harness_query_*`). Discover the project id with
+`harness project id` or the `<!-- harness-project-id: … -->` comment.
+For an all-projects grant, send `X-Harness-Project: <id>` (preferred) or
+`?project=<id>` on every call. Never rely on cwd to select a project.
 
 ### Upgrade
 
