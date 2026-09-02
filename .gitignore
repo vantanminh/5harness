@@ -9,6 +9,10 @@ harness.db-shm
 # Build / deps
 node_modules/
 dist/
+target/
+bin/harness
+bin/harness.exe
+bin/harness-*
 *.tsbuildinfo
 coverage/
 *.tgz

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Validate publish contract: build artifacts, version sync, and npm pack contents.
+ * Validate publish contract: native build artifacts, version sync, and npm pack contents.
  */
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -28,17 +28,16 @@ function run(cmd, args) {
   return `${result.stdout ?? ""}${result.stderr ?? ""}`;
 }
 
-// Ensure build is current for shebang + dist checks
 run("npm", ["run", "build"]);
 
 const pkg = JSON.parse(
   fs.readFileSync(path.join(root, "package.json"), "utf8"),
 );
-const versionSrc = fs.readFileSync(path.join(root, "src", "version.ts"), "utf8");
-const versionMatch = versionSrc.match(/VERSION\s*=\s*"([^"]+)"/);
-if (!versionMatch || versionMatch[1] !== pkg.version) {
+const cargo = fs.readFileSync(path.join(root, "Cargo.toml"), "utf8");
+const cargoMatch = cargo.match(/name = "harness"[\s\S]*?version = "([^"]+)"/);
+if (!cargoMatch || cargoMatch[1] !== pkg.version) {
   fail(
-    `version mismatch: package.json=${pkg.version} src/version.ts=${versionMatch?.[1] ?? "missing"}`,
+    `version mismatch: package.json=${pkg.version} Cargo.toml=${cargoMatch?.[1] ?? "missing"}`,
   );
 }
 
@@ -58,20 +57,16 @@ if (fs.existsSync(agentsTpl)) {
 
 const binHarness = pkg.bin?.harness?.replace(/^\.\//, "");
 if (binHarness !== "dist/cli.js") {
-  fail(
-    `bin.harness must be dist/cli.js (got ${JSON.stringify(pkg.bin)})`,
-  );
+  fail(`bin.harness must be dist/cli.js (got ${JSON.stringify(pkg.bin)})`);
 }
 const bin5 = pkg.bin?.["5harness"]?.replace(/^\.\//, "");
 if (bin5 !== "dist/cli.js") {
-  fail(
-    `bin.5harness must be dist/cli.js (got ${JSON.stringify(pkg.bin)})`,
-  );
+  fail(`bin.5harness must be dist/cli.js (got ${JSON.stringify(pkg.bin)})`);
+}
+if (pkg.bin?.["5hn"]?.replace(/^\.\//, "") !== "dist/cli.js") {
+  fail(`bin.5hn must be dist/cli.js (got ${JSON.stringify(pkg.bin)})`);
 }
 
-if (!pkg.files?.includes("LICENSE")) {
-  // files may list LICENSE implicitly via root — require LICENSE file on disk
-}
 const licensePath = path.join(root, "LICENSE");
 if (!fs.existsSync(licensePath)) {
   fail("LICENSE file missing");
@@ -85,6 +80,16 @@ const head = fs.readFileSync(cliPath, "utf8").slice(0, 32);
 if (!head.startsWith("#!/usr/bin/env node")) {
   fail("dist/cli.js must start with #!/usr/bin/env node");
 }
+const shim = fs.readFileSync(cliPath, "utf8");
+if (shim.includes("src/cli.ts") || shim.includes("from \"./commands/")) {
+  fail("dist/cli.js must be a native-binary shim, not the TypeScript CLI");
+}
+
+const ext = process.platform === "win32" ? ".exe" : "";
+const native = path.join(root, "bin", `harness${ext}`);
+if (!fs.existsSync(native)) {
+  fail(`native binary missing after build: bin/harness${ext}`);
+}
 
 const requiredOnDisk = [
   "templates/manifest.json",
@@ -95,6 +100,9 @@ const requiredOnDisk = [
   "SECURITY.md",
   "docs/SECURITY.md",
   "docs/product/project-link.md",
+  "install/windows.ps1",
+  "install/macos.sh",
+  "Cargo.toml",
 ];
 for (const rel of requiredOnDisk) {
   if (!fs.existsSync(path.join(root, rel))) {
@@ -102,7 +110,6 @@ for (const rel of requiredOnDisk) {
   }
 }
 
-// Parse npm pack --dry-run --json for packed paths (may include trailing notices)
 const packJson = run("npm", ["pack", "--dry-run", "--json"]);
 
 function extractJsonValue(text) {
@@ -155,7 +162,6 @@ try {
 }
 
 if (packedPaths.length === 0) {
-  // Fallback: line-based dry-run (npm notice Tarball Contents)
   const text = run("npm", ["pack", "--dry-run"]);
   packedPaths = text
     .split(/\r?\n/)
@@ -188,6 +194,8 @@ const mustPack = [
   "templates/manifest.json",
   "migrations/001-init.sql",
   "migrations/002-quality.sql",
+  "install/windows.ps1",
+  "install/macos.sh",
 ];
 
 const missing = mustPack.filter((rel) => !hasPacked(rel));
@@ -196,15 +204,14 @@ if (missing.length > 0) {
   fail(`tarball missing: ${missing.join(", ")}`);
 }
 
-// Ensure no accidental native binary is shipped in the tarball
-const banned = [...packed].filter(
+const hasNative = [...packed].some(
   (p) =>
-    p.includes("harness-cli.exe") ||
-    p.endsWith("scripts/bin/harness-cli") ||
-    p.includes("scripts/bin/harness-cli.exe"),
+    /(^|\/)bin\/harness/.test(p) ||
+    p.includes("harness-x86_64") ||
+    p.includes("harness-aarch64"),
 );
-if (banned.length > 0) {
-  fail(`tarball must not ship bootstrap binaries: ${banned.join(", ")}`);
+if (!hasNative) {
+  fail("tarball must include a staged native harness binary under bin/");
 }
 
 console.log(`pack:check ok — version ${pkg.version}, ${packed.size} packed paths`);

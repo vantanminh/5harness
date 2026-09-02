@@ -66,6 +66,9 @@ jobs:
           fetch-depth: 0
           ref: main
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Setup Node.js 24
         uses: actions/setup-node@v6
         with:
@@ -159,6 +162,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Setup Node.js 24
         uses: actions/setup-node@v6

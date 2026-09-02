@@ -28,6 +28,22 @@ npm i -g 5harness
 harness --version
 ```
 
+Automatic native install (no compile from source):
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/vantanminh/5harness/main/install/windows.ps1 | iex
+```
+
+**macOS:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh | bash
+```
+
+Point either script at a local build with `HARNESS_INSTALL_FROM` (directory or binary path). npm install remains available.
+
 Project-local (optional):
 
 ```bash

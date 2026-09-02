@@ -27,7 +27,8 @@ const MAX_ATTEMPTS = 5;
 const RELEASE_PATHS = [
   "package.json",
   "package-lock.json",
-  "src/version.ts",
+  "Cargo.toml",
+  "Cargo.lock",
   "templates/AGENTS.md",
   "AGENTS.md",
   "CHANGELOG.md",

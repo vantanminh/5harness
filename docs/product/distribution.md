@@ -5,11 +5,13 @@
 | Field | Value |
 | --- | --- |
 | npm name | `5harness` |
-| bin | `harness` → `dist/cli.js` |
+| bin | `harness` / `5harness` / `5hn` → `dist/cli.js` (shim → native Rust binary) |
 | GitHub | [vantanminh/5harness](https://github.com/vantanminh/5harness) |
 | **Preferred install** | `npm i -g 5harness` |
+| Windows auto-install | `irm https://raw.githubusercontent.com/vantanminh/5harness/main/install/windows.ps1 \| iex` |
+| macOS auto-install | `curl -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh \| bash` |
 | Alternate install | `npm i -D 5harness` + `npx harness …` |
-| Node | `>=22.5.0` |
+| Node | `>=22.5.0` (packaging/publish glue; CLI runtime is native) |
 | License | MIT |
 | Former name | `@vantanminh/harness` — see [DEPRECATION.md](../DEPRECATION.md) |
 
@@ -30,8 +32,10 @@ files (markdown) remain in the repo for GitHub backup and collaborator clones.
 
 The npm tarball **must** include:
 
-- `dist/**` (compiled CLI, shebang on `dist/cli.js`)
+- `dist/cli.js` (thin Node shim with shebang that execs the native binary)
+- `bin/harness-*` platform binaries (Rust CLI)
 - `templates/**` (init payload + `manifest.json`)
+- `install/windows.ps1` and `install/macos.sh`
 - schema/templates needed for entity writes (as implemented)
 - `package.json`, `README.md`, `LICENSE`
 
