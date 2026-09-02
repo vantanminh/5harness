@@ -1,0 +1,130 @@
+use std::io::{Read, Write};
+use std::net::TcpStream;
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
+
+fn bin() -> PathBuf {
+    PathBuf::from(env!("CARGO_BIN_EXE_harness"))
+}
+
+fn http_get(addr: &str, path: &str) -> (u16, String) {
+    let mut stream = TcpStream::connect(addr).expect("connect");
+    stream.set_read_timeout(Some(Duration::from_secs(5))).ok();
+    stream
+        .write_all(
+            format!("GET {path} HTTP/1.0\r\nHost: {addr}\r\nConnection: close\r\n\r\n").as_bytes(),
+        )
+        .unwrap();
+    let mut buf = Vec::new();
+    stream.read_to_end(&mut buf).unwrap();
+    let text = String::from_utf8_lossy(&buf);
+    let (headers, body) = text.split_once("\r\n\r\n").unwrap_or((&text, ""));
+    let status = headers
+        .lines()
+        .next()
+        .and_then(|l| l.split_whitespace().nth(1))
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    (status, body.to_string())
+}
+
+fn http_post(addr: &str, path: &str, json: &str) -> (u16, String) {
+    let mut stream = TcpStream::connect(addr).expect("connect");
+    stream.set_read_timeout(Some(Duration::from_secs(5))).ok();
+    let req = format!(
+        "POST {path} HTTP/1.0\r\nHost: {addr}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{json}",
+        json.len()
+    );
+    stream.write_all(req.as_bytes()).unwrap();
+    let mut buf = Vec::new();
+    stream.read_to_end(&mut buf).unwrap();
+    let text = String::from_utf8_lossy(&buf);
+    let (headers, body) = text.split_once("\r\n\r\n").unwrap_or((&text, ""));
+    let status = headers
+        .lines()
+        .next()
+        .and_then(|l| l.split_whitespace().nth(1))
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    (status, body.to_string())
+}
+
+fn wait_port(addr: &str) {
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while Instant::now() < deadline {
+        if let Ok(s) = TcpStream::connect_timeout(&addr.parse().unwrap(), Duration::from_millis(200))
+        {
+            drop(s);
+            return;
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    panic!("server did not bind {addr}");
+}
+
+#[test]
+fn dashboard_html_and_mcp_protocol_bodies() {
+    let home = std::env::temp_dir().join(format!("harness-home-srv-{}", std::process::id()));
+    std::fs::create_dir_all(&home).unwrap();
+
+    let mut dash = Command::new(bin())
+        .args(["dashboard", "--host", "127.0.0.1", "--port", "3941"])
+        .env("HARNESS_HOME", &home)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    wait_port("127.0.0.1:3941");
+    let (st, body) = http_get("127.0.0.1:3941", "/");
+    assert_eq!(st, 200);
+    assert!(body.contains("Harness Dashboard"), "{body}");
+    assert!(body.contains("<!DOCTYPE html>"), "{body}");
+    assert!(body.contains("/api/projects"), "{body}");
+    let (st2, api) = http_get("127.0.0.1:3941", "/api/projects");
+    assert_eq!(st2, 200);
+    let trimmed = api.trim_start();
+    assert!(trimmed.starts_with('['), "{api}");
+    let _ = dash.kill();
+
+    let tmp = std::env::temp_dir().join(format!("harness-mcp-{}", std::process::id()));
+    std::fs::create_dir_all(&tmp).unwrap();
+    let mut mcp = Command::new(bin())
+        .args([
+            "mcp",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "3942",
+            "--dir",
+            tmp.to_str().unwrap(),
+        ])
+        .env("HARNESS_HOME", &home)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    wait_port("127.0.0.1:3942");
+    let (st, disc) = http_get("127.0.0.1:3942", "/.well-known/oauth-protected-resource");
+    assert_eq!(st, 200);
+    assert!(disc.contains("authorization_servers"), "{disc}");
+    assert!(disc.contains("/mcp"), "{disc}");
+    let (st, init_body) = http_post(
+        "127.0.0.1:3942",
+        "/mcp",
+        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#,
+    );
+    assert_eq!(st, 200);
+    assert!(init_body.contains("protocolVersion"), "{init_body}");
+    assert!(init_body.contains("2024-11-05"), "{init_body}");
+    assert!(init_body.contains("5harness"), "{init_body}");
+    let (st, tools) = http_post(
+        "127.0.0.1:3942",
+        "/mcp",
+        r#"{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}"#,
+    );
+    assert_eq!(st, 200);
+    assert!(tools.contains("harness_get"), "{tools}");
+    let _ = mcp.kill();
+}

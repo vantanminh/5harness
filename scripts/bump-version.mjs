@@ -10,7 +10,7 @@
  * Updates:
  *   - package.json
  *   - package-lock.json (root + packages[""])
- *   - src/version.ts
+ *   - Cargo.toml           (package.version)
  *   - templates/AGENTS.md  <!-- harness-version: X.Y.Z -->
  *   - AGENTS.md            (same marker, when present)
  *
@@ -113,12 +113,15 @@ if (fs.existsSync(lockPath)) {
   fs.writeFileSync(lockPath, `${JSON.stringify(lock, null, 2)}\n`, "utf8");
 }
 
-// src/version.ts
-replaceInFile("src/version.ts", (text) => {
-  if (!/VERSION\s*=\s*"[^"]+"/.test(text)) {
-    fail("src/version.ts: VERSION constant not found");
+// Cargo.toml package.version (first version key after [package])
+replaceInFile("Cargo.toml", (text) => {
+  if (!/\[package\][\s\S]*?version = "[^"]+"/.test(text)) {
+    fail("Cargo.toml: package version not found");
   }
-  return text.replace(/VERSION\s*=\s*"[^"]+"/, `VERSION = "${newVersion}"`);
+  return text.replace(
+    /(\[package\][\s\S]*?version = ")[^"]+(")/,
+    `$1${newVersion}$2`,
+  );
 });
 
 // harness-version markers

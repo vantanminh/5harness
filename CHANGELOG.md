@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Product runtime is a **Rust** CLI (`harness` / `5harness` / `5hn`). npm
+  still installs and publishes `5harness` to npmjs; `dist/cli.js` is a thin
+  shim that launches the native binary.
+- Windows and macOS automatic install commands (`install/windows.ps1`,
+  `install/macos.sh`) install a prebuilt `harness` without compiling from
+  source.
+
 ## [0.24.0] - 2026-09-02
 
 ### Added
