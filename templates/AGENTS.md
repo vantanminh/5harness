@@ -4,7 +4,7 @@ If `.agents/skills/harness/SKILL.md` exists, use it for intake, mutation
 rules, and tool-only durable writes. `harness init` installs that skill.
 
 <!-- HARNESS:BEGIN -->
-<!-- harness-version: 0.22.0 -->
+<!-- harness-version: 0.23.0 -->
 ## Harness
 
 This repo uses **Harness** (`5harness`, bin `harness`).
