@@ -1,3 +1,8 @@
+---
+name: harness
+description: Use the repository's 5harness CLI for project intake, durable work tracking, bounded reads, and agent handoffs.
+---
+
 # Harness
 
 You are a coding agent. **5harness** (bin `harness`) is how you record and
