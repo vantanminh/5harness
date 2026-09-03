@@ -5,7 +5,7 @@ mutation rules, and tool-only durable writes. `harness init` installs that
 skill.
 
 <!-- HARNESS:BEGIN -->
-<!-- harness-version: 0.25.1 -->
+<!-- harness-version: 0.25.2 -->
 ## Harness
 
 **5harness** (bin `harness`) is this repo's operating system for **coding
