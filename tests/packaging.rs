@@ -86,6 +86,17 @@ fn ci_still_publishes_to_npmjs_with_provenance() {
         assert!(ci.contains(target), "ci matrix lacks {target}");
         assert!(rel.contains(target), "release matrix lacks {target}");
     }
+    for asset in [
+        "bin/harness-x86_64-unknown-linux-gnu",
+        "bin/harness-aarch64-unknown-linux-gnu",
+        "bin/harness-x86_64-apple-darwin",
+        "bin/harness-aarch64-apple-darwin",
+        "bin/harness-x86_64-pc-windows-msvc.exe",
+        "bin/harness-aarch64-pc-windows-msvc.exe",
+    ] {
+        assert!(ci.contains(asset), "ci release assets lack {asset}");
+        assert!(rel.contains(asset), "release assets lack {asset}");
+    }
 }
 
 #[test]

@@ -460,6 +460,9 @@ jobs:
           fi
           gh release upload "$TAG" \
             bin/harness-x86_64-unknown-linux-gnu \
+            bin/harness-aarch64-unknown-linux-gnu \
+            bin/harness-x86_64-apple-darwin \
             bin/harness-x86_64-pc-windows-msvc.exe \
+            bin/harness-aarch64-pc-windows-msvc.exe \
             bin/harness-aarch64-apple-darwin \
             --clobber
