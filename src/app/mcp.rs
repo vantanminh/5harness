@@ -1,6 +1,6 @@
 use std::io::Cursor;
 use std::net::TcpListener;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -135,7 +135,7 @@ fn handle_mcp_request_with_auth(root: Option<&PathBuf>, body: &str, authenticate
     }
 }
 
-fn call_tool(root: &PathBuf, name: &str, args: &Value) -> Result<String> {
+fn call_tool(root: &Path, name: &str, args: &Value) -> Result<String> {
     match name {
         "harness_get" => {
             let id = args
@@ -655,6 +655,6 @@ fn mcp_loop(
     }
 }
 
-pub fn query_view_json_pub(root: &PathBuf, view: &str) -> Result<Value> {
+pub fn query_view_json_pub(root: &Path, view: &str) -> Result<Value> {
     query_view_json(root, view)
 }

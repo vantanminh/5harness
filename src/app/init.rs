@@ -222,10 +222,7 @@ fn write_template_file(package_root: &Path, target_dir: &Path, relative: &str) -
 }
 
 fn backup_file(target_dir: &Path, relative: &str) -> Result<String> {
-    let stamp = chrono::Utc::now()
-        .to_rfc3339()
-        .replace(':', "-")
-        .replace('.', "-");
+    let stamp = chrono::Utc::now().to_rfc3339().replace([':', '.'], "-");
     let backup_root = project_backup_root(target_dir, &stamp);
     let dest = backup_root.join(relative);
     if let Some(parent) = dest.parent() {

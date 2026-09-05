@@ -266,7 +266,7 @@ pub fn list_entity_files(project_root: &Path, ty: &str) -> Result<Vec<EntityFile
     let mut names: Vec<_> = fs::read_dir(&dir)?
         .filter_map(|e| e.ok())
         .map(|e| e.file_name().to_string_lossy().into_owned())
-        .filter(|n| n.ends_with(".md") && n.to_ascii_lowercase() != "readme.md")
+        .filter(|n| n.ends_with(".md") && !n.eq_ignore_ascii_case("readme.md"))
         .collect();
     names.sort();
     let mut out = Vec::new();

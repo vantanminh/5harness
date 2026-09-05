@@ -32,6 +32,7 @@ pub fn maybe_reindex(project_root: &Path) -> Result<()> {
     write_project_index(project_root).map(|_| ())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn add_story(
     project_root: &Path,
     id: &str,
@@ -194,6 +195,7 @@ pub fn record_story_verification(
     Ok(written)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn add_decision(
     project_root: &Path,
     id: &str,
@@ -258,6 +260,7 @@ pub fn add_decision(
     Ok(file)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn update_decision(
     project_root: &Path,
     id: &str,
@@ -339,6 +342,7 @@ pub fn record_decision_verification(
     Ok(written)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn add_intake(
     project_root: &Path,
     input_type: &str,
@@ -512,6 +516,7 @@ fn auto_complete_eligible_intakes(project_root: &Path) -> Result<Vec<EntityFile>
     Ok(completed)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn add_backlog(
     project_root: &Path,
     title: &str,

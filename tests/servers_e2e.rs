@@ -130,6 +130,7 @@ fn mcp_mutations_require_token_and_project_binding() {
     assert_eq!(status, 200);
     assert!(response.contains("Intake IN-001"), "{response}");
     let _ = mcp.kill();
+    let _ = mcp.wait();
 }
 
 fn wait_port(addr: &str) {
@@ -169,6 +170,7 @@ fn dashboard_html_and_mcp_protocol_bodies() {
     let trimmed = api.trim_start();
     assert!(trimmed.starts_with('['), "{api}");
     let _ = dash.kill();
+    let _ = dash.wait();
 
     let tmp = std::env::temp_dir().join(format!("harness-mcp-{}", std::process::id()));
     std::fs::create_dir_all(&tmp).unwrap();
@@ -209,4 +211,5 @@ fn dashboard_html_and_mcp_protocol_bodies() {
     assert_eq!(st, 200);
     assert!(tools.contains("harness_get"), "{tools}");
     let _ = mcp.kill();
+    let _ = mcp.wait();
 }

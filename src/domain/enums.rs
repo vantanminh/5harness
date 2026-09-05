@@ -21,11 +21,9 @@ fn slugify(raw: &str) -> String {
         if ch.is_ascii_alphanumeric() {
             out.push(ch);
             prev_us = false;
-        } else if ch == ' ' || ch == '-' || ch == '_' {
-            if !prev_us && !out.is_empty() {
-                out.push('_');
-                prev_us = true;
-            }
+        } else if (ch == ' ' || ch == '-' || ch == '_') && !prev_us && !out.is_empty() {
+            out.push('_');
+            prev_us = true;
         }
     }
     out
