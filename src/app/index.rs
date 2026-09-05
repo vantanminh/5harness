@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 use crate::domain::paths::project_index_dir;
 use crate::domain::wikilinks::{extract_wikilinks, match_link_target, normalize_link_target};
 use crate::error::Result;
-use crate::infra::entities::{atomic_write, read_entity_file};
+use crate::infra::entities::{atomic_write, read_entity_file, safe_relative_path};
 
 use super::catalog::{build_catalog, links_of};
 
@@ -87,20 +87,22 @@ pub fn build_project_index(project_root: &Path) -> Result<ProjectIndex> {
         for link in links_of(&e.data) {
             let target = normalize_link_target(&link);
             let matched = match_link_target(&target, &lite);
+            let resolved = matched.is_some() || project_file_exists(project_root, &target);
             edges.push(IndexEdge {
                 from: e.id.clone(),
                 to: matched.map(|m| m.0.clone()).unwrap_or(target),
                 kind: "frontmatter".into(),
-                resolved: matched.is_some(),
+                resolved,
             });
         }
         for wl in extract_wikilinks(&body) {
             let matched = match_link_target(&wl, &lite);
+            let resolved = matched.is_some() || project_file_exists(project_root, &wl);
             edges.push(IndexEdge {
                 from: e.id.clone(),
                 to: matched.map(|m| m.0.clone()).unwrap_or(wl),
                 kind: "wikilink".into(),
-                resolved: matched.is_some(),
+                resolved,
             });
         }
     }
@@ -112,6 +114,26 @@ pub fn build_project_index(project_root: &Path) -> Result<ProjectIndex> {
         edges,
         texts,
         checksum: None,
+    })
+}
+
+fn project_file_exists(project_root: &Path, target: &str) -> bool {
+    let Ok(relative) = safe_relative_path(target) else {
+        return false;
+    };
+    let Ok(root) = std::fs::canonicalize(project_root) else {
+        return false;
+    };
+    let candidate = root.join(&relative);
+    let candidates = if candidate.extension().is_some() {
+        vec![candidate]
+    } else {
+        vec![candidate.clone(), candidate.with_extension("md")]
+    };
+    candidates.into_iter().any(|path| {
+        std::fs::canonicalize(path)
+            .map(|canonical| canonical.starts_with(&root) && canonical.is_file())
+            .unwrap_or(false)
     })
 }
 

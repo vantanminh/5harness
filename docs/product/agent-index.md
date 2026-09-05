@@ -31,7 +31,10 @@ Embeddings / vector DB: **not** required for the first implementation.
 
 - Wikilink: `[[stories/US-003]]` or `[[US-003]]` if unique.
 - Frontmatter: `links: ["decisions/0011-…"]` for explicit edges.
-- Indexer records both; broken links surface in `audit` later.
+- Legacy numeric decision prefixes (for example `0021`) resolve to the matching
+  decision filename, and links to existing project markdown documents resolve
+  without becoming entity edges. Placeholder examples such as `[[type/id]]`
+  are ignored. Remaining unresolved targets surface in `audit`.
 
 ## Agent tool contract
 
