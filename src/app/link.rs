@@ -8,8 +8,8 @@ use crate::infra::registry::{
     detect_git_remote, detect_project_name, get_registry_path, read_registry, write_registry,
 };
 
-use super::init::ensure_project_id;
 use super::index::write_project_index;
+use super::init::ensure_project_id;
 use crate::infra::entities::MutationLock;
 
 pub struct LinkResult {
@@ -35,15 +35,9 @@ pub fn link_project(path_input: Option<&str>, cwd: &Path) -> Result<LinkResult> 
         None
     };
     let now = chrono::Utc::now().to_rfc3339();
-    let (next, entry, created) = upsert_project(
-        &registry,
-        project_id,
-        &absolute,
-        &name,
-        remote,
-        &now,
-    )
-    .map_err(Error::new)?;
+    let (next, entry, created) =
+        upsert_project(&registry, project_id, &absolute, &name, remote, &now)
+            .map_err(Error::new)?;
     let registry_path = write_registry(&next)?;
     let _lock = MutationLock::acquire(&absolute)?;
     write_project_index(&absolute)?;
@@ -54,7 +48,10 @@ pub fn link_project(path_input: Option<&str>, cwd: &Path) -> Result<LinkResult> 
     })
 }
 
-pub fn unlink_project(path_input: Option<&str>, cwd: &Path) -> Result<(Option<RegistryProject>, PathBuf)> {
+pub fn unlink_project(
+    path_input: Option<&str>,
+    cwd: &Path,
+) -> Result<(Option<RegistryProject>, PathBuf)> {
     let absolute = resolve_target_dir(path_input, cwd);
     let registry = read_registry();
     let (next, removed) = remove_project_by_path(&registry, &absolute);

@@ -68,7 +68,9 @@ pub fn paths_equal(a: &Path, b: &Path) -> bool {
     let nb = normalize_project_path(b);
     #[cfg(windows)]
     {
-        return na.to_string_lossy().eq_ignore_ascii_case(&nb.to_string_lossy());
+        return na
+            .to_string_lossy()
+            .eq_ignore_ascii_case(&nb.to_string_lossy());
     }
     #[cfg(not(windows))]
     {
@@ -96,13 +98,9 @@ pub fn upsert_project(
 ) -> Result<(ProjectRegistry, RegistryProject, bool), String> {
     let absolute_path = normalize_project_path(path);
     let existing_by_path = find_project_by_path(registry, &absolute_path).cloned();
-    let existing_by_id = id.as_ref().and_then(|wanted| {
-        registry
-            .projects
-            .iter()
-            .find(|p| p.id == *wanted)
-            .cloned()
-    });
+    let existing_by_id = id
+        .as_ref()
+        .and_then(|wanted| registry.projects.iter().find(|p| p.id == *wanted).cloned());
     if let (Some(by_path), Some(by_id)) = (&existing_by_path, &existing_by_id) {
         if by_path.id != by_id.id {
             return Err(format!(

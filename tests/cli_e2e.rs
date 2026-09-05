@@ -37,11 +37,7 @@ fn prints_version_via_long_and_short_flags() {
     let expected = pkg["version"].as_str().unwrap();
     for flag in ["--version", "-V", "-v"] {
         let out = run(&[flag], None);
-        assert!(
-            out.status.success(),
-            "{flag}: {}",
-            stderr(&out)
-        );
+        assert!(out.status.success(), "{flag}: {}", stderr(&out));
         assert_eq!(stdout(&out).trim(), expected, "{flag}");
     }
 }
@@ -55,10 +51,7 @@ fn help_lists_init_and_product_contract() {
     assert!(text.contains("migrate"), "{text}");
     assert!(text.contains("Project Link"), "{text}");
     assert!(text.contains("backend reports"), "{text}");
-    assert!(
-        !text.contains("create/migrate harness.db"),
-        "{text}"
-    );
+    assert!(!text.contains("create/migrate harness.db"), "{text}");
     assert!(text.contains("register the project"), "{text}");
 }
 
@@ -76,21 +69,19 @@ fn init_dry_run_and_init_into_temp_dir() {
     assert!(!dir.join("AGENTS.md").exists());
 
     let init = run(&["init", "--dir", dir.to_str().unwrap()], None);
-    assert!(
-        init.status.success(),
-        "{}",
-        stderr(&init) + &stdout(&init)
-    );
+    assert!(init.status.success(), "{}", stderr(&init) + &stdout(&init));
     assert!(dir.join("AGENTS.md").exists());
     assert!(dir.join("docs").join("stories").exists());
     assert!(dir.join("docs").join("reports").exists());
-    assert!(stdout(&init).contains(
-        "Entity dirs: docs/stories|decisions|intakes|backlog|reports"
-    ));
+    assert!(stdout(&init).contains("Entity dirs: docs/stories|decisions|intakes|backlog|reports"));
     assert!(!dir.join("harness.db").exists());
 
     let migrate = run(&["migrate", "--dir", dir.to_str().unwrap()], None);
-    assert!(migrate.status.success(), "{}", stderr(&migrate) + &stdout(&migrate));
+    assert!(
+        migrate.status.success(),
+        "{}",
+        stderr(&migrate) + &stdout(&migrate)
+    );
     let mig = stdout(&migrate);
     assert!(
         mig.to_lowercase().contains("markdown")

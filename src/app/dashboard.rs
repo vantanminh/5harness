@@ -38,7 +38,9 @@ impl RunningServer {
 
 pub fn set_dashboard_password(password: &str) -> Result<std::path::PathBuf> {
     if password.trim().len() < 12 {
-        return Err(Error::new("dashboard password must be at least 12 characters"));
+        return Err(Error::new(
+            "dashboard password must be at least 12 characters",
+        ));
     }
     let home = resolve_harness_home();
     std::fs::create_dir_all(&home)?;
@@ -47,6 +49,11 @@ pub fn set_dashboard_password(password: &str) -> Result<std::path::PathBuf> {
     hasher.update(password.as_bytes());
     let digest = hex::encode(hasher.finalize());
     crate::infra::entities::atomic_write(&path, &format!("{digest}\n"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+    }
     Ok(path)
 }
 
@@ -62,7 +69,9 @@ fn dashboard_password_hash() -> Option<String> {
 }
 
 fn dashboard_authorized(headers: &[Header]) -> bool {
-    let Some(expected) = dashboard_password_hash() else { return true };
+    let Some(expected) = dashboard_password_hash() else {
+        return true;
+    };
     let supplied = headers
         .iter()
         .find(|h| h.field.equiv("X-Harness-Password"))
@@ -73,28 +82,35 @@ fn dashboard_authorized(headers: &[Header]) -> bool {
                 .find(|h| h.field.equiv("Authorization"))
                 .and_then(|h| h.value.as_str().strip_prefix("Bearer "))
         });
-    let Some(supplied) = supplied else { return false };
+    let Some(supplied) = supplied else {
+        return false;
+    };
     let mut hasher = Sha256::new();
     hasher.update(supplied.as_bytes());
     hex::encode(hasher.finalize()) == expected
 }
 
-pub fn start_dashboard(host: &str, port: u16, serve_forever: bool, public_url: Option<&str>) -> Result<RunningServer> {
+pub fn start_dashboard(
+    host: &str,
+    port: u16,
+    serve_forever: bool,
+    public_url: Option<&str>,
+) -> Result<RunningServer> {
     if !is_loopback_bind_host(host) {
-        let url = public_url.ok_or_else(|| Error::new(
-            "refusing non-loopback dashboard bind without --public-url https://...",
-        ))?;
+        let url = public_url.ok_or_else(|| {
+            Error::new("refusing non-loopback dashboard bind without --public-url https://...")
+        })?;
         if !url.starts_with("https://") {
-            return Err(Error::new("--public-url must use https:// for non-loopback dashboard"));
+            return Err(Error::new(
+                "--public-url must use https:// for non-loopback dashboard",
+            ));
         }
     }
-    let listener = TcpListener::bind((host, port)).map_err(|e| {
-        Error::new(format!("dashboard bind {host}:{port} failed: {e}"))
-    })?;
+    let listener = TcpListener::bind((host, port))
+        .map_err(|e| Error::new(format!("dashboard bind {host}:{port} failed: {e}")))?;
     let actual = listener.local_addr()?.port();
-    let server = Server::from_listener(listener, None).map_err(|e| {
-        Error::new(format!("dashboard server: {e}"))
-    })?;
+    let server = Server::from_listener(listener, None)
+        .map_err(|e| Error::new(format!("dashboard server: {e}")))?;
     let local_url = format!("http://{host}:{actual}/");
     let url = public_url
         .map(|value| format!("{}/", value.trim_end_matches('/')))
@@ -132,12 +148,21 @@ fn dashboard_loop(server: Server, shutdown: Arc<AtomicBool>) {
                 let (status, content_type, body) = if authorized {
                     route(&method, &url)
                 } else {
-                    (401, "application/json; charset=utf-8".into(), r#"{"error":"dashboard password required"}"#.into())
+                    (
+                        401,
+                        "application/json; charset=utf-8".into(),
+                        r#"{"error":"dashboard password required"}"#.into(),
+                    )
                 };
                 let mut response = Response::new(
                     StatusCode(status),
-                    vec![Header::from_bytes(&b"Content-Type"[..], content_type.as_bytes())
-                        .unwrap_or_else(|_| Header::from_bytes(&b"Content-Type"[..], &b"text/plain"[..]).unwrap())],
+                    vec![
+                        Header::from_bytes(&b"Content-Type"[..], content_type.as_bytes())
+                            .unwrap_or_else(|_| {
+                                Header::from_bytes(&b"Content-Type"[..], &b"text/plain"[..])
+                                    .unwrap()
+                            }),
+                    ],
                     Cursor::new(body.into_bytes()),
                     None,
                     None,
@@ -146,7 +171,9 @@ fn dashboard_loop(server: Server, shutdown: Arc<AtomicBool>) {
                     Header::from_bytes(&b"Cache-Control"[..], &b"no-store"[..]).unwrap(),
                 );
                 if status == 401 {
-                    response.add_header(Header::from_bytes(&b"WWW-Authenticate"[..], &b"Bearer"[..]).unwrap());
+                    response.add_header(
+                        Header::from_bytes(&b"WWW-Authenticate"[..], &b"Bearer"[..]).unwrap(),
+                    );
                 }
                 let _ = request.respond(response);
             }

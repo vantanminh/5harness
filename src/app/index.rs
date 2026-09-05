@@ -131,7 +131,8 @@ pub fn ensure_index(project_root: &Path) -> Result<ProjectIndex> {
             if let Ok(idx) = serde_json::from_str::<ProjectIndex>(&raw) {
                 let current = build_project_index(project_root)?;
                 let checksum_valid = idx.checksum.as_deref() == Some(checksum_for(&idx)?.as_str());
-                let fresh = checksum_valid && idx.version == INDEX_SCHEMA_VERSION
+                let fresh = checksum_valid
+                    && idx.version == INDEX_SCHEMA_VERSION
                     && idx.project_root == project_root.to_string_lossy()
                     && idx.catalog.len() == current.catalog.len()
                     && idx.catalog.iter().all(|row| {
@@ -155,7 +156,11 @@ pub fn ensure_index(project_root: &Path) -> Result<ProjectIndex> {
 }
 
 pub fn checksum_valid(index: &ProjectIndex) -> bool {
-    index.checksum.as_deref().and_then(|stored| checksum_for(index).ok().map(|computed| stored == computed)).unwrap_or(false)
+    index
+        .checksum
+        .as_deref()
+        .and_then(|stored| checksum_for(index).ok().map(|computed| stored == computed))
+        .unwrap_or(false)
 }
 
 fn checksum_for(index: &ProjectIndex) -> Result<String> {
@@ -221,8 +226,14 @@ pub fn search_index(
 fn snippet_of(text: &str, q: &str) -> String {
     let lower = text.to_ascii_lowercase();
     if let Some(idx) = lower.find(q) {
-        let start = idx.saturating_sub(40);
-        let end = (idx + q.len() + 40).min(text.len());
+        let mut start = idx.saturating_sub(40);
+        while start > 0 && !text.is_char_boundary(start) {
+            start -= 1;
+        }
+        let mut end = (idx + q.len() + 40).min(text.len());
+        while end < text.len() && !text.is_char_boundary(end) {
+            end += 1;
+        }
         let mut s = text[start..end].replace('\n', " ");
         if start > 0 {
             s = format!("…{s}");

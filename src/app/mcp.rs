@@ -15,12 +15,15 @@ use crate::error::{Error, Result};
 use crate::VERSION;
 
 use super::dashboard::RunningServer;
-use super::durable::{add_backlog, add_decision, add_intake, add_report, add_story, get_entity, update_report, update_story, StoryUpdate};
+use super::durable::{
+    add_backlog, add_decision, add_intake, add_report, add_story, get_entity, update_report,
+    update_story, StoryUpdate,
+};
 use super::index::{ensure_index, format_search_hits, search_index};
 use super::project_link;
+use super::query::{query_matrix, query_stats, query_view_json};
 use super::status::{doctor_json, next_items, status_json};
 use crate::infra::entities::MutationLock;
-use super::query::{query_matrix, query_stats, query_view_json};
 
 pub fn mcp_tools() -> Value {
     json!([
@@ -47,7 +50,10 @@ pub fn mcp_tools() -> Value {
 fn mcp_tools_for_root(root: Option<&PathBuf>) -> Value {
     let mut tools = mcp_tools().as_array().cloned().unwrap_or_default();
     if let Some(root) = root {
-        if project_link::peers(root).map(|p| !p.is_empty()).unwrap_or(false) {
+        if project_link::peers(root)
+            .map(|p| !p.is_empty())
+            .unwrap_or(false)
+        {
             tools.extend([
                 json!({"name":"harness_peer_search","description":"Search one configured peer.","inputSchema":{"type":"object","properties":{"query":{"type":"string"},"peer_id":{"type":"string"},"role":{"type":"string"}},"required":["query"]}}),
                 json!({"name":"harness_peer_get","description":"Get one entity from a configured peer.","inputSchema":{"type":"object","properties":{"id":{"type":"string"},"peer_id":{"type":"string"},"role":{"type":"string"}},"required":["id"]}}),
@@ -123,7 +129,9 @@ fn handle_mcp_request_with_auth(root: Option<&PathBuf>, body: &str, authenticate
             }
         }
         "ping" => json!({"jsonrpc":"2.0","id":id,"result":{}}),
-        _ => json!({"jsonrpc":"2.0","id":id,"error":{"code":-32601,"message":format!("Method not found: {method}")}}),
+        _ => {
+            json!({"jsonrpc":"2.0","id":id,"error":{"code":-32601,"message":format!("Method not found: {method}")}})
+        }
     }
 }
 
@@ -136,7 +144,10 @@ fn call_tool(root: &PathBuf, name: &str, args: &Value) -> Result<String> {
                 .filter(|v| !v.trim().is_empty())
                 .ok_or_else(|| Error::new("harness_get requires id"))?;
             match get_entity(root, id) {
-                Ok(Some(file)) => Ok(format!("# {} ({})\npath: {}\n", id, "entity", file.relative_path)),
+                Ok(Some(file)) => Ok(format!(
+                    "# {} ({})\npath: {}\n",
+                    id, "entity", file.relative_path
+                )),
                 Ok(None) => Err(Error::new(format!("Entity not found: {id}"))),
                 Err(e) => Err(e),
             }
@@ -156,59 +167,153 @@ fn call_tool(root: &PathBuf, name: &str, args: &Value) -> Result<String> {
         "harness_query_stats" => query_stats(root),
         "harness_status" => Ok(serde_json::to_string(&status_json(root)?)?),
         "harness_next" => {
-            let items = next_items(root, args.get("limit").and_then(|v| v.as_u64()).map(|v| v as usize))?;
+            let items = next_items(
+                root,
+                args.get("limit")
+                    .and_then(|v| v.as_u64())
+                    .map(|v| v as usize),
+            )?;
             Ok(serde_json::to_string(&items)?)
         }
         "harness_context" => {
-            let id = args.get("id").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_context requires id"))?;
-            let file = get_entity(root, id)?.ok_or_else(|| Error::new(format!("Entity not found: {id}")))?;
+            let id = args
+                .get("id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| Error::new("harness_context requires id"))?;
+            let file = get_entity(root, id)?
+                .ok_or_else(|| Error::new(format!("Entity not found: {id}")))?;
             let index = ensure_index(root)?;
-            let max_chars = args.get("max_chars").and_then(|v| v.as_u64()).unwrap_or(12_000) as usize;
+            let max_chars = args
+                .get("max_chars")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(12_000) as usize;
             let body: String = file.body.chars().take(max_chars.min(100_000)).collect();
-            Ok(serde_json::to_string(&json!({"id":id,"path":file.relative_path,"frontmatter":super::durable::fm_json(&file.data),"body":body,"links":super::index::links_for(&index,id)}))?)
+            Ok(serde_json::to_string(
+                &json!({"id":id,"path":file.relative_path,"frontmatter":super::durable::fm_json(&file.data),"body":body,"links":super::index::links_for(&index,id)}),
+            )?)
         }
         "harness_links" => {
-            let id = args.get("id").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_links requires id"))?;
+            let id = args
+                .get("id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| Error::new("harness_links requires id"))?;
             let index = ensure_index(root)?;
-            Ok(serde_json::to_string(&super::index::links_for(&index,id))?)
+            Ok(serde_json::to_string(&super::index::links_for(&index, id))?)
         }
         "harness_doctor" => Ok(serde_json::to_string(&doctor_json(root)?)?),
         "harness_project_role" => Ok(serde_json::to_string(&project_link::role(root)?)?),
         "harness_project_peers" => Ok(serde_json::to_string(&project_link::peers(root)?)?),
         "harness_intake" => {
-            let ty = args.get("type").and_then(|v| v.as_str()).filter(|v| !v.trim().is_empty()).ok_or_else(|| Error::new("harness_intake requires type"))?;
-            let summary = args.get("summary").and_then(|v| v.as_str()).filter(|v| !v.trim().is_empty()).ok_or_else(|| Error::new("harness_intake requires summary"))?;
-            let lane = args.get("lane").and_then(|v| v.as_str()).unwrap_or("normal");
+            let ty = args
+                .get("type")
+                .and_then(|v| v.as_str())
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| Error::new("harness_intake requires type"))?;
+            let summary = args
+                .get("summary")
+                .and_then(|v| v.as_str())
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| Error::new("harness_intake requires summary"))?;
+            let lane = args
+                .get("lane")
+                .and_then(|v| v.as_str())
+                .unwrap_or("normal");
             match add_intake(root, ty, summary, lane, None, None, None, None, None, None) {
                 Ok((_, id)) => Ok(format!("Intake {id} recorded.")),
                 Err(e) => Err(e),
             }
         }
         "harness_story_add" => {
-            let id = args.get("id").and_then(|v| v.as_str()).filter(|v| !v.trim().is_empty()).ok_or_else(|| Error::new("harness_story_add requires id"))?;
-            let title = args.get("title").and_then(|v| v.as_str()).filter(|v| !v.trim().is_empty()).ok_or_else(|| Error::new("harness_story_add requires title"))?;
-            let lane = args.get("lane").and_then(|v| v.as_str()).unwrap_or("normal");
+            let id = args
+                .get("id")
+                .and_then(|v| v.as_str())
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| Error::new("harness_story_add requires id"))?;
+            let title = args
+                .get("title")
+                .and_then(|v| v.as_str())
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| Error::new("harness_story_add requires title"))?;
+            let lane = args
+                .get("lane")
+                .and_then(|v| v.as_str())
+                .unwrap_or("normal");
             match add_story(root, id, title, lane, None, None, None, None) {
                 Ok(_) => Ok(format!("Story {id} added.")),
                 Err(e) => Err(e),
             }
         }
         "harness_story_update" => {
-            let id = args.get("id").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_story_update requires id"))?;
-            update_story(root, StoryUpdate { id:id.into(), status:args.get("status").and_then(|v|v.as_str()).map(str::to_string), evidence:args.get("evidence").and_then(|v|v.as_str()).map(str::to_string), unit:args.get("unit").and_then(|v|v.as_str()).map(str::to_string), integration:args.get("integration").and_then(|v|v.as_str()).map(str::to_string), e2e:args.get("e2e").and_then(|v|v.as_str()).map(str::to_string), platform:args.get("platform").and_then(|v|v.as_str()).map(str::to_string), verify:None,title:None,notes:None,contract:None,links:None })?;
+            let id = args
+                .get("id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| Error::new("harness_story_update requires id"))?;
+            update_story(
+                root,
+                StoryUpdate {
+                    id: id.into(),
+                    status: args
+                        .get("status")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string),
+                    evidence: args
+                        .get("evidence")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string),
+                    unit: args
+                        .get("unit")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string),
+                    integration: args
+                        .get("integration")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string),
+                    e2e: args.get("e2e").and_then(|v| v.as_str()).map(str::to_string),
+                    platform: args
+                        .get("platform")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string),
+                    verify: None,
+                    title: None,
+                    notes: None,
+                    contract: None,
+                    links: None,
+                },
+            )?;
             Ok(format!("Story {id} updated."))
         }
         "harness_decision_add" => {
-            let id = args.get("id").and_then(|v| v.as_str()).filter(|v| !v.trim().is_empty()).ok_or_else(|| Error::new("harness_decision_add requires id"))?;
-            let title = args.get("title").and_then(|v| v.as_str()).filter(|v| !v.trim().is_empty()).ok_or_else(|| Error::new("harness_decision_add requires title"))?;
+            let id = args
+                .get("id")
+                .and_then(|v| v.as_str())
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| Error::new("harness_decision_add requires id"))?;
+            let title = args
+                .get("title")
+                .and_then(|v| v.as_str())
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| Error::new("harness_decision_add requires title"))?;
             match add_decision(root, id, title, None, None, None, None, None, false) {
                 Ok(_) => Ok(format!("Decision {id} added.")),
                 Err(e) => Err(e),
             }
         }
         "harness_backlog_add" => {
-            let title = args.get("title").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_backlog_add requires title"))?;
-            let (_, id) = add_backlog(root, title, None, None, None, args.get("risk").and_then(|v|v.as_str()), None, None, None)?;
+            let title = args
+                .get("title")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| Error::new("harness_backlog_add requires title"))?;
+            let (_, id) = add_backlog(
+                root,
+                title,
+                None,
+                None,
+                None,
+                args.get("risk").and_then(|v| v.as_str()),
+                None,
+                None,
+                None,
+            )?;
             Ok(format!("Backlog {id} added."))
         }
         "harness_reindex" => {
@@ -217,39 +322,82 @@ fn call_tool(root: &PathBuf, name: &str, args: &Value) -> Result<String> {
             Ok(format!("Reindexed {entities} entities, {edges} edges."))
         }
         "harness_peer_search" => {
-            let query = args.get("query").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_peer_search requires query"))?;
+            let query = args
+                .get("query")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| Error::new("harness_peer_search requires query"))?;
             let peer = args.get("peer_id").and_then(|v| v.as_str());
             let role = args.get("role").and_then(|v| v.as_str());
             let peer_root = project_link::resolve_peer(root, peer, role)?;
             let index = ensure_index(&peer_root)?;
-            Ok(serde_json::to_string(&search_index(&index, query, 20, None))?)
+            Ok(serde_json::to_string(&search_index(
+                &index, query, 20, None,
+            ))?)
         }
         "harness_peer_get" => {
-            let id = args.get("id").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_peer_get requires id"))?;
-            let peer_root = project_link::resolve_peer(root, args.get("peer_id").and_then(|v| v.as_str()), args.get("role").and_then(|v| v.as_str()))?;
-            let file = get_entity(&peer_root, id)?.ok_or_else(|| Error::new(format!("Peer entity not found: {id}")))?;
-            Ok(serde_json::to_string(&json!({"id":id,"path":file.relative_path,"frontmatter":super::durable::fm_json(&file.data),"body":file.body}))?)
+            let id = args
+                .get("id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| Error::new("harness_peer_get requires id"))?;
+            let peer_root = project_link::resolve_peer(
+                root,
+                args.get("peer_id").and_then(|v| v.as_str()),
+                args.get("role").and_then(|v| v.as_str()),
+            )?;
+            let file = get_entity(&peer_root, id)?
+                .ok_or_else(|| Error::new(format!("Peer entity not found: {id}")))?;
+            Ok(serde_json::to_string(
+                &json!({"id":id,"path":file.relative_path,"frontmatter":super::durable::fm_json(&file.data),"body":file.body}),
+            )?)
         }
         "harness_peer_context" => {
-            let id = args.get("id").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_peer_context requires id"))?;
-            let peer_root = project_link::resolve_peer(root, args.get("peer_id").and_then(|v| v.as_str()), args.get("role").and_then(|v| v.as_str()))?;
-            let file = get_entity(&peer_root, id)?.ok_or_else(|| Error::new(format!("Peer entity not found: {id}")))?;
-            let max_chars = args.get("max_chars").and_then(|v| v.as_u64()).unwrap_or(12_000) as usize;
+            let id = args
+                .get("id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| Error::new("harness_peer_context requires id"))?;
+            let peer_root = project_link::resolve_peer(
+                root,
+                args.get("peer_id").and_then(|v| v.as_str()),
+                args.get("role").and_then(|v| v.as_str()),
+            )?;
+            let file = get_entity(&peer_root, id)?
+                .ok_or_else(|| Error::new(format!("Peer entity not found: {id}")))?;
+            let max_chars = args
+                .get("max_chars")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(12_000) as usize;
             let body: String = file.body.chars().take(max_chars.min(100_000)).collect();
-            Ok(serde_json::to_string(&json!({"id":id,"path":file.relative_path,"body":body}))?)
+            Ok(serde_json::to_string(
+                &json!({"id":id,"path":file.relative_path,"body":body}),
+            )?)
         }
         "harness_peer_links" => {
-            let id = args.get("id").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_peer_links requires id"))?;
-            let peer_root = project_link::resolve_peer(root, args.get("peer_id").and_then(|v| v.as_str()), args.get("role").and_then(|v| v.as_str()))?;
+            let id = args
+                .get("id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| Error::new("harness_peer_links requires id"))?;
+            let peer_root = project_link::resolve_peer(
+                root,
+                args.get("peer_id").and_then(|v| v.as_str()),
+                args.get("role").and_then(|v| v.as_str()),
+            )?;
             let index = ensure_index(&peer_root)?;
             Ok(serde_json::to_string(&super::index::links_for(&index, id))?)
         }
         "harness_report_add" => {
-            let to = args.get("to").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_report_add requires to"))?;
-            let summary = args.get("summary").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_report_add requires summary"))?;
+            let to = args
+                .get("to")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| Error::new("harness_report_add requires to"))?;
+            let summary = args
+                .get("summary")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| Error::new("harness_report_add requires summary"))?;
             let target = project_link::resolve_peer(root, Some(to), None)?;
             project_link::ensure_peer_write_allowed(&target)?;
-            let from = std::fs::read_to_string(root.join("AGENTS.md")).ok().and_then(|t| crate::domain::project_id::extract_project_id(&t));
+            let from = std::fs::read_to_string(root.join("AGENTS.md"))
+                .ok()
+                .and_then(|t| crate::domain::project_id::extract_project_id(&t));
             let (_, id) = add_report(&target, summary, None, from.as_deref(), None)?;
             Ok(format!("Report {id} added."))
         }
@@ -257,21 +405,42 @@ fn call_tool(root: &PathBuf, name: &str, args: &Value) -> Result<String> {
             let status = args.get("status").and_then(|v| v.as_str());
             let mut rows = Vec::new();
             for file in crate::infra::entities::list_entity_files(root, "report")? {
-                let current = crate::domain::frontmatter::as_string(&file.data, "status").unwrap_or_default();
-                if status.is_some_and(|wanted| wanted != current) { continue; }
+                let current =
+                    crate::domain::frontmatter::as_string(&file.data, "status").unwrap_or_default();
+                if status.is_some_and(|wanted| wanted != current) {
+                    continue;
+                }
                 rows.push(json!({"id":crate::domain::frontmatter::as_string(&file.data,"id"),"status":current,"summary":crate::domain::frontmatter::as_string(&file.data,"summary"),"updated_at":crate::domain::frontmatter::as_string(&file.data,"updated_at")}));
             }
             Ok(serde_json::to_string(&rows)?)
         }
         "harness_report_get" => {
-            let id = args.get("id").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_report_get requires id"))?;
-            let file = get_entity(root, id)?.ok_or_else(|| Error::new(format!("Report {id} not found")))?;
-            Ok(serde_json::to_string(&json!({"id":id,"path":file.relative_path,"frontmatter":super::durable::fm_json(&file.data),"body":file.body}))?)
+            let id = args
+                .get("id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| Error::new("harness_report_get requires id"))?;
+            let file = get_entity(root, id)?
+                .ok_or_else(|| Error::new(format!("Report {id} not found")))?;
+            Ok(serde_json::to_string(
+                &json!({"id":id,"path":file.relative_path,"frontmatter":super::durable::fm_json(&file.data),"body":file.body}),
+            )?)
         }
         "harness_report_update" => {
-            let id = args.get("id").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_report_update requires id"))?;
-            let status = args.get("status").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_report_update requires status"))?;
-            update_report(root, id, status, args.get("resolution").and_then(|v| v.as_str()), args.get("related").and_then(|v| v.as_str()))?;
+            let id = args
+                .get("id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| Error::new("harness_report_update requires id"))?;
+            let status = args
+                .get("status")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| Error::new("harness_report_update requires status"))?;
+            update_report(
+                root,
+                id,
+                status,
+                args.get("resolution").and_then(|v| v.as_str()),
+                args.get("related").and_then(|v| v.as_str()),
+            )?;
             Ok(format!("Report {id} updated."))
         }
         _ => Err(Error::new(format!("Unknown tool {name}"))),
@@ -281,7 +450,8 @@ fn call_tool(root: &PathBuf, name: &str, args: &Value) -> Result<String> {
 pub fn oauth_protected_resource(issuer: &str) -> Value {
     json!({
         "resource": format!("{}/mcp", issuer.trim_end_matches('/')),
-        "authorization_servers": [issuer.trim_end_matches('/')],
+        "authorization_servers": [],
+        "authorization_endpoint": null,
         "bearer_methods_supported": ["header"],
         "resource_name": "5harness MCP",
         "resource_documentation": "https://github.com/vantanminh/5harness"
@@ -297,21 +467,28 @@ pub fn start_mcp(
     token: Option<String>,
 ) -> Result<RunningServer> {
     if !is_loopback_bind_host(host) {
-        let url = public_url.ok_or_else(|| Error::new(
-            "refusing non-loopback MCP bind without --public-url https://...",
-        ))?;
+        let url = public_url.ok_or_else(|| {
+            Error::new("refusing non-loopback MCP bind without --public-url https://...")
+        })?;
         if !url.starts_with("https://") {
-            return Err(Error::new("--public-url must use https:// for non-loopback MCP"));
+            return Err(Error::new(
+                "--public-url must use https:// for non-loopback MCP",
+            ));
         }
     }
-    let token = token
-        .filter(|v| !v.trim().is_empty())
-        .or_else(|| std::env::var("HARNESS_MCP_TOKEN").ok().filter(|v| !v.trim().is_empty()))
-        .unwrap_or_else(|| {
+    let token = match token.filter(|v| !v.trim().is_empty()).or_else(|| {
+        std::env::var("HARNESS_MCP_TOKEN")
+            .ok()
+            .filter(|v| !v.trim().is_empty())
+    }) {
+        Some(token) => token,
+        None => {
             let mut bytes = [0u8; 32];
-            getrandom::getrandom(&mut bytes).expect("OS random source unavailable");
+            getrandom::getrandom(&mut bytes)
+                .map_err(|e| Error::new(format!("generate MCP token: {e}")))?;
             hex::encode(bytes)
-        });
+        }
+    };
     let project_id = std::fs::read_to_string(project_root.join("AGENTS.md"))
         .ok()
         .and_then(|text| extract_project_id(&text));
@@ -330,7 +507,8 @@ pub fn start_mcp(
     let issuer = public_url
         .map(|url| url.trim_end_matches('/').to_string())
         .unwrap_or_else(|| format!("http://{host}:{actual}"));
-    let handle = thread::spawn(move || mcp_loop(server, flag, project_root, project_id, issuer, token));
+    let handle =
+        thread::spawn(move || mcp_loop(server, flag, project_root, project_id, issuer, token));
     if serve_forever {
         loop {
             thread::sleep(Duration::from_secs(60));
@@ -374,15 +552,27 @@ fn mcp_loop(
                     .is_some_and(|value| value == token);
                 let needs_auth = serde_json::from_str::<Value>(&body)
                     .ok()
-                    .and_then(|v| v.get("method").and_then(|m| m.as_str()).map(|m| m == "tools/call"))
+                    .and_then(|v| {
+                        v.get("method")
+                            .and_then(|m| m.as_str())
+                            .map(|m| m == "tools/call")
+                    })
                     .unwrap_or(true);
                 let supplied_project = request
                     .headers()
                     .iter()
                     .find(|h| h.field.equiv("X-Harness-Project"))
                     .map(|h| h.value.as_str())
-                    .or_else(|| url.split_once('?').and_then(|(_, query)| query.split('&').find_map(|item| item.strip_prefix("project="))));
-                let project_bound = project_id.as_deref().is_some_and(|id| supplied_project == Some(id));
+                    .or_else(|| {
+                        url.split_once('?').and_then(|(_, query)| {
+                            query
+                                .split('&')
+                                .find_map(|item| item.strip_prefix("project="))
+                        })
+                    });
+                let project_bound = project_id
+                    .as_deref()
+                    .is_some_and(|id| supplied_project == Some(id));
                 let (status, ctype, payload, www_authenticate) = match (method, path) {
                     (Method::Get, "/.well-known/oauth-protected-resource") => (
                         200,
@@ -438,14 +628,20 @@ fn mcp_loop(
                     StatusCode(status),
                     vec![
                         Header::from_bytes(&b"Content-Type"[..], ctype.as_bytes()).unwrap(),
-                        Header::from_bytes(&b"Access-Control-Allow-Headers"[..], &b"Authorization, Content-Type"[..]).unwrap(),
+                        Header::from_bytes(
+                            &b"Access-Control-Allow-Headers"[..],
+                            &b"Authorization, Content-Type"[..],
+                        )
+                        .unwrap(),
                     ],
                     Cursor::new(payload.into_bytes()),
                     None,
                     None,
                 );
                 if www_authenticate {
-                    response.add_header(Header::from_bytes(&b"WWW-Authenticate"[..], &b"Bearer"[..]).unwrap());
+                    response.add_header(
+                        Header::from_bytes(&b"WWW-Authenticate"[..], &b"Bearer"[..]).unwrap(),
+                    );
                 }
                 let _ = request.respond(response);
             }

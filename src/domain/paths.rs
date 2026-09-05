@@ -33,7 +33,9 @@ pub fn resolve_harness_home() -> PathBuf {
                 let home = env::var("HOME")
                     .or_else(|_| env::var("USERPROFILE"))
                     .unwrap_or_default();
-                let rest = trimmed.trim_start_matches('~').trim_start_matches(['/', '\\']);
+                let rest = trimmed
+                    .trim_start_matches('~')
+                    .trim_start_matches(['/', '\\']);
                 return PathBuf::from(home).join(rest);
             }
             return PathBuf::from(trimmed);

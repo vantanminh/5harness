@@ -6,7 +6,8 @@ use crate::domain::enums::{
     parse_risk_lane, parse_story_status,
 };
 use crate::domain::frontmatter::{
-    as_string, as_string_array, insert_arr, insert_int, insert_null, insert_str, Frontmatter, FmValue,
+    as_string, as_string_array, insert_arr, insert_int, insert_null, insert_str, FmValue,
+    Frontmatter,
 };
 use crate::error::{Error, Result};
 use crate::infra::entities::{
@@ -124,7 +125,11 @@ pub fn update_story(project_root: &Path, input: StoryUpdate) -> Result<EntityFil
         changed = true;
     }
     if let Some(platform) = &input.platform {
-        insert_int(&mut data, "platform", parse_proof_flag(platform, "platform")?);
+        insert_int(
+            &mut data,
+            "platform",
+            parse_proof_flag(platform, "platform")?,
+        );
         changed = true;
     }
     if let Some(verify) = &input.verify {
@@ -144,7 +149,11 @@ pub fn update_story(project_root: &Path, input: StoryUpdate) -> Result<EntityFil
         changed = true;
     }
     if let Some(links) = &input.links {
-        insert_arr(&mut data, "links", parse_links_csv(Some(links)).unwrap_or_default());
+        insert_arr(
+            &mut data,
+            "links",
+            parse_links_csv(Some(links)).unwrap_or_default(),
+        );
         changed = true;
     }
     if !changed {
@@ -161,13 +170,23 @@ pub fn update_story(project_root: &Path, input: StoryUpdate) -> Result<EntityFil
     Ok(written)
 }
 
-pub fn record_story_verification(project_root: &Path, id: &str, passed: bool, output: &str) -> Result<EntityFile> {
+pub fn record_story_verification(
+    project_root: &Path,
+    id: &str,
+    passed: bool,
+    output: &str,
+) -> Result<EntityFile> {
     let _lock = MutationLock::acquire(project_root)?;
     let id = sanitize_entity_id(id)?;
-    let file = read_entity_by_id(project_root, "story", &id)?.ok_or_else(|| Error::new(format!("Story {id} not found")))?;
+    let file = read_entity_by_id(project_root, "story", &id)?
+        .ok_or_else(|| Error::new(format!("Story {id} not found")))?;
     let mut data = file.data.clone();
     insert_str(&mut data, "last_verified_at", now_iso());
-    insert_str(&mut data, "last_verified_result", if passed { "passed" } else { "failed" });
+    insert_str(
+        &mut data,
+        "last_verified_result",
+        if passed { "passed" } else { "failed" },
+    );
     insert_str(&mut data, "last_verified_output", output);
     insert_str(&mut data, "updated_at", now_iso());
     let written = write_entity_file(project_root, &file.relative_path, &data, &file.body)?;
@@ -278,7 +297,11 @@ pub fn update_decision(
         changed = true;
     }
     if let Some(links) = links {
-        insert_arr(&mut data, "links", parse_links_csv(Some(links)).unwrap_or_default());
+        insert_arr(
+            &mut data,
+            "links",
+            parse_links_csv(Some(links)).unwrap_or_default(),
+        );
         changed = true;
     }
     if !changed {
@@ -292,13 +315,23 @@ pub fn update_decision(
     Ok(file)
 }
 
-pub fn record_decision_verification(project_root: &Path, id: &str, passed: bool, output: &str) -> Result<EntityFile> {
+pub fn record_decision_verification(
+    project_root: &Path,
+    id: &str,
+    passed: bool,
+    output: &str,
+) -> Result<EntityFile> {
     let _lock = MutationLock::acquire(project_root)?;
     let id = sanitize_entity_id(id)?;
-    let file = read_entity_by_id(project_root, "decision", &id)?.ok_or_else(|| Error::new(format!("Decision {id} not found")))?;
+    let file = read_entity_by_id(project_root, "decision", &id)?
+        .ok_or_else(|| Error::new(format!("Decision {id} not found")))?;
     let mut data = file.data.clone();
     insert_str(&mut data, "last_verified_at", now_iso());
-    insert_str(&mut data, "last_verified_result", if passed { "passed" } else { "failed" });
+    insert_str(
+        &mut data,
+        "last_verified_result",
+        if passed { "passed" } else { "failed" },
+    );
     insert_str(&mut data, "last_verified_output", output);
     insert_str(&mut data, "updated_at", now_iso());
     let written = write_entity_file(project_root, &file.relative_path, &data, &file.body)?;
@@ -394,7 +427,11 @@ fn update_intake_inner(
     insert_str(&mut data, "type", "intake");
     let mut changed = false;
     if let Some(status) = status {
-        insert_str(&mut data, "status", crate::domain::enums::parse_intake_status(status)?);
+        insert_str(
+            &mut data,
+            "status",
+            crate::domain::enums::parse_intake_status(status)?,
+        );
         changed = true;
     }
     if let Some(stories_csv) = stories {
@@ -463,7 +500,13 @@ fn auto_complete_eligible_intakes(project_root: &Path) -> Result<Vec<EntityFile>
             continue;
         }
         if let Some(id) = as_string(&intake.data, "id") {
-            completed.push(update_intake_inner(project_root, &id, Some("completed"), None, None)?);
+            completed.push(update_intake_inner(
+                project_root,
+                &id,
+                Some("completed"),
+                None,
+                None,
+            )?);
         }
     }
     Ok(completed)
@@ -568,7 +611,11 @@ pub fn add_report(
     set_opt(&mut data, "severity", severity);
     set_opt(&mut data, "from_project", from_project);
     set_opt(&mut data, "resolution", None);
-    insert_arr(&mut data, "related", parse_links_csv(related).unwrap_or_default());
+    insert_arr(
+        &mut data,
+        "related",
+        parse_links_csv(related).unwrap_or_default(),
+    );
     insert_str(&mut data, "created_at", now_iso());
     insert_str(&mut data, "updated_at", now_iso());
     let body = format!("# Report {id}\n\n{summary}\n");
@@ -589,7 +636,12 @@ pub fn update_report(
     if !allowed.contains(&status) {
         return Err(Error::new(format!("invalid report status {status}")));
     }
-    if status == "fixed" && resolution.map(str::trim).filter(|v| !v.is_empty()).is_none() {
+    if status == "fixed"
+        && resolution
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .is_none()
+    {
         return Err(Error::new("fixed reports require --resolution"));
     }
     let id = sanitize_entity_id(id)?;
@@ -598,8 +650,16 @@ pub fn update_report(
     let mut data = file.data.clone();
     insert_str(&mut data, "type", "report");
     insert_str(&mut data, "status", status);
-    if let Some(resolution) = resolution { insert_str(&mut data, "resolution", resolution); }
-    if let Some(related) = related { insert_arr(&mut data, "related", parse_links_csv(Some(related)).unwrap_or_default()); }
+    if let Some(resolution) = resolution {
+        insert_str(&mut data, "resolution", resolution);
+    }
+    if let Some(related) = related {
+        insert_arr(
+            &mut data,
+            "related",
+            parse_links_csv(Some(related)).unwrap_or_default(),
+        );
+    }
     insert_str(&mut data, "updated_at", now_iso());
     let written = write_entity_file(project_root, &file.relative_path, &data, &file.body)?;
     maybe_reindex(project_root)?;
@@ -629,7 +689,8 @@ pub fn get_entity(project_root: &Path, id_or_path: &str) -> Result<Option<Entity
 }
 
 pub fn fm_to_yaml(data: &Frontmatter) -> String {
-    crate::domain::frontmatter::serialize_entity_file(data, "").replace("---\n", "")
+    crate::domain::frontmatter::serialize_entity_file(data, "")
+        .replace("---\n", "")
         .trim_end_matches("---\n")
         .to_string()
 }
@@ -646,7 +707,9 @@ pub fn fm_json(data: &Frontmatter) -> serde_json::Value {
                 FmValue::Float(n) => serde_json::json!(*n),
                 FmValue::Str(s) => serde_json::Value::String(s.clone()),
                 FmValue::Arr(a) => serde_json::Value::Array(
-                    a.iter().map(|s| serde_json::Value::String(s.clone())).collect(),
+                    a.iter()
+                        .map(|s| serde_json::Value::String(s.clone()))
+                        .collect(),
                 ),
             },
         );

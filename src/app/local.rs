@@ -22,10 +22,15 @@ fn now() -> String {
 
 fn append(project_root: &Path, kind: &str, mut value: Value) -> Result<Value> {
     fs::create_dir_all(local_dir(project_root))?;
-    let id = format!("{}-{}", kind.to_ascii_uppercase(), chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default());
+    let id = format!(
+        "{}-{}",
+        kind.to_ascii_uppercase(),
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+    );
     if let Value::Object(ref mut map) = value {
         map.entry("id").or_insert_with(|| Value::String(id));
-        map.entry("created_at").or_insert_with(|| Value::String(now()));
+        map.entry("created_at")
+            .or_insert_with(|| Value::String(now()));
     } else {
         return Err(Error::new("local record must be a JSON object"));
     }
@@ -45,7 +50,10 @@ pub fn append_worklog(project_root: &Path, value: Value) -> Result<Value> {
 }
 
 pub fn upsert_tool(project_root: &Path, value: Value) -> Result<Value> {
-    let name = value.get("name").and_then(|v| v.as_str()).ok_or_else(|| Error::new("tool name is required"))?;
+    let name = value
+        .get("name")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| Error::new("tool name is required"))?;
     let mut records = read_records(project_root, "tools")?;
     records.retain(|item| item.get("name").and_then(|v| v.as_str()) != Some(name));
     let mut next = value;
@@ -96,17 +104,49 @@ fn write_records(project_root: &Path, kind: &str, records: &[Value]) -> Result<(
         .map(serde_json::to_string)
         .collect::<std::result::Result<Vec<_>, _>>()?
         .join("\n");
-    atomic_write(&file_for(project_root, kind), &if payload.is_empty() { String::new() } else { format!("{payload}\n") })
+    atomic_write(
+        &file_for(project_root, kind),
+        &if payload.is_empty() {
+            String::new()
+        } else {
+            format!("{payload}\n")
+        },
+    )
 }
 
 pub fn score_trace(record: &Value) -> Value {
     let mut score = 0u8;
     let mut missing = Vec::new();
-    let summary_ok = record.get("task_summary").and_then(|v| v.as_str()).is_some_and(|s| s.trim().chars().count() >= 10);
-    if summary_ok { score += 1 } else { missing.push("task_summary") }
-    if record.get("outcome").and_then(|v| v.as_str()).is_some_and(|s| !s.trim().is_empty()) { score += 1 } else { missing.push("outcome") }
-    for field in ["agent", "actions_taken", "files_read", "files_changed", "harness_friction"] {
-        if record.get(field).is_some() { score += 1; } else { missing.push(field); }
+    let summary_ok = record
+        .get("task_summary")
+        .and_then(|v| v.as_str())
+        .is_some_and(|s| s.trim().chars().count() >= 10);
+    if summary_ok {
+        score += 1
+    } else {
+        missing.push("task_summary")
+    }
+    if record
+        .get("outcome")
+        .and_then(|v| v.as_str())
+        .is_some_and(|s| !s.trim().is_empty())
+    {
+        score += 1
+    } else {
+        missing.push("outcome")
+    }
+    for field in [
+        "agent",
+        "actions_taken",
+        "files_read",
+        "files_changed",
+        "harness_friction",
+    ] {
+        if record.get(field).is_some() {
+            score += 1;
+        } else {
+            missing.push(field);
+        }
     }
     json!({"score": score, "tier": if score >= 7 { "detailed" } else if score >= 4 { "standard" } else { "minimal" }, "missing": missing})
 }
@@ -114,14 +154,22 @@ pub fn score_trace(record: &Value) -> Value {
 pub fn latest_trace(project_root: &Path, id: Option<&str>) -> Result<Option<Value>> {
     let records = read_records(project_root, "traces")?;
     Ok(match id {
-        Some(id) => records.into_iter().find(|v| v.get("id").and_then(|x| x.as_str()) == Some(id)),
+        Some(id) => records
+            .into_iter()
+            .find(|v| v.get("id").and_then(|x| x.as_str()) == Some(id)),
         None => records.into_iter().last(),
     })
 }
 
 pub fn git_commits(project_root: &Path, limit: usize) -> Result<Vec<Value>> {
     let output = Command::new("git")
-        .args(["-C", &project_root.to_string_lossy(), "log", &format!("-{limit}"), "--pretty=format:%H%x09%s"])
+        .args([
+            "-C",
+            &project_root.to_string_lossy(),
+            "log",
+            &format!("-{limit}"),
+            "--pretty=format:%H%x09%s",
+        ])
         .output()?;
     if !output.status.success() {
         return Err(Error::new("git log failed while creating worklog"));

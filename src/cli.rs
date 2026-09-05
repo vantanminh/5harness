@@ -3,25 +3,35 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use clap::{ArgAction, Args, CommandFactory, Parser, Subcommand};
-use clap_complete::{generate, shells::{Bash, PowerShell, Zsh}};
+use clap_complete::{
+    generate,
+    shells::{Bash, PowerShell, Zsh},
+};
 
 use crate::app::durable::{
     add_backlog, add_decision, add_intake, add_report, add_story, close_backlog, get_entity,
-    record_decision_verification, record_story_verification, update_decision, update_intake, update_report, update_story, StoryUpdate,
+    record_decision_verification, record_story_verification, update_decision, update_intake,
+    update_report, update_story, StoryUpdate,
 };
 use crate::app::index::{
-    ensure_index, format_links_view, format_search_hits, links_for, search_index, write_project_index,
+    ensure_index, format_links_view, format_search_hits, links_for, search_index,
+    write_project_index,
 };
 use crate::app::init::{run_init, run_migrate};
 use crate::app::link::{link_project, list_projects, read_project_id, unlink_project};
-use crate::app::local::{append_trace, append_worklog, git_commits, latest_trace, read_records, remove_tool, score_trace, upsert_tool};
+use crate::app::local::{
+    append_trace, append_worklog, git_commits, latest_trace, read_records, remove_tool,
+    score_trace, upsert_tool,
+};
 use crate::app::project_link;
-use crate::infra::entities::MutationLock;
 use crate::app::query::{query_view, query_view_json};
-use crate::app::status::{doctor_json, format_doctor, format_handoff, format_status, next_items, status_json};
+use crate::app::status::{
+    doctor_json, format_doctor, format_handoff, format_status, next_items, status_json,
+};
 use crate::domain::frontmatter::as_string;
 use crate::domain::paths::resolve_target_dir;
 use crate::error::{Error, Result};
+use crate::infra::entities::MutationLock;
 use crate::VERSION;
 
 #[derive(Parser, Debug)]
@@ -578,9 +588,20 @@ enum DashboardCmd {
 
 #[derive(Subcommand, Debug)]
 enum DocsCmd {
-    Search { query: String, #[arg(long = "json")] json: bool },
-    List { #[arg(long = "json")] json: bool },
-    Read { path: String, #[arg(long = "json")] json: bool },
+    Search {
+        query: String,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    List {
+        #[arg(long = "json")]
+        json: bool,
+    },
+    Read {
+        path: String,
+        #[arg(long = "json")]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -806,9 +827,24 @@ enum QueryCmd {
         #[arg(long = "json")]
         json: bool,
     },
-    Intakes { #[command(flatten)] dir: DirOpts, #[arg(long = "json")] json: bool },
-    Decisions { #[command(flatten)] dir: DirOpts, #[arg(long = "json")] json: bool },
-    Stories { #[command(flatten)] dir: DirOpts, #[arg(long = "json")] json: bool },
+    Intakes {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    Decisions {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    Stories {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "json")]
+        json: bool,
+    },
     Backlog {
         #[command(flatten)]
         dir: DirOpts,
@@ -819,9 +855,24 @@ enum QueryCmd {
         #[arg(long = "json")]
         json: bool,
     },
-    Traces { #[command(flatten)] dir: DirOpts, #[arg(long = "json")] json: bool },
-    Reports { #[command(flatten)] dir: DirOpts, #[arg(long = "json")] json: bool },
-    Tools { #[command(flatten)] dir: DirOpts, #[arg(long = "json")] json: bool },
+    Traces {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    Reports {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    Tools {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "json")]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -838,7 +889,12 @@ enum WorklogCmd {
         #[arg(long = "commit")]
         commit: Option<String>,
     },
-    List { #[command(flatten)] dir: DirOpts, #[arg(long = "json")] json: bool },
+    List {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "json")]
+        json: bool,
+    },
     FromGit {
         #[command(flatten)]
         dir: DirOpts,
@@ -869,13 +925,34 @@ enum ToolCmd {
         #[arg(long = "json")]
         json: bool,
     },
-    Check { #[command(flatten)] dir: DirOpts, #[arg(long = "name")] name: Option<String>, #[arg(long = "json")] json: bool },
-    Remove { #[command(flatten)] dir: DirOpts, #[arg(long = "name")] name: String, #[arg(long = "json")] json: bool },
+    Check {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "name")]
+        name: Option<String>,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    Remove {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "name")]
+        name: String,
+        #[arg(long = "json")]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
 enum ExportCmd {
-    Changelog { #[command(flatten)] dir: DirOpts, #[arg(long = "since")] since: Option<String>, #[arg(long = "json")] json: bool },
+    Changelog {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "since")]
+        since: Option<String>,
+        #[arg(long = "json")]
+        json: bool,
+    },
 }
 
 pub fn run() -> Result<()> {
@@ -1143,6 +1220,7 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
             ty,
             json,
         } => {
+            if query.trim().is_empty() { return Err(Error::new("search query must not be empty")); }
             let target = dir.path(None, cwd);
             let index = ensure_index(&target)?;
             let hits = search_index(&index, &query, limit, ty.as_deref());
@@ -1405,8 +1483,9 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
             let target = dir.path(None, cwd);
             let file = get_entity(&target, &id)?
                 .ok_or_else(|| Error::new(format!("Entity not found: {id}")))?;
-            let depth = depth.unwrap_or(1).min(3);
-            let max_chars = max_chars.unwrap_or(12_000).max(256);
+            let depth = depth.unwrap_or(1);
+            if depth > 1 { return Err(Error::new("context --depth must be 0 or 1")); }
+            let max_chars = max_chars.unwrap_or(12_000).min(100_000);
             let entity_id = as_string(&file.data, "id").unwrap_or(id.clone());
             let index = ensure_index(&target)?;
             let links = crate::app::index::links_for(&index, &entity_id);
@@ -1604,38 +1683,92 @@ fn story_cmd(cmd: StoryCmd, cwd: &Path) -> Result<()> {
             println!("  file: {}", file.relative_path);
             Ok(())
         }
-        StoryCmd::Start { id, dir, id_flag, evidence } => {
-            lifecycle(cwd, &dir, id.or(id_flag), "in_progress", "started", evidence, None)
-        }
-        StoryCmd::Done { id, dir, id_flag, evidence } => {
-            lifecycle(cwd, &dir, id.or(id_flag), "implemented", "done", evidence, None)
-        }
-        StoryCmd::Block { id, dir, id_flag, reason } => {
-            lifecycle(cwd, &dir, id.or(id_flag), "blocked", "blocked", None, reason)
-        }
+        StoryCmd::Start {
+            id,
+            dir,
+            id_flag,
+            evidence,
+        } => lifecycle(
+            cwd,
+            &dir,
+            id.or(id_flag),
+            "in_progress",
+            "started",
+            evidence,
+            None,
+        ),
+        StoryCmd::Done {
+            id,
+            dir,
+            id_flag,
+            evidence,
+        } => lifecycle(
+            cwd,
+            &dir,
+            id.or(id_flag),
+            "implemented",
+            "done",
+            evidence,
+            None,
+        ),
+        StoryCmd::Block {
+            id,
+            dir,
+            id_flag,
+            reason,
+        } => lifecycle(
+            cwd,
+            &dir,
+            id.or(id_flag),
+            "blocked",
+            "blocked",
+            None,
+            reason,
+        ),
         StoryCmd::Verify { id, dir, id_flag } => {
-            let id = id.or(id_flag).ok_or_else(|| Error::new("story verify requires an entity id"))?;
+            let id = id
+                .or(id_flag)
+                .ok_or_else(|| Error::new("story verify requires an entity id"))?;
             let target = dir.path(None, cwd);
-            let file = get_entity(&target, &id)?.ok_or_else(|| Error::new(format!("Story {id} not found")))?;
-            let command = as_string(&file.data, "verify").ok_or_else(|| Error::new(format!("Story {id} has no verify command")))?;
+            let file = get_entity(&target, &id)?
+                .ok_or_else(|| Error::new(format!("Story {id} not found")))?;
+            let command = as_string(&file.data, "verify")
+                .ok_or_else(|| Error::new(format!("Story {id} has no verify command")))?;
             let (passed, output) = run_verify_command(&command, &target);
             record_story_verification(&target, &id, passed, &output)?;
-            println!("Story {id} verification: {}", if passed { "passed" } else { "failed" });
-            if passed { Ok(()) } else { Err(Error::new(format!("story verification failed: {output}"))) }
+            println!(
+                "Story {id} verification: {}",
+                if passed { "passed" } else { "failed" }
+            );
+            if passed {
+                Ok(())
+            } else {
+                Err(Error::new(format!("story verification failed: {output}")))
+            }
         }
         StoryCmd::VerifyAll { dir } => {
             let target = dir.path(None, cwd);
             let files = crate::infra::entities::list_entity_files(&target, "story")?;
             let mut failures = 0;
             for file in files {
-                let Some(id) = as_string(&file.data, "id") else { continue };
-                let Some(command) = as_string(&file.data, "verify") else { continue };
+                let Some(id) = as_string(&file.data, "id") else {
+                    continue;
+                };
+                let Some(command) = as_string(&file.data, "verify") else {
+                    continue;
+                };
                 let (passed, output) = run_verify_command(&command, &target);
                 record_story_verification(&target, &id, passed, &output)?;
                 println!("Story {id}: {}", if passed { "passed" } else { "failed" });
-                if !passed { failures += 1; }
+                if !passed {
+                    failures += 1;
+                }
             }
-            if failures == 0 { Ok(()) } else { Err(Error::new(format!("{failures} story verifications failed"))) }
+            if failures == 0 {
+                Ok(())
+            } else {
+                Err(Error::new(format!("{failures} story verifications failed")))
+            }
         }
     }
 }
@@ -1648,7 +1781,11 @@ fn report_cmd(cmd: ReportCmd, cwd: &Path) -> Result<()> {
             project_link::ensure_peer_write_allowed(&peer_root)?;
             let from = read_project_id(&target).ok();
             let (file, id) = add_report(&peer_root, &summary, None, from.as_deref(), None)?;
-            println!("Report {id} added to {}.\n  file: {}", peer_root.display(), file.relative_path);
+            println!(
+                "Report {id} added to {}.\n  file: {}",
+                peer_root.display(),
+                file.relative_path
+            );
             Ok(())
         }
         ReportCmd::List { dir, json, status } => {
@@ -1656,7 +1793,9 @@ fn report_cmd(cmd: ReportCmd, cwd: &Path) -> Result<()> {
             let mut values = Vec::new();
             for file in crate::infra::entities::list_entity_files(&target, "report")? {
                 let current = as_string(&file.data, "status").unwrap_or_default();
-                if status.as_deref().is_some_and(|filter| filter != current) { continue; }
+                if status.as_deref().is_some_and(|filter| filter != current) {
+                    continue;
+                }
                 values.push(serde_json::json!({
                     "id": as_string(&file.data, "id"),
                     "status": current,
@@ -1666,21 +1805,56 @@ fn report_cmd(cmd: ReportCmd, cwd: &Path) -> Result<()> {
                     "path": file.relative_path,
                 }));
             }
-            if json { println!("{}", serde_json::to_string_pretty(&values)?); }
-            else { for value in values { println!("{}  {}  {}", value["id"].as_str().unwrap_or(""), value["status"].as_str().unwrap_or(""), value["summary"].as_str().unwrap_or("")); } }
+            if json {
+                println!("{}", serde_json::to_string_pretty(&values)?);
+            } else {
+                for value in values {
+                    println!(
+                        "{}  {}  {}",
+                        value["id"].as_str().unwrap_or(""),
+                        value["status"].as_str().unwrap_or(""),
+                        value["summary"].as_str().unwrap_or("")
+                    );
+                }
+            }
             Ok(())
         }
         ReportCmd::Get { id, dir, from } => {
             let target = dir.path(None, cwd);
-            let root = if let Some(selector) = from { project_link::resolve_peer(&target, Some(&selector), None)? } else { target };
-            let file = get_entity(&root, &id)?.ok_or_else(|| Error::new(format!("Report {id} not found")))?;
-            println!("{}", serde_json::to_string_pretty(&serde_json::json!({"id":id,"path":file.relative_path,"frontmatter":crate::app::durable::fm_json(&file.data),"body":file.body}))?);
+            let root = if let Some(selector) = from {
+                project_link::resolve_peer(&target, Some(&selector), None)?
+            } else {
+                target
+            };
+            let file = get_entity(&root, &id)?
+                .ok_or_else(|| Error::new(format!("Report {id} not found")))?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &serde_json::json!({"id":id,"path":file.relative_path,"frontmatter":crate::app::durable::fm_json(&file.data),"body":file.body})
+                )?
+            );
             Ok(())
         }
-        ReportCmd::Update { dir, id, status, resolution, related } => {
+        ReportCmd::Update {
+            dir,
+            id,
+            status,
+            resolution,
+            related,
+        } => {
             let target = dir.path(None, cwd);
-            let file = update_report(&target, &id, &status, resolution.as_deref(), related.as_deref())?;
-            println!("Report {id} updated.\n  status: {}", as_string(&file.data, "status").unwrap_or_default());
+            let file = update_report(
+                &target,
+                &id,
+                &status,
+                resolution.as_deref(),
+                related.as_deref(),
+            )?;
+            println!(
+                "Report {id} updated.\n  status: {}",
+                as_string(&file.data, "status").unwrap_or_default()
+            );
             Ok(())
         }
     }
@@ -1688,39 +1862,88 @@ fn report_cmd(cmd: ReportCmd, cwd: &Path) -> Result<()> {
 
 fn peer_cmd(cmd: PeerCmd, cwd: &Path) -> Result<()> {
     match cmd {
-        PeerCmd::Search { query, dir, peer, role, limit, json } => {
+        PeerCmd::Search {
+            query,
+            dir,
+            peer,
+            role,
+            limit,
+            json,
+        } => {
             let local = dir.path(None, cwd);
             let root = project_link::resolve_peer(&local, peer.as_deref(), role.as_deref())?;
             let index = ensure_index(&root)?;
             let hits = search_index(&index, &query, limit, None);
-            if json { println!("{}", serde_json::to_string_pretty(&hits)?); } else { println!("{}", format_search_hits(&hits)); }
+            if json {
+                println!("{}", serde_json::to_string_pretty(&hits)?);
+            } else {
+                println!("{}", format_search_hits(&hits));
+            }
             Ok(())
         }
-        PeerCmd::Get { id_or_path, dir, peer, role, summary, json } => {
+        PeerCmd::Get {
+            id_or_path,
+            dir,
+            peer,
+            role,
+            summary,
+            json,
+        } => {
             let local = dir.path(None, cwd);
             let root = project_link::resolve_peer(&local, peer.as_deref(), role.as_deref())?;
-            let file = get_entity(&root, &id_or_path)?.ok_or_else(|| Error::new(format!("Peer entity not found: {id_or_path}")))?;
+            let file = get_entity(&root, &id_or_path)?
+                .ok_or_else(|| Error::new(format!("Peer entity not found: {id_or_path}")))?;
             let value = serde_json::json!({"id":as_string(&file.data,"id").unwrap_or(id_or_path),"path":file.relative_path,"frontmatter":crate::app::durable::fm_json(&file.data),"body":if summary { serde_json::Value::Null } else { serde_json::Value::String(file.body) }});
-            if json { println!("{}", serde_json::to_string_pretty(&value)?); } else { println!("{}", value["body"].as_str().unwrap_or("")); }
+            if json {
+                println!("{}", serde_json::to_string_pretty(&value)?);
+            } else {
+                println!("{}", value["body"].as_str().unwrap_or(""));
+            }
             Ok(())
         }
-        PeerCmd::Context { id, dir, peer, role, depth: _, max_chars, json } => {
+        PeerCmd::Context {
+            id,
+            dir,
+            peer,
+            role,
+            depth,
+            max_chars,
+            json,
+        } => {
+            if depth.unwrap_or(1) > 1 {
+                return Err(Error::new("peer context --depth must be 0 or 1"));
+            }
             let local = dir.path(None, cwd);
             let root = project_link::resolve_peer(&local, peer.as_deref(), role.as_deref())?;
-            let file = get_entity(&root, &id)?.ok_or_else(|| Error::new(format!("Peer entity not found: {id}")))?;
+            let file = get_entity(&root, &id)?
+                .ok_or_else(|| Error::new(format!("Peer entity not found: {id}")))?;
             let index = ensure_index(&root)?;
             let entity_id = as_string(&file.data, "id").unwrap_or(id);
-            let body = truncate_chars(&file.body, max_chars.unwrap_or(12_000).max(256));
+            let body = truncate_chars(&file.body, max_chars.unwrap_or(12_000).min(100_000));
             let value = serde_json::json!({"id":entity_id,"path":file.relative_path,"frontmatter":crate::app::durable::fm_json(&file.data),"body":body,"links":crate::app::index::links_for(&index,&entity_id)});
-            if json { println!("{}", serde_json::to_string_pretty(&value)?); } else { println!("{}", body); }
+            if json {
+                println!("{}", serde_json::to_string_pretty(&value)?);
+            } else {
+                println!("{}", body);
+            }
             Ok(())
         }
-        PeerCmd::Links { id, dir, peer, role, json } => {
+        PeerCmd::Links {
+            id,
+            dir,
+            peer,
+            role,
+            json,
+        } => {
             let local = dir.path(None, cwd);
             let root = project_link::resolve_peer(&local, peer.as_deref(), role.as_deref())?;
             let index = ensure_index(&root)?;
             let value = crate::app::index::links_for(&index, &id);
-            if json { println!("{}", serde_json::to_string_pretty(&value)?); } else { println!("{}", crate::app::index::format_links_view(&value)); }
+            if json {
+                println!("{}", serde_json::to_string_pretty(&value)?);
+            } else {
+                println!("{}", crate::app::index::format_links_view(&value));
+            }
             Ok(())
         }
     }
@@ -1819,14 +2042,27 @@ fn decision_cmd(cmd: DecisionCmd, cwd: &Path) -> Result<()> {
             Ok(())
         }
         DecisionCmd::Verify { id, dir, id_flag } => {
-            let id = id.or(id_flag).ok_or_else(|| Error::new("decision verify requires an entity id"))?;
+            let id = id
+                .or(id_flag)
+                .ok_or_else(|| Error::new("decision verify requires an entity id"))?;
             let target = dir.path(None, cwd);
-            let file = get_entity(&target, &id)?.ok_or_else(|| Error::new(format!("Decision {id} not found")))?;
-            let command = as_string(&file.data, "verify").ok_or_else(|| Error::new(format!("Decision {id} has no verify command")))?;
+            let file = get_entity(&target, &id)?
+                .ok_or_else(|| Error::new(format!("Decision {id} not found")))?;
+            let command = as_string(&file.data, "verify")
+                .ok_or_else(|| Error::new(format!("Decision {id} has no verify command")))?;
             let (passed, output) = run_verify_command(&command, &target);
             record_decision_verification(&target, &id, passed, &output)?;
-            println!("Decision {id} verification: {}", if passed { "passed" } else { "failed" });
-            if passed { Ok(()) } else { Err(Error::new(format!("decision verification failed: {output}"))) }
+            println!(
+                "Decision {id} verification: {}",
+                if passed { "passed" } else { "failed" }
+            );
+            if passed {
+                Ok(())
+            } else {
+                Err(Error::new(format!(
+                    "decision verification failed: {output}"
+                )))
+            }
         }
     }
 }
@@ -1838,7 +2074,12 @@ fn query_cmd(cmd: QueryCmd, cwd: &Path) -> Result<()> {
         QueryCmd::Intakes { dir, json } => ("intakes", dir, json, false, false, false),
         QueryCmd::Decisions { dir, json } => ("decisions", dir, json, false, false, false),
         QueryCmd::Stories { dir, json } => ("stories", dir, json, false, false, false),
-        QueryCmd::Backlog { dir, open, closed, json } => ("backlog", dir, json, false, open, closed),
+        QueryCmd::Backlog {
+            dir,
+            open,
+            closed,
+            json,
+        } => ("backlog", dir, json, false, open, closed),
         QueryCmd::Traces { dir, json } => ("traces", dir, json, false, false, false),
         QueryCmd::Reports { dir, json } => ("reports", dir, json, false, false, false),
         QueryCmd::Tools { dir, json } => ("tools", dir, json, false, false, false),
@@ -1851,7 +2092,11 @@ fn query_cmd(cmd: QueryCmd, cwd: &Path) -> Result<()> {
                 let wanted_open = open && !closed;
                 items.retain(|item| {
                     let status = item.get("status").and_then(|v| v.as_str()).unwrap_or("");
-                    if wanted_open { status == "proposed" || status == "accepted" } else { status == "implemented" || status == "rejected" }
+                    if wanted_open {
+                        status == "proposed" || status == "accepted"
+                    } else {
+                        status == "implemented" || status == "rejected"
+                    }
                 });
             }
         }
@@ -1910,7 +2155,9 @@ fn docs_cmd(cmd: DocsCmd) -> Result<()> {
                 .canonicalize()
                 .map_err(|e| Error::new(format!("documentation file not found: {path}: {e}")))?;
             if !canonical.starts_with(&root) {
-                return Err(Error::new(format!("Documentation path escapes package docs: {path}")));
+                return Err(Error::new(format!(
+                    "Documentation path escapes package docs: {path}"
+                )));
             }
             let text = fs::read_to_string(&full)?;
             if json {
@@ -1924,10 +2171,18 @@ fn docs_cmd(cmd: DocsCmd) -> Result<()> {
 }
 
 fn collect_md(root: &Path, dir: &Path, out: &mut Vec<String>) {
-    let Ok(entries) = fs::read_dir(dir) else { return };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
     for e in entries.flatten() {
         let p = e.path();
-        if p.is_dir() {
+        let Ok(file_type) = e.file_type() else {
+            continue;
+        };
+        if file_type.is_symlink() {
+            continue;
+        }
+        if file_type.is_dir() {
             collect_md(root, &p, out);
         } else if p.extension().and_then(|s| s.to_str()) == Some("md") {
             if let Ok(rel) = p.strip_prefix(root) {
@@ -1938,13 +2193,17 @@ fn collect_md(root: &Path, dir: &Path, out: &mut Vec<String>) {
 }
 
 fn truncate_chars(text: &str, max_chars: usize) -> String {
-    let mut chars = text.chars();
-    let body: String = chars.by_ref().take(max_chars).collect();
-    if chars.next().is_some() {
-        format!("{body}\n… [truncated]")
-    } else {
-        body
+    let all: Vec<char> = text.chars().collect();
+    if all.len() <= max_chars {
+        return text.to_string();
     }
+    let marker: Vec<char> = "… [truncated]".chars().collect();
+    if max_chars <= marker.len() {
+        return marker.into_iter().take(max_chars).collect();
+    }
+    let mut output: String = all.into_iter().take(max_chars - marker.len()).collect();
+    output.extend(marker);
+    output
 }
 
 fn csv_json(value: Option<String>) -> serde_json::Value {
@@ -1961,14 +2220,24 @@ fn csv_json(value: Option<String>) -> serde_json::Value {
 
 fn run_verify_command(command: &str, project_root: &Path) -> (bool, String) {
     #[cfg(unix)]
-    let result = std::process::Command::new("sh").arg("-c").arg(command).current_dir(project_root).output();
+    let result = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(command)
+        .current_dir(project_root)
+        .output();
     #[cfg(windows)]
-    let result = std::process::Command::new("cmd").args(["/C", command]).current_dir(project_root).output();
+    let result = std::process::Command::new("cmd")
+        .args(["/C", command])
+        .current_dir(project_root)
+        .output();
     match result {
         Ok(output) => {
             let mut text = String::from_utf8_lossy(&output.stdout).to_string();
             text.push_str(&String::from_utf8_lossy(&output.stderr));
-            (output.status.success(), text.trim().chars().take(2_000).collect())
+            (
+                output.status.success(),
+                text.trim().chars().take(2_000).collect(),
+            )
         }
         Err(err) => (false, err.to_string()),
     }
@@ -1978,7 +2247,9 @@ fn entity_mtime_fingerprint(project_root: &Path) -> u128 {
     let mut latest = 0u128;
     for ty in crate::domain::entities::ENTITY_TYPES {
         let dir = project_root.join(crate::domain::entities::entity_dir(ty).unwrap_or(""));
-        let Ok(entries) = fs::read_dir(dir) else { continue };
+        let Ok(entries) = fs::read_dir(dir) else {
+            continue;
+        };
         for entry in entries.flatten() {
             if let Ok(modified) = entry.metadata().and_then(|m| m.modified()) {
                 if let Ok(age) = modified.duration_since(std::time::UNIX_EPOCH) {

@@ -13,10 +13,7 @@ fn run(args: &[&str], cwd: Option<&Path>) -> std::process::Output {
         cmd.current_dir(cwd);
     }
     cmd.env("HARNESS_NO_UPDATE_CHECK", "1");
-    let home = std::env::temp_dir().join(format!(
-        "harness-home-{}",
-        std::process::id()
-    ));
+    let home = std::env::temp_dir().join(format!("harness-home-{}", std::process::id()));
     let _ = fs::create_dir_all(&home);
     cmd.env("HARNESS_HOME", &home);
     cmd.output().expect("spawn harness")
@@ -65,7 +62,11 @@ fn init_then_intake_story_decision_backlog_query_search_get() {
         ],
         None,
     );
-    assert!(intake.status.success(), "{}", stderr(&intake) + &stdout(&intake));
+    assert!(
+        intake.status.success(),
+        "{}",
+        stderr(&intake) + &stdout(&intake)
+    );
     assert!(
         stdout(&intake).contains("Intake IN-001"),
         "{}",
@@ -74,7 +75,15 @@ fn init_then_intake_story_decision_backlog_query_search_get() {
 
     let story_add = run(
         &[
-            "story", "add", "--dir", d, "--id", "US-100", "--title", "Phase B story", "--lane",
+            "story",
+            "add",
+            "--dir",
+            d,
+            "--id",
+            "US-100",
+            "--title",
+            "Phase B story",
+            "--lane",
             "normal",
         ],
         None,
@@ -151,15 +160,31 @@ fn init_then_intake_story_decision_backlog_query_search_get() {
     );
 
     let matrix = run(&["query", "matrix", "--dir", d], None);
-    assert!(matrix.status.success(), "{}", stderr(&matrix) + &stdout(&matrix));
+    assert!(
+        matrix.status.success(),
+        "{}",
+        stderr(&matrix) + &stdout(&matrix)
+    );
     assert!(stdout(&matrix).contains("US-100"), "{}", stdout(&matrix));
 
     let stats = run(&["query", "stats", "--dir", d], None);
-    assert!(stats.status.success(), "{}", stderr(&stats) + &stdout(&stats));
-    assert!(stdout(&stats).contains("Harness Stats"), "{}", stdout(&stats));
+    assert!(
+        stats.status.success(),
+        "{}",
+        stderr(&stats) + &stdout(&stats)
+    );
+    assert!(
+        stdout(&stats).contains("Harness Stats"),
+        "{}",
+        stdout(&stats)
+    );
 
     let search = run(&["search", "Phase B", "--dir", d], None);
-    assert!(search.status.success(), "{}", stderr(&search) + &stdout(&search));
+    assert!(
+        search.status.success(),
+        "{}",
+        stderr(&search) + &stdout(&search)
+    );
     assert!(
         stdout(&search).contains("US-100") || stdout(&search).contains("Phase B"),
         "{}",
@@ -191,26 +216,61 @@ fn mutations_are_serialized_and_paths_are_contained() {
         let path = dir.clone();
         workers.push(std::thread::spawn(move || {
             run(
-                &["intake", "--dir", path.to_str().unwrap(), "--type", "spec_slice", "--summary", &format!("parallel intake {n}"), "--lane", "normal"],
+                &[
+                    "intake",
+                    "--dir",
+                    path.to_str().unwrap(),
+                    "--type",
+                    "spec_slice",
+                    "--summary",
+                    &format!("parallel intake {n}"),
+                    "--lane",
+                    "normal",
+                ],
                 None,
             )
         }));
     }
     for worker in workers {
         let result = worker.join().unwrap();
-        assert!(result.status.success(), "{}", stderr(&result) + &stdout(&result));
+        assert!(
+            result.status.success(),
+            "{}",
+            stderr(&result) + &stdout(&result)
+        );
     }
-    let files = fs::read_dir(dir.join("docs/intakes")).unwrap().filter_map(|entry| entry.ok()).filter(|entry| entry.file_name().to_string_lossy().starts_with("IN-")).count();
+    let files = fs::read_dir(dir.join("docs/intakes"))
+        .unwrap()
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with("IN-"))
+        .count();
     assert_eq!(files, 8);
 
     let secret_name = format!("{}-secret.md", dir.file_name().unwrap().to_string_lossy());
-    let outside = dir.parent().unwrap().join(format!("{}-outside.md", dir.file_name().unwrap().to_string_lossy()));
+    let outside = dir.parent().unwrap().join(format!(
+        "{}-outside.md",
+        dir.file_name().unwrap().to_string_lossy()
+    ));
     let secret = dir.parent().unwrap().join(&secret_name);
     fs::write(&secret, "secret").unwrap();
     let relative = format!("../{secret_name}");
     let read = run(&["get", relative.as_str(), "--dir", d], None);
     assert!(!read.status.success());
-    let write = run(&["decision", "add", "--dir", d, "--id", "ESC", "--title", "escape", "--doc", outside.to_str().unwrap()], None);
+    let write = run(
+        &[
+            "decision",
+            "add",
+            "--dir",
+            d,
+            "--id",
+            "ESC",
+            "--title",
+            "escape",
+            "--doc",
+            outside.to_str().unwrap(),
+        ],
+        None,
+    );
     assert!(!write.status.success());
     assert!(!outside.exists());
     let _ = fs::remove_file(secret);
@@ -221,19 +281,56 @@ fn agent_json_views_are_structured_and_errors_are_machine_readable() {
     let dir = tmp("harness-json-hardening-");
     let d = dir.to_str().unwrap();
     assert!(run(&["init", d], None).status.success());
-    assert!(run(&["story", "add", "--dir", d, "--id", "US-JSON", "--title", "JSON story", "--lane", "normal"], None).status.success());
+    assert!(run(
+        &[
+            "story",
+            "add",
+            "--dir",
+            d,
+            "--id",
+            "US-JSON",
+            "--title",
+            "JSON story",
+            "--lane",
+            "normal"
+        ],
+        None
+    )
+    .status
+    .success());
     let stories = run(&["query", "stories", "--dir", d, "--json"], None);
     let parsed: serde_json::Value = serde_json::from_slice(&stories.stdout).unwrap();
     assert_eq!(parsed.as_array().unwrap().len(), 1);
     let next = run(&["next", "--dir", d, "--limit", "1", "--json"], None);
-    assert_eq!(serde_json::from_slice::<serde_json::Value>(&next.stdout).unwrap().as_array().unwrap().len(), 1);
-    let context = run(&["context", "US-JSON", "--dir", d, "--max-chars", "8", "--json"], None);
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&next.stdout)
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    let context = run(
+        &[
+            "context",
+            "US-JSON",
+            "--dir",
+            d,
+            "--max-chars",
+            "8",
+            "--json",
+        ],
+        None,
+    );
     let context_json: serde_json::Value = serde_json::from_slice(&context.stdout).unwrap();
     assert!(context_json.get("links").is_some());
     let mut cmd = std::process::Command::new(bin());
     cmd.args(["get", "NOPE", "--dir", d, "--json"])
         .env("HARNESS_JSON_ERRORS", "1")
-        .env("HARNESS_HOME", std::env::temp_dir().join(format!("harness-home-json-{}", std::process::id())));
+        .env(
+            "HARNESS_HOME",
+            std::env::temp_dir().join(format!("harness-home-json-{}", std::process::id())),
+        );
     let error = cmd.output().unwrap();
     assert!(!error.status.success());
     let value: serde_json::Value = serde_json::from_slice(&error.stderr).unwrap();

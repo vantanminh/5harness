@@ -40,9 +40,18 @@ fn all_native_install_scripts_exist_and_support_local_artifacts() {
         let path = root().join("install").join(name);
         assert!(path.is_file(), "{}", path.display());
         let text = fs::read_to_string(&path).unwrap();
-        assert!(text.contains("HARNESS_INSTALL_FROM"), "{name} lacks offline install support");
-        assert!(text.contains("HARNESS_INSTALL_PREFIX"), "{name} lacks configurable prefix");
-        assert!(text.contains("--version"), "{name} lacks post-install smoke check");
+        assert!(
+            text.contains("HARNESS_INSTALL_FROM"),
+            "{name} lacks offline install support"
+        );
+        assert!(
+            text.contains("HARNESS_INSTALL_PREFIX"),
+            "{name} lacks configurable prefix"
+        );
+        assert!(
+            text.contains("--version"),
+            "{name} lacks post-install smoke check"
+        );
     }
     let linux = fs::read_to_string(root().join("install/linux.sh")).unwrap();
     assert!(linux.contains("x86_64-unknown-linux-gnu"));
@@ -59,7 +68,10 @@ fn all_native_install_scripts_exist_and_support_local_artifacts() {
         "x86_64-pc-windows-msvc",
         "aarch64-pc-windows-msvc",
     ] {
-        assert!(stage.contains(target), "native staging matrix lacks {target}");
+        assert!(
+            stage.contains(target),
+            "native staging matrix lacks {target}"
+        );
     }
 }
 

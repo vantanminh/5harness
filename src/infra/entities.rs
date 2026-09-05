@@ -6,10 +6,10 @@ use std::time::{Duration, Instant};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::domain::entities::{entity_dir, entity_relative_path, ENTITY_TYPES};
-use crate::domain::paths::resolve_project_state_root;
 use crate::domain::frontmatter::{
     as_string, insert_str, parse_frontmatter, serialize_entity_file, Frontmatter,
 };
+use crate::domain::paths::resolve_project_state_root;
 use crate::error::{Error, Result};
 
 #[derive(Clone, Debug)]
@@ -44,7 +44,12 @@ impl MutationLock {
         loop {
             match OpenOptions::new().write(true).create_new(true).open(&path) {
                 Ok(mut file) => {
-                    let _ = writeln!(file, "pid={} acquired_at={}", std::process::id(), chrono::Utc::now().to_rfc3339());
+                    let _ = writeln!(
+                        file,
+                        "pid={} acquired_at={}",
+                        std::process::id(),
+                        chrono::Utc::now().to_rfc3339()
+                    );
                     return Ok(Self { path });
                 }
                 Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
@@ -56,7 +61,12 @@ impl MutationLock {
                     }
                     thread::sleep(Duration::from_millis(10));
                 }
-                Err(err) => return Err(Error::new(format!("create mutation lock {}: {err}", path.display()))),
+                Err(err) => {
+                    return Err(Error::new(format!(
+                        "create mutation lock {}: {err}",
+                        path.display()
+                    )))
+                }
             }
         }
     }
@@ -75,10 +85,15 @@ pub fn safe_relative_path(relative_path: &str) -> Result<String> {
     if normalized.trim().is_empty()
         || normalized.starts_with('/')
         || normalized.starts_with('~')
-        || normalized.split('/').next().is_some_and(|part| part.contains(':'))
+        || normalized
+            .split('/')
+            .next()
+            .is_some_and(|part| part.contains(':'))
         || Path::new(&normalized).has_root()
     {
-        return Err(Error::new(format!("Path must be project-relative: {relative_path}")));
+        return Err(Error::new(format!(
+            "Path must be project-relative: {relative_path}"
+        )));
     }
     let mut parts = Vec::new();
     for component in Path::new(&normalized).components() {
@@ -92,33 +107,49 @@ pub fn safe_relative_path(relative_path: &str) -> Result<String> {
             }
             Component::CurDir => {}
             Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
-                return Err(Error::new(format!("Path escapes project root: {relative_path}")));
+                return Err(Error::new(format!(
+                    "Path escapes project root: {relative_path}"
+                )));
             }
         }
     }
     if parts.is_empty() {
-        return Err(Error::new(format!("Path must name a project file: {relative_path}")));
+        return Err(Error::new(format!(
+            "Path must name a project file: {relative_path}"
+        )));
     }
     Ok(parts.join("/"))
 }
 
-fn contained_path(project_root: &Path, relative_path: &str, for_write: bool) -> Result<(PathBuf, String)> {
+fn contained_path(
+    project_root: &Path,
+    relative_path: &str,
+    for_write: bool,
+) -> Result<(PathBuf, String)> {
     let relative = safe_relative_path(relative_path)?;
-    let root = fs::canonicalize(project_root)
-        .map_err(|e| Error::new(format!("project root {} is not accessible: {e}", project_root.display())))?;
+    let root = fs::canonicalize(project_root).map_err(|e| {
+        Error::new(format!(
+            "project root {} is not accessible: {e}",
+            project_root.display()
+        ))
+    })?;
     let candidate = root.join(&relative);
     if for_write {
         if let Some(parent) = candidate.parent() {
             fs::create_dir_all(parent)?;
             let canonical_parent = fs::canonicalize(parent)?;
             if !canonical_parent.starts_with(&root) {
-                return Err(Error::new(format!("Path escapes project root: {relative_path}")));
+                return Err(Error::new(format!(
+                    "Path escapes project root: {relative_path}"
+                )));
             }
         }
     } else if candidate.exists() {
         let canonical = fs::canonicalize(&candidate)?;
         if !canonical.starts_with(&root) {
-            return Err(Error::new(format!("Path escapes project root: {relative_path}")));
+            return Err(Error::new(format!(
+                "Path escapes project root: {relative_path}"
+            )));
         }
     }
     Ok((candidate, relative))
@@ -154,9 +185,14 @@ fn infer_entity_metadata(data: &mut Frontmatter, relative_path: &str, body: &str
     let Some((ty, _)) = ENTITY_TYPES.iter().find_map(|ty| {
         let prefix = format!("{}/", entity_dir(ty).ok()?);
         relative_path.strip_prefix(&prefix).map(|rest| (*ty, rest))
-    }) else { return };
+    }) else {
+        return;
+    };
     if as_string(data, "id").is_none() {
-        if let Some(id) = Path::new(relative_path).file_stem().and_then(|s| s.to_str()) {
+        if let Some(id) = Path::new(relative_path)
+            .file_stem()
+            .and_then(|s| s.to_str())
+        {
             insert_str(data, "id", id);
         }
     }
@@ -164,13 +200,33 @@ fn infer_entity_metadata(data: &mut Frontmatter, relative_path: &str, body: &str
         insert_str(data, "type", ty);
     }
     if as_string(data, "title").is_none() && as_string(data, "summary").is_none() {
-        if let Some(title) = body.lines().find_map(|line| line.strip_prefix("# ")).map(str::trim).filter(|v| !v.is_empty()) {
-            if ty == "intake" || ty == "report" { insert_str(data, "summary", title); }
-            else { insert_str(data, "title", title); }
+        if let Some(title) = body
+            .lines()
+            .find_map(|line| line.strip_prefix("# "))
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+        {
+            if ty == "intake" || ty == "report" {
+                insert_str(data, "summary", title);
+            } else {
+                insert_str(data, "title", title);
+            }
         }
     }
     if as_string(data, "status").is_none() {
-        insert_str(data, "status", if ty == "decision" { "accepted" } else if ty == "intake" { "pending" } else if ty == "report" { "open" } else { "planned" });
+        insert_str(
+            data,
+            "status",
+            if ty == "decision" {
+                "accepted"
+            } else if ty == "intake" {
+                "pending"
+            } else if ty == "report" {
+                "open"
+            } else {
+                "planned"
+            },
+        );
     }
 }
 

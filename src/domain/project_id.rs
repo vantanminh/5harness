@@ -52,9 +52,11 @@ pub fn insert_project_id_marker(agents_text: &str, project_id: &str) -> Result<S
             .replace(&extracted.block, format!("$1{newline}{marker}"))
             .into_owned()
     } else {
-        extracted
-            .block
-            .replacen(HARNESS_BEGIN, &format!("{HARNESS_BEGIN}{newline}{marker}"), 1)
+        extracted.block.replacen(
+            HARNESS_BEGIN,
+            &format!("{HARNESS_BEGIN}{newline}{marker}"),
+            1,
+        )
     };
     Ok(format!(
         "{}{}{}",

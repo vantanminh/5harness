@@ -34,10 +34,18 @@ fn http_post(addr: &str, path: &str, json: &str) -> (u16, String) {
     http_post_with_headers(addr, path, json, &[])
 }
 
-fn http_post_with_headers(addr: &str, path: &str, json: &str, headers: &[(&str, &str)]) -> (u16, String) {
+fn http_post_with_headers(
+    addr: &str,
+    path: &str,
+    json: &str,
+    headers: &[(&str, &str)],
+) -> (u16, String) {
     let mut stream = TcpStream::connect(addr).expect("connect");
     stream.set_read_timeout(Some(Duration::from_secs(5))).ok();
-    let extra = headers.iter().map(|(name, value)| format!("{name}: {value}\r\n")).collect::<String>();
+    let extra = headers
+        .iter()
+        .map(|(name, value)| format!("{name}: {value}\r\n"))
+        .collect::<String>();
     let req = format!(
         "POST {path} HTTP/1.0\r\nHost: {addr}\r\nContent-Type: application/json\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n{json}",
         json.len(),
@@ -62,12 +70,38 @@ fn mcp_mutations_require_token_and_project_binding() {
     let tmp = std::env::temp_dir().join(format!("harness-mcp-auth-{}", std::process::id()));
     std::fs::create_dir_all(&home).unwrap();
     std::fs::create_dir_all(&tmp).unwrap();
-    let init = Command::new(bin()).args(["init", tmp.to_str().unwrap()]).env("HARNESS_HOME", &home).output().unwrap();
-    assert!(init.status.success(), "{}", String::from_utf8_lossy(&init.stderr));
+    let init = Command::new(bin())
+        .args(["init", tmp.to_str().unwrap()])
+        .env("HARNESS_HOME", &home)
+        .output()
+        .unwrap();
+    assert!(
+        init.status.success(),
+        "{}",
+        String::from_utf8_lossy(&init.stderr)
+    );
     let agents = std::fs::read_to_string(tmp.join("AGENTS.md")).unwrap();
-    let project_id = agents.lines().find_map(|line| line.trim().strip_prefix("<!-- harness-project-id: ").and_then(|s| s.strip_suffix(" -->"))).unwrap().to_string();
+    let project_id = agents
+        .lines()
+        .find_map(|line| {
+            line.trim()
+                .strip_prefix("<!-- harness-project-id: ")
+                .and_then(|s| s.strip_suffix(" -->"))
+        })
+        .unwrap()
+        .to_string();
     let mut mcp = Command::new(bin())
-        .args(["mcp", "--host", "127.0.0.1", "--port", "3943", "--dir", tmp.to_str().unwrap(), "--token", "test-token"])
+        .args([
+            "mcp",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "3943",
+            "--dir",
+            tmp.to_str().unwrap(),
+            "--token",
+            "test-token",
+        ])
         .env("HARNESS_HOME", &home)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -77,9 +111,22 @@ fn mcp_mutations_require_token_and_project_binding() {
     let body = r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"harness_intake","arguments":{"type":"spec_slice","summary":"auth test","lane":"normal"}}}"#;
     let (status, _) = http_post("127.0.0.1:3943", "/mcp", body);
     assert_eq!(status, 401);
-    let (status, _) = http_post_with_headers("127.0.0.1:3943", "/mcp", body, &[("Authorization", "Bearer test-token")]);
+    let (status, _) = http_post_with_headers(
+        "127.0.0.1:3943",
+        "/mcp",
+        body,
+        &[("Authorization", "Bearer test-token")],
+    );
     assert_eq!(status, 403);
-    let (status, response) = http_post_with_headers("127.0.0.1:3943", "/mcp", body, &[("Authorization", "Bearer test-token"), ("X-Harness-Project", &project_id)]);
+    let (status, response) = http_post_with_headers(
+        "127.0.0.1:3943",
+        "/mcp",
+        body,
+        &[
+            ("Authorization", "Bearer test-token"),
+            ("X-Harness-Project", &project_id),
+        ],
+    );
     assert_eq!(status, 200);
     assert!(response.contains("Intake IN-001"), "{response}");
     let _ = mcp.kill();
@@ -88,7 +135,8 @@ fn mcp_mutations_require_token_and_project_binding() {
 fn wait_port(addr: &str) {
     let deadline = Instant::now() + Duration::from_secs(8);
     while Instant::now() < deadline {
-        if let Ok(s) = TcpStream::connect_timeout(&addr.parse().unwrap(), Duration::from_millis(200))
+        if let Ok(s) =
+            TcpStream::connect_timeout(&addr.parse().unwrap(), Duration::from_millis(200))
         {
             drop(s);
             return;

@@ -3,13 +3,11 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-use crate::domain::conflicts::{
-    blocking_conflicts, classify_file_plan, PlannedWrite,
-};
+use crate::domain::conflicts::{blocking_conflicts, classify_file_plan, PlannedWrite};
 use crate::domain::entities::ENTITY_TYPES;
 use crate::domain::paths::{
-    project_backup_root, resolve_db_path, resolve_target_dir, SQLITE_DB_BASENAME,
-    PROJECT_STATE_DIRNAME,
+    project_backup_root, resolve_db_path, resolve_target_dir, PROJECT_STATE_DIRNAME,
+    SQLITE_DB_BASENAME,
 };
 use crate::domain::project_id::{extract_project_id, insert_project_id_marker};
 use crate::domain::upgrade::{extract_harness_block, replace_harness_block};
@@ -66,9 +64,7 @@ pub fn run_init(
 
     let agents_path = target_dir.join("AGENTS.md");
     let existing_agents_text = fs::read_to_string(&agents_path).ok();
-    let existing_project_id = existing_agents_text
-        .as_deref()
-        .and_then(extract_project_id);
+    let existing_project_id = existing_agents_text.as_deref().and_then(extract_project_id);
 
     let mut plans: Vec<PlannedWrite> = manifest
         .files
