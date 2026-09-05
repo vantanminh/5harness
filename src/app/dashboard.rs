@@ -123,7 +123,9 @@ fn dashboard_loop(server: Server, shutdown: Arc<AtomicBool>) {
                 let url = request.url().to_string();
                 let method = request.method().clone();
                 let path = url.split('?').next().unwrap_or("/");
-                let authorized = path == "/api/health" || dashboard_authorized(request.headers());
+                let authorized = path == "/api/health"
+                    || (path == "/mcp" && method == Method::Get)
+                    || dashboard_authorized(request.headers());
                 let (status, content_type, body) = if authorized {
                     route(&method, &url)
                 } else {
@@ -170,6 +172,23 @@ fn route(method: &Method, url: &str) -> (u16, String, String) {
             200,
             "application/json; charset=utf-8".into(),
             format!(r#"{{"ok":true,"product":"5harness","version":"{VERSION}"}}"#),
+        ),
+        (Method::Get, "/mcp") => (
+            200,
+            "application/json; charset=utf-8".into(),
+            serde_json::to_string_pretty(&serde_json::json!({
+                "name": "5harness",
+                "version": VERSION,
+                "protocolVersion": "2024-11-05",
+                "transport": "streamable-http",
+                "tools": super::mcp::mcp_tools(),
+                "message": "Use `harness mcp` for authenticated project-bound MCP calls."
+            })).unwrap_or_else(|_| "{}".into()),
+        ),
+        (Method::Post, "/mcp") => (
+            501,
+            "application/json; charset=utf-8".into(),
+            r#"{"error":"dashboard MCP transport is discovery-only; start `harness mcp` for authenticated calls"}"#.into(),
         ),
         _ => (
             404,

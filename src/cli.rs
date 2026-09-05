@@ -2,7 +2,8 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use clap::{ArgAction, Args, Parser, Subcommand};
+use clap::{ArgAction, Args, CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, shells::{Bash, PowerShell, Zsh}};
 
 use crate::app::durable::{
     add_backlog, add_decision, add_intake, add_report, add_story, close_backlog, get_entity,
@@ -939,10 +940,7 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
             println!("{}", run_migrate(&target));
             Ok(())
         }
-        Commands::ImportSqlite { .. } => {
-            println!("import-sqlite: markdown is SoT; provide harness.db to convert (not required).");
-            Ok(())
-        }
+        Commands::ImportSqlite { .. } => Err(Error::new("import-sqlite is not implemented in the markdown-only release; use migration tooling before init")),
         Commands::Link { target, dir } => {
             let chosen = target.as_deref().or(dir.dir.as_deref()).or(dir.directory.as_deref());
             let link = link_project(chosen, cwd)?;
@@ -963,13 +961,28 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
             }
             Ok(())
         }
-        Commands::Remove { target, dir, keep_entities, .. }
-        | Commands::Rm { target, dir, keep_entities, .. } => {
+        Commands::Remove { target, dir, force, keep_entities }
+        | Commands::Rm { target, dir, force, keep_entities } => {
             let target = dir.path(target.as_deref(), cwd);
-            let _ = unlink_project(Some(&target.to_string_lossy()), cwd);
+            if !force {
+                return Err(Error::new("remove is destructive; rerun with --force"));
+            }
+            unlink_project(Some(&target.to_string_lossy()), cwd)?;
+            let agents = target.join("AGENTS.md");
+            if agents.exists() {
+                let text = fs::read_to_string(&agents)?;
+                let stripped = crate::domain::upgrade::remove_harness_block(&text);
+                crate::infra::entities::atomic_write(&agents, &stripped)?;
+            }
             let state = target.join(".5harness");
             if state.exists() {
-                let _ = fs::remove_dir_all(&state);
+                fs::remove_dir_all(&state)?;
+            }
+            if !keep_entities {
+                for ty in crate::domain::entities::ENTITY_TYPES {
+                    let dir = target.join(crate::domain::entities::entity_dir(ty)?);
+                    if dir.exists() { fs::remove_dir_all(dir)?; }
+                }
             }
             if !keep_entities {
                 println!("Removed harness state from {}", target.display());
@@ -1053,16 +1066,29 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
         },
         Commands::Docs { cmd } => docs_cmd(cmd),
         Commands::Completion { shell } => {
-            println!("# harness completion for {shell}");
+            let mut command = Cli::command();
+            let mut out = std::io::stdout();
+            match shell.to_ascii_lowercase().as_str() {
+                "bash" => generate(Bash, &mut command, "harness", &mut out),
+                "zsh" => generate(Zsh, &mut command, "harness", &mut out),
+                "pwsh" | "powershell" => generate(PowerShell, &mut command, "harness", &mut out),
+                _ => return Err(Error::new("completion shell must be bash, zsh, or pwsh")),
+            }
             Ok(())
         }
         Commands::Update => {
-            println!("Update with: npm i -g 5harness");
-            Ok(())
+            let status = std::process::Command::new("npm").args(["install", "--global", "5harness@latest"]).status()?;
+            if status.success() { Ok(()) } else { Err(Error::new(format!("npm update failed with {status}"))) }
         }
         Commands::Upgrade { dir } => {
             let target = dir.path(None, cwd);
-            println!("Upgrade check for {}", target.display());
+            let agents = target.join("AGENTS.md");
+            let text = fs::read_to_string(&agents)?;
+            let re = regex::Regex::new(r"(?m)^(<!--\s*harness-version:)\s*[^>]+(-->\s*)$").unwrap();
+            if !re.is_match(&text) { return Err(Error::new("AGENTS.md has no harness-managed version marker")); }
+            let updated = re.replace(&text, format!("$1 {VERSION} $2")).into_owned();
+            crate::infra::entities::atomic_write(&agents, &updated)?;
+            println!("Upgraded harness block in {}", agents.display());
             Ok(())
         }
         Commands::Reindex { dir } => {
@@ -1423,6 +1449,7 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
                         { std::process::Command::new("cmd").args(["/C", command]).status().map(|s| s.success()).unwrap_or(false) }
                     };
                     if let Some(map) = value.as_object_mut() { map.insert("status".into(), serde_json::json!(if ok { "ok" } else { "failed" })); }
+                    let _ = upsert_tool(&target, value.clone())?;
                     checked.push(value);
                 }
                 if json { println!("{}", serde_json::to_string_pretty(&checked)?); } else { for value in checked { println!("{}: {}", value["name"].as_str().unwrap_or(""), value["status"].as_str().unwrap_or("")); } }
@@ -1484,11 +1511,10 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
         }
         Commands::Handoff { dir, json, .. } => {
             let target = dir.path(None, cwd);
-            let text = format_handoff(&target)?;
             if json {
-                println!("{}", serde_json::json!({"handoff": text}));
+                println!("{}", serde_json::to_string_pretty(&serde_json::json!({"status":status_json(&target)?,"next":next_items(&target, Some(10))?,"traces":read_records(&target,"traces")?.into_iter().rev().take(5).collect::<Vec<_>>(),"worklog":read_records(&target,"worklog")?.into_iter().rev().take(5).collect::<Vec<_>>()}))?);
             } else {
-                println!("{text}");
+                println!("{}", format_handoff(&target)?);
             }
             Ok(())
         }
@@ -1614,6 +1640,7 @@ fn report_cmd(cmd: ReportCmd, cwd: &Path) -> Result<()> {
         ReportCmd::Add { dir, to, summary } => {
             let target = dir.path(None, cwd);
             let peer_root = project_link::resolve_peer(&target, Some(&to), None)?;
+            project_link::ensure_peer_write_allowed(&peer_root)?;
             let from = read_project_id(&target).ok();
             let (file, id) = add_report(&peer_root, &summary, None, from.as_deref(), None)?;
             println!("Report {id} added to {}.\n  file: {}", peer_root.display(), file.relative_path);
@@ -1813,7 +1840,17 @@ fn query_cmd(cmd: QueryCmd, cwd: &Path) -> Result<()> {
     };
     let target = dir.path(None, cwd);
     if json {
-        println!("{}", serde_json::to_string_pretty(&query_view_json(&target, view)?)?);
+        let mut value = query_view_json(&target, view)?;
+        if view == "backlog" && (open || closed) {
+            if let Some(items) = value.as_array_mut() {
+                let wanted_open = open && !closed;
+                items.retain(|item| {
+                    let status = item.get("status").and_then(|v| v.as_str()).unwrap_or("");
+                    if wanted_open { status == "proposed" || status == "accepted" } else { status == "implemented" || status == "rejected" }
+                });
+            }
+        }
+        println!("{}", serde_json::to_string_pretty(&value)?);
     } else {
         println!("{}", query_view(&target, view, numeric, open, closed)?);
     }

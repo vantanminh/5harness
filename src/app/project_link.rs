@@ -95,6 +95,22 @@ pub fn resolve_peer(project_root: &Path, peer: Option<&str>, role: Option<&str>)
     Ok(path)
 }
 
+pub fn ensure_peer_write_allowed(target: &Path) -> Result<()> {
+    let Some(raw) = std::env::var_os("HARNESS_PEER_WRITE_ROOTS") else { return Ok(()) };
+    let separator = if cfg!(windows) { ';' } else { ':' };
+    let canonical_target = target.canonicalize()?;
+    let mut roots = Vec::new();
+    for raw_root in raw.to_string_lossy().split(separator).map(str::trim).filter(|v| !v.is_empty()) {
+        let root = PathBuf::from(raw_root);
+        if !root.is_absolute() || !root.is_dir() {
+            return Err(Error::new("HARNESS_PEER_WRITE_ROOTS must contain existing absolute directories"));
+        }
+        roots.push(root.canonicalize()?);
+    }
+    if roots.iter().any(|root| canonical_target.starts_with(root)) { Ok(()) }
+    else { Err(Error::new(format!("peer report target is outside HARNESS_PEER_WRITE_ROOTS: {}", target.display()))) }
+}
+
 fn resolve_project(id_or_path: &str) -> Result<(String, Option<PathBuf>)> {
     let input = Path::new(id_or_path);
     if input.is_dir() {

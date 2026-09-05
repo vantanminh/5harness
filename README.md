@@ -138,22 +138,20 @@ planned backend work.
 
 ### MCP authentication
 
-Both `harness mcp` and the dashboard's `/mcp` endpoint are OAuth 2.1 protected
-resources. MCP clients discover the embedded authorization server through RFC
-9728, dynamically register as public clients, and use Authorization Code with
-mandatory PKCE S256. Access tokens are short-lived, opaque, and bound to the
-canonical MCP resource URI. The server starts unbound: the working directory and
-`--dir` do not authorize access to a project. During consent, the operator grants
-either one healthy linked project or all healthy linked projects.
+`harness mcp` is an authenticated, project-bound streamable HTTP endpoint. The
+server prints a per-process bearer token when it starts (or accepts `--token` /
+`HARNESS_MCP_TOKEN`). Discovery and protocol negotiation are public; every
+`tools/call` requires both the bearer token and the calling project's
+`X-Harness-Project` id. The dashboard `/mcp` endpoint is discovery-only; use
+`harness mcp` for authenticated tool calls.
 
 ```bash
-harness dashboard              # MCP resource: http://127.0.0.1:3927/mcp
-harness mcp                    # MCP resource: http://127.0.0.1:3928/mcp
-harness dashboard set-password # replace the initial administrator password
+harness dashboard              # dashboard + discovery metadata
+harness mcp                    # authenticated MCP resource
+harness dashboard set-password --password '<12+ character password>'
 ```
 
-A single-project grant always routes tools to the selected project. An
-all-projects grant requires the target project's durable id on every MCP request:
+Every project-bound tool call requires the target project's durable id:
 
 ```bash
 cd /path/to/project
@@ -164,15 +162,13 @@ X-Harness-Project: <project-id>
 # Compatibility selector: append ?project=<project-id> to the MCP resource URI
 ```
 
-Missing, conflicting, unknown, unlinked, or unavailable project ids fail closed.
-Agents must not infer authorization from cwd. See the
-[project-binding specification](docs/product/mcp-project-binding.md) and
-[security model](docs/SECURITY.md#mcp-model-context-protocol).
+Missing, conflicting, unknown, or unavailable project ids fail closed. Agents
+must not infer authorization from cwd. See the [security model](docs/SECURITY.md).
 
 After binding the calling project, MCP tool discovery dynamically exposes peer
 read and report tools only when that project has configured peers. In an
-all-projects grant, `X-Harness-Project` still selects the **calling** project;
-a peer id never substitutes for that OAuth binding. Cross-project
+`X-Harness-Project` still selects the **calling** project; a peer id never
+substitutes for that project binding. Cross-project
 operational-entity mutation is restricted to sanitized reports owned by the
 configured target project; explicit peer-management commands may also attempt
 reverse configuration markers.

@@ -75,6 +75,7 @@ pub fn safe_relative_path(relative_path: &str) -> Result<String> {
     if normalized.trim().is_empty()
         || normalized.starts_with('/')
         || normalized.starts_with('~')
+        || normalized.split('/').next().is_some_and(|part| part.contains(':'))
         || Path::new(&normalized).has_root()
     {
         return Err(Error::new(format!("Path must be project-relative: {relative_path}")));

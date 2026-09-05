@@ -131,7 +131,7 @@ hand-edit operational markdown.
 | Command | Behavior |
 | --- | --- |
 | `harness project id [--ensure] [--json]` | Print the cwd/`--dir` project's durable random id. `--ensure` creates the managed `AGENTS.md` marker if missing; `--json` returns id, path, and name. Init/link/upgrade ensure identity automatically. |
-| `harness mcp` | Start an **unbound** OAuth 2.1 + PKCE protected MCP server. Cwd and `--dir` do not authorize project tools; calls fail closed until OAuth consent grants one project or all healthy linked projects. Single grants force the selected project. All grants require `X-Harness-Project: <id>` (preferred) or `?project=<id>` on every request; invalid or missing selectors fail closed. RFC 9728/RFC 8414 discovery, dynamic public-client registration, resource-bound Bearer tokens. **Read tools:** get, search, links, context, status, query matrix/stats, handoff, doctor, reindex, project role/peers. **Mutation tools:** intake, story_add/update, decision_add, backlog_add. Project Link peer/report tools are added dynamically when the OAuth-bound calling project has peers. Non-loopback requires `--public-url https://...`. |
+| `harness mcp` | Start an authenticated streamable HTTP MCP server. Discovery is public; every `tools/call` requires `Authorization: Bearer <startup-token>` and `X-Harness-Project: <id>` (or `?project=<id>`). The token is supplied with `--token`/`HARNESS_MCP_TOKEN` or generated per process. Project Link peer/report tools are added dynamically when peers exist. Non-loopback requires `--public-url https://...`. |
 | `harness export changelog [--since <tag\|date>] [--json]` | Derive changelog notes from implemented stories/decisions (assist only) |
 | `harness watch` | Watch entity directories and auto-reindex on markdown changes (debounced 500ms) |
 | `harness handoff [--story <id>] [--json]` | Emit concise session summary: recent traces, worklog, status, next steps |
@@ -233,7 +233,7 @@ Logs never intentionally write secrets (tokens, API keys, passwords are redacted
 | Mechanism | Behavior |
 | --- | --- |
 | Atomic write | `index.json` written via temp file + rename |
-| Mutation lock | `.5harness/mutation.lock` held during index write; stale locks reclaimed after ~30s |
+| Mutation lock | `.5harness/mutation.lock` held across ID allocation, entity write, and index write; contention fails after a bounded wait and is never silently reclaimed |
 | Checksum | SHA-256 over stable index payload; stored as `checksum` on the index |
 | Recovery | `harness reindex` rebuilds a valid index; never hand-edit `index.json` |
 

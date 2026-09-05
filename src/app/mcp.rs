@@ -10,12 +10,14 @@ use serde_json::{json, Value};
 use tiny_http::{Header, Method, Response, Server, StatusCode};
 
 use crate::domain::paths::is_loopback_bind_host;
+use crate::domain::project_id::extract_project_id;
 use crate::error::{Error, Result};
 use crate::VERSION;
 
 use super::dashboard::RunningServer;
-use super::durable::{add_decision, add_intake, add_story, get_entity};
+use super::durable::{add_decision, add_intake, add_report, add_story, get_entity, update_report};
 use super::index::{ensure_index, format_search_hits, search_index};
+use super::project_link;
 use super::query::{query_matrix, query_stats, query_view_json};
 
 pub fn mcp_tools() -> Value {
@@ -27,8 +29,29 @@ pub fn mcp_tools() -> Value {
         {"name":"harness_status","description":"Project snapshot: work counts, Project Link role/peers/reports, version, index.","inputSchema":{"type":"object","properties":{}}},
         {"name":"harness_intake","description":"Record a feature intake. Mutates durable markdown.","inputSchema":{"type":"object","properties":{"type":{"type":"string"},"summary":{"type":"string"},"lane":{"type":"string"}},"required":["type","summary","lane"]}},
         {"name":"harness_story_add","description":"Add a story. Mutates durable markdown.","inputSchema":{"type":"object","properties":{"id":{"type":"string"},"title":{"type":"string"},"lane":{"type":"string"}},"required":["id","title","lane"]}},
-        {"name":"harness_decision_add","description":"Add a decision. Mutates durable markdown.","inputSchema":{"type":"object","properties":{"id":{"type":"string"},"title":{"type":"string"}},"required":["id","title"]}}
+        {"name":"harness_decision_add","description":"Add a decision. Mutates durable markdown.","inputSchema":{"type":"object","properties":{"id":{"type":"string"},"title":{"type":"string"}},"required":["id","title"]}},
+        {"name":"harness_project_role","description":"Read local Project Link role and stack.","inputSchema":{"type":"object","properties":{}}},
+        {"name":"harness_project_peers","description":"List configured Project Link peers.","inputSchema":{"type":"object","properties":{}}}
     ])
+}
+
+fn mcp_tools_for_root(root: Option<&PathBuf>) -> Value {
+    let mut tools = mcp_tools().as_array().cloned().unwrap_or_default();
+    if let Some(root) = root {
+        if project_link::peers(root).map(|p| !p.is_empty()).unwrap_or(false) {
+            tools.extend([
+                json!({"name":"harness_peer_search","description":"Search one configured peer.","inputSchema":{"type":"object","properties":{"query":{"type":"string"},"peer_id":{"type":"string"},"role":{"type":"string"}},"required":["query"]}}),
+                json!({"name":"harness_peer_get","description":"Get one entity from a configured peer.","inputSchema":{"type":"object","properties":{"id":{"type":"string"},"peer_id":{"type":"string"},"role":{"type":"string"}},"required":["id"]}}),
+                json!({"name":"harness_peer_context","description":"Read bounded context from a configured peer.","inputSchema":{"type":"object","properties":{"id":{"type":"string"},"peer_id":{"type":"string"},"role":{"type":"string"},"max_chars":{"type":"integer"}},"required":["id"]}}),
+                json!({"name":"harness_peer_links","description":"Read links for one configured peer entity.","inputSchema":{"type":"object","properties":{"id":{"type":"string"},"peer_id":{"type":"string"},"role":{"type":"string"}},"required":["id"]}}),
+                json!({"name":"harness_report_add","description":"Create a target-owned report on one configured peer.","inputSchema":{"type":"object","properties":{"to":{"type":"string"},"summary":{"type":"string"}},"required":["to","summary"]}}),
+                json!({"name":"harness_report_list","description":"List local reports.","inputSchema":{"type":"object","properties":{"status":{"type":"string"}}}}),
+                json!({"name":"harness_report_get","description":"Get one local report.","inputSchema":{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}}),
+                json!({"name":"harness_report_update","description":"Update a local report.","inputSchema":{"type":"object","properties":{"id":{"type":"string"},"status":{"type":"string"},"resolution":{"type":"string"}},"required":["id","status"]}}),
+            ]);
+        }
+    }
+    Value::Array(tools)
 }
 
 pub fn handle_mcp_request(root: Option<&PathBuf>, body: &str) -> Value {
@@ -61,7 +84,7 @@ fn handle_mcp_request_with_auth(root: Option<&PathBuf>, body: &str, authenticate
         "tools/list" => json!({
             "jsonrpc":"2.0",
             "id": id,
-            "result": {"tools": mcp_tools()}
+            "result": {"tools": mcp_tools_for_root(root)}
         }),
         "tools/call" => {
             if !authenticated {
@@ -123,6 +146,8 @@ fn call_tool(root: &PathBuf, name: &str, args: &Value) -> Result<String> {
         "harness_query_matrix" => query_matrix(root, false),
         "harness_query_stats" => query_stats(root),
         "harness_status" => super::status::format_status(root),
+        "harness_project_role" => Ok(serde_json::to_string(&project_link::role(root)?)?),
+        "harness_project_peers" => Ok(serde_json::to_string(&project_link::peers(root)?)?),
         "harness_intake" => {
             let ty = args.get("type").and_then(|v| v.as_str()).filter(|v| !v.trim().is_empty()).ok_or_else(|| Error::new("harness_intake requires type"))?;
             let summary = args.get("summary").and_then(|v| v.as_str()).filter(|v| !v.trim().is_empty()).ok_or_else(|| Error::new("harness_intake requires summary"))?;
@@ -148,6 +173,64 @@ fn call_tool(root: &PathBuf, name: &str, args: &Value) -> Result<String> {
                 Ok(_) => Ok(format!("Decision {id} added.")),
                 Err(e) => Err(e),
             }
+        }
+        "harness_peer_search" => {
+            let query = args.get("query").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_peer_search requires query"))?;
+            let peer = args.get("peer_id").and_then(|v| v.as_str());
+            let role = args.get("role").and_then(|v| v.as_str());
+            let peer_root = project_link::resolve_peer(root, peer, role)?;
+            let index = ensure_index(&peer_root)?;
+            Ok(serde_json::to_string(&search_index(&index, query, 20, None))?)
+        }
+        "harness_peer_get" => {
+            let id = args.get("id").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_peer_get requires id"))?;
+            let peer_root = project_link::resolve_peer(root, args.get("peer_id").and_then(|v| v.as_str()), args.get("role").and_then(|v| v.as_str()))?;
+            let file = get_entity(&peer_root, id)?.ok_or_else(|| Error::new(format!("Peer entity not found: {id}")))?;
+            Ok(serde_json::to_string(&json!({"id":id,"path":file.relative_path,"frontmatter":super::durable::fm_json(&file.data),"body":file.body}))?)
+        }
+        "harness_peer_context" => {
+            let id = args.get("id").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_peer_context requires id"))?;
+            let peer_root = project_link::resolve_peer(root, args.get("peer_id").and_then(|v| v.as_str()), args.get("role").and_then(|v| v.as_str()))?;
+            let file = get_entity(&peer_root, id)?.ok_or_else(|| Error::new(format!("Peer entity not found: {id}")))?;
+            let max_chars = args.get("max_chars").and_then(|v| v.as_u64()).unwrap_or(12_000) as usize;
+            let body: String = file.body.chars().take(max_chars.min(100_000)).collect();
+            Ok(serde_json::to_string(&json!({"id":id,"path":file.relative_path,"body":body}))?)
+        }
+        "harness_peer_links" => {
+            let id = args.get("id").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_peer_links requires id"))?;
+            let peer_root = project_link::resolve_peer(root, args.get("peer_id").and_then(|v| v.as_str()), args.get("role").and_then(|v| v.as_str()))?;
+            let index = ensure_index(&peer_root)?;
+            Ok(serde_json::to_string(&super::index::links_for(&index, id))?)
+        }
+        "harness_report_add" => {
+            let to = args.get("to").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_report_add requires to"))?;
+            let summary = args.get("summary").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_report_add requires summary"))?;
+            let target = project_link::resolve_peer(root, Some(to), None)?;
+            project_link::ensure_peer_write_allowed(&target)?;
+            let from = std::fs::read_to_string(root.join("AGENTS.md")).ok().and_then(|t| crate::domain::project_id::extract_project_id(&t));
+            let (_, id) = add_report(&target, summary, None, from.as_deref(), None)?;
+            Ok(format!("Report {id} added."))
+        }
+        "harness_report_list" => {
+            let status = args.get("status").and_then(|v| v.as_str());
+            let mut rows = Vec::new();
+            for file in crate::infra::entities::list_entity_files(root, "report")? {
+                let current = crate::domain::frontmatter::as_string(&file.data, "status").unwrap_or_default();
+                if status.is_some_and(|wanted| wanted != current) { continue; }
+                rows.push(json!({"id":crate::domain::frontmatter::as_string(&file.data,"id"),"status":current,"summary":crate::domain::frontmatter::as_string(&file.data,"summary"),"updated_at":crate::domain::frontmatter::as_string(&file.data,"updated_at")}));
+            }
+            Ok(serde_json::to_string(&rows)?)
+        }
+        "harness_report_get" => {
+            let id = args.get("id").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_report_get requires id"))?;
+            let file = get_entity(root, id)?.ok_or_else(|| Error::new(format!("Report {id} not found")))?;
+            Ok(serde_json::to_string(&json!({"id":id,"path":file.relative_path,"frontmatter":super::durable::fm_json(&file.data),"body":file.body}))?)
+        }
+        "harness_report_update" => {
+            let id = args.get("id").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_report_update requires id"))?;
+            let status = args.get("status").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_report_update requires status"))?;
+            update_report(root, id, status, args.get("resolution").and_then(|v| v.as_str()), args.get("related").and_then(|v| v.as_str()))?;
+            Ok(format!("Report {id} updated."))
         }
         _ => Err(Error::new(format!("Unknown tool {name}"))),
     }
@@ -187,6 +270,9 @@ pub fn start_mcp(
             getrandom::getrandom(&mut bytes).expect("OS random source unavailable");
             hex::encode(bytes)
         });
+    let project_id = std::fs::read_to_string(project_root.join("AGENTS.md"))
+        .ok()
+        .and_then(|text| extract_project_id(&text));
     let listener = TcpListener::bind((host, port))
         .map_err(|e| Error::new(format!("mcp bind {host}:{port} failed: {e}")))?;
     let actual = listener.local_addr()?.port();
@@ -195,9 +281,11 @@ pub fn start_mcp(
     let url = format!("http://{host}:{actual}/");
     let shutdown = Arc::new(AtomicBool::new(false));
     let flag = shutdown.clone();
-    let host_owned = host.to_string();
     let auth_token = token.clone();
-    let handle = thread::spawn(move || mcp_loop(server, flag, project_root, actual, host_owned, token));
+    let issuer = public_url
+        .map(|url| url.trim_end_matches('/').to_string())
+        .unwrap_or_else(|| format!("http://{host}:{actual}"));
+    let handle = thread::spawn(move || mcp_loop(server, flag, project_root, project_id, issuer, token));
     if serve_forever {
         loop {
             thread::sleep(Duration::from_secs(60));
@@ -216,11 +304,10 @@ fn mcp_loop(
     server: Server,
     shutdown: Arc<AtomicBool>,
     project_root: PathBuf,
-    port: u16,
-    host: String,
+    project_id: Option<String>,
+    issuer: String,
     token: String,
 ) {
-    let issuer = format!("http://{host}:{port}");
     loop {
         if shutdown.load(Ordering::SeqCst) {
             break;
@@ -244,6 +331,13 @@ fn mcp_loop(
                     .ok()
                     .and_then(|v| v.get("method").and_then(|m| m.as_str()).map(|m| m == "tools/call"))
                     .unwrap_or(true);
+                let supplied_project = request
+                    .headers()
+                    .iter()
+                    .find(|h| h.field.equiv("X-Harness-Project"))
+                    .map(|h| h.value.as_str())
+                    .or_else(|| url.split_once('?').and_then(|(_, query)| query.split('&').find_map(|item| item.strip_prefix("project="))));
+                let project_bound = project_id.as_deref().is_some_and(|id| supplied_project == Some(id));
                 let (status, ctype, payload, www_authenticate) = match (method, path) {
                     (Method::Get, "/.well-known/oauth-protected-resource") => (
                         200,
@@ -260,7 +354,7 @@ fn mcp_loop(
                             "version": VERSION,
                             "protocolVersion": "2024-11-05",
                             "transport": "streamable-http",
-                            "tools": mcp_tools()
+                            "tools": mcp_tools_for_root(Some(&project_root))
                         }))
                             .unwrap_or_else(|_| "{}".into()),
                         false,
@@ -274,6 +368,16 @@ fn mcp_loop(
                             "error":{"code":-32001,"message":"Bearer token required"}
                         })).unwrap_or_else(|_| "{}".into()),
                         true,
+                    ),
+                    (Method::Post, "/mcp") | (Method::Post, "/") if needs_auth && !project_bound => (
+                        403,
+                        "application/json; charset=utf-8",
+                        serde_json::to_string(&json!({
+                            "jsonrpc":"2.0",
+                            "id": Value::Null,
+                            "error":{"code":-32002,"message":"X-Harness-Project must select the authorized project"}
+                        })).unwrap_or_else(|_| "{}".into()),
+                        false,
                     ),
                     (Method::Post, "/mcp") | (Method::Post, "/") => (
                         200,

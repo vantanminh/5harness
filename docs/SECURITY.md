@@ -17,7 +17,7 @@ and CI. Implementation references point into `src/` where useful.
 | Project Link peer reads | Explicit peer markers + local registry | Configured same-machine projects only |
 | Project Link reports | Project Git authors + configured reporter peer | Target project's durable markdown |
 | Dashboard | Loopback HTTP | `127.0.0.1` by default |
-| MCP server | OAuth 2.1 protected resource | Loopback HTTP by default |
+| MCP server | Bearer token + durable project-id binding | Loopback HTTP by default |
 | npm update check | Public registry read | Advisory stderr only |
 | npm publish / Releases | Maintainer CI (OIDC) | Provenance when configured |
 
@@ -71,55 +71,46 @@ Implementation: `src/infrastructure/verify.ts`.
 
 | Aspect | Detail |
 | --- | --- |
-| Auth model | OAuth 2.1 Authorization Code with mandatory PKCE S256 |
+| Auth model | Per-process bearer token (`--token` or `HARNESS_MCP_TOKEN`) plus project id |
 | Default bind | `127.0.0.1` (see `harness mcp` / dashboard `--host`) |
-| Discovery | RFC 9728 protected-resource metadata + RFC 8414 authorization-server metadata |
-| Client model | Dynamic registration of public clients; no client secret |
-| Tokens | Opaque, one-hour, in-memory, Bearer header only, bound to the canonical `/mcp` resource |
-| Project grant | Consent selects one healthy linked project or all healthy linked projects |
-| Project routing | Single grants force their selected project; all grants require `X-Harness-Project` or `?project=` on every call |
+| Discovery | Protected-resource metadata and MCP tool metadata |
+| Client model | Explicit operator-supplied or per-process generated bearer token |
+| Tokens | Bearer header only, held in process memory and revoked at shutdown |
+| Project grant | `X-Harness-Project` or `?project=` must match the bound project's durable id |
+| Project routing | Missing or conflicting selectors fail closed |
 | Mutation surface | Reads and controlled durable mutations; agents still follow AGENTS hard-fail rules |
 | Call log | `.5harness/local/mcp-calls.jsonl` under the project (machine-local) |
 | Notification POSTs | `202 Accepted` with no body (Streamable HTTP; required by Codex CLI / rmcp) |
 | JSON-RPC request POSTs | `200` + `application/json` response body |
 | Human approval | Shared `/login` session only; `/authorize` never collects credentials |
 
-Authorization codes are valid for five minutes and redeemable once. Redirect
-URIs must match registration exactly and use HTTPS or a localhost loopback URI.
-PKCE `plain`, implicit flow, password flow, query-string access tokens, and
-cross-audience tokens are rejected. Dashboard cookies never authorize MCP calls;
-they only prove the human operator may click Approve/Deny on `/authorize`.
+The bearer token is never accepted in a query string. Dashboard cookies never
+authorize MCP calls. Treat the startup token as a secret and rotate it by
+restarting the process.
 Unauthenticated GET `/authorize` redirects to `/login?redirect=…` (path + query
 preserved; open redirects rejected). The approval page's CSP permits form
 navigation only to the server itself and the origin of that already validated,
 registered callback; it never uses a wildcard callback destination.
 
-MCP processes start without a project authorization derived from cwd, `--dir`,
-or registry order. For a single-project grant, the server resolves only the id
-selected at consent and rejects a conflicting request selector. For an
-all-projects grant, every tool request must provide `X-Harness-Project: <id>` or
-the compatibility query parameter `?project=<id>`. Missing or conflicting
-selectors, unknown or unlinked ids, and projects missing on disk are rejected;
-there is no cwd or first-linked fallback. Project ids are random durable routing
-identifiers, not secrets or authentication credentials. Operators can inspect a
-repo's id with `harness project id` or its `harness-project-id` marker in
-`AGENTS.md`.
+MCP calls are bound to the project supplied to `harness mcp --dir`. Every tool
+request must provide `X-Harness-Project: <id>` or `?project=<id>` matching that
+project. Missing or conflicting selectors are rejected; there is no first-linked
+fallback. Project ids are durable routing identifiers, not authentication
+credentials. Operators can inspect a repo's id with `harness project id` or its
+`harness-project-id` marker in `AGENTS.md`.
 
-The administrator signs in once on the shared login page, then approves a client
-in the browser. Set a non-default password with
-`harness dashboard set-password` before authorizing clients. Client
-registrations, pending codes, and access tokens are process-local; restarting the
-server revokes them.
+Set a dashboard password with
+`harness dashboard set-password --password '<12+ character password>'`. The
+dashboard accepts that password through its local `X-Harness-Password` header
+or a bearer header; health and discovery remain readable.
 
 Plain HTTP is supported only for loopback native-client interoperability. A
 non-loopback bind hard-fails unless `--public-url https://...` is supplied; that
 mode assumes a correctly configured TLS reverse proxy and remains a single-user
 operator boundary, not multi-tenant authorization.
 
-Implementation: `src/application/mcp-oauth.ts`,
-`src/application/mcp-oauth-http.ts`, `src/application/mcp-server.ts`, and
-`src/application/dashboard.ts`. The complete request-routing contract is in
-[`docs/product/mcp-project-binding.md`](product/mcp-project-binding.md).
+Implementation: `src/app/mcp.rs` and `src/app/dashboard.rs`. The dashboard MCP
+route is discovery-only; authenticated mutations use the standalone MCP server.
 
 ---
 
@@ -164,9 +155,8 @@ monitoring remains under the calling project.
 `harness doctor` warnings about unresolved peers or unreadable peer indexes are
 operational guidance, not authorization and not evidence that a peer is safe.
 
-Implementation: `src/domain/project-link.ts`,
-`src/application/project-link.ts`, `src/application/report.ts`, and
-`src/application/mcp-server.ts`. Full behavior:
+Implementation: `src/app/project_link.rs`, `src/app/durable.rs`, and
+`src/app/mcp.rs`. Full behavior:
 [`docs/product/project-link.md`](product/project-link.md).
 
 ---
@@ -185,7 +175,7 @@ Implementation: `src/domain/project-link.ts`,
 - Override home with `HARNESS_HOME` only when you understand isolation between
   environments.
 
-Implementation: `src/domain/paths.ts`, `src/application/registry.ts`.
+Implementation: `src/domain/paths.rs`, `src/infra/registry.rs`.
 
 ---
 

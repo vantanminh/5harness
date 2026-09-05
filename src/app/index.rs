@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::domain::paths::project_index_dir;
 use crate::domain::wikilinks::{extract_wikilinks, match_link_target, normalize_link_target};
@@ -40,6 +41,8 @@ pub struct ProjectIndex {
     pub catalog: Vec<IndexCatalogRow>,
     pub edges: Vec<IndexEdge>,
     pub texts: serde_json::Map<String, serde_json::Value>,
+    #[serde(default)]
+    pub checksum: Option<String>,
 }
 
 pub fn index_json_path(project_root: &Path) -> PathBuf {
@@ -108,11 +111,13 @@ pub fn build_project_index(project_root: &Path) -> Result<ProjectIndex> {
         catalog: rows,
         edges,
         texts,
+        checksum: None,
     })
 }
 
 pub fn write_project_index(project_root: &Path) -> Result<(PathBuf, usize, usize)> {
-    let index = build_project_index(project_root)?;
+    let mut index = build_project_index(project_root)?;
+    index.checksum = Some(checksum_for(&index)?);
     let path = index_json_path(project_root);
     let payload = format!("{}\n", serde_json::to_string_pretty(&index)?);
     atomic_write(&path, &payload)?;
@@ -125,7 +130,8 @@ pub fn ensure_index(project_root: &Path) -> Result<ProjectIndex> {
         if let Ok(raw) = std::fs::read_to_string(&path) {
             if let Ok(idx) = serde_json::from_str::<ProjectIndex>(&raw) {
                 let current = build_project_index(project_root)?;
-                let fresh = idx.version == INDEX_SCHEMA_VERSION
+                let checksum_valid = idx.checksum.as_deref() == Some(checksum_for(&idx)?.as_str());
+                let fresh = checksum_valid && idx.version == INDEX_SCHEMA_VERSION
                     && idx.project_root == project_root.to_string_lossy()
                     && idx.catalog.len() == current.catalog.len()
                     && idx.catalog.iter().all(|row| {
@@ -142,9 +148,23 @@ pub fn ensure_index(project_root: &Path) -> Result<ProjectIndex> {
             }
         }
     }
-    let built = build_project_index(project_root)?;
+    let mut built = build_project_index(project_root)?;
+    built.checksum = Some(checksum_for(&built)?);
     write_project_index(project_root)?;
     Ok(built)
+}
+
+pub fn checksum_valid(index: &ProjectIndex) -> bool {
+    index.checksum.as_deref().and_then(|stored| checksum_for(index).ok().map(|computed| stored == computed)).unwrap_or(false)
+}
+
+fn checksum_for(index: &ProjectIndex) -> Result<String> {
+    let mut copy = index.clone();
+    copy.checksum = None;
+    let raw = serde_json::to_vec(&copy)?;
+    let mut hasher = Sha256::new();
+    hasher.update(raw);
+    Ok(hex::encode(hasher.finalize()))
 }
 
 #[derive(Clone, Debug, Serialize)]

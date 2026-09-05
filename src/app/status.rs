@@ -6,7 +6,8 @@ use crate::error::Result;
 use crate::VERSION;
 
 use super::catalog::{build_catalog, by_type};
-use super::index::{ensure_index, index_json_path};
+use super::index::{checksum_valid, ensure_index, index_json_path};
+use super::project_link;
 use super::query::query_stats;
 
 pub fn format_status(project_root: &Path) -> Result<String> {
@@ -48,6 +49,17 @@ pub fn format_doctor(project_root: &Path) -> Result<String> {
             ok = false;
         }
     }
+    if index_json_path(project_root).is_file() {
+        lines.push("  index: present".into());
+    } else {
+        lines.push("  index: missing — run harness reindex".into());
+        ok = false;
+    }
+    let linked = crate::infra::registry::read_registry().projects.iter().any(|p| {
+        Path::new(&p.path).canonicalize().ok() == project_root.canonicalize().ok()
+    });
+    if linked { lines.push("  registry: linked".into()); }
+    else { lines.push("  registry: missing — run harness link".into()); ok = false; }
     lines.push(format!(
         "  result: {}",
         if ok { "healthy" } else { "issues found" }
@@ -69,8 +81,14 @@ pub fn doctor_json(project_root: &Path) -> Result<Value> {
         let ok = project_root.join(dir).is_dir();
         checks.insert(dir.replace('/', "_"), json!({"ok": ok, "path": dir}));
     }
-    let index_ok = ensure_index(project_root).is_ok();
-    checks.insert("index".into(), json!({"ok": index_ok, "fresh": index_ok}));
+    let index_path = index_json_path(project_root);
+    let index_result = if index_path.exists() { ensure_index(project_root) } else { Err(crate::error::Error::new("index missing")) };
+    let index_ok = index_result.is_ok();
+    checks.insert("index".into(), json!({"ok": index_ok, "fresh": index_result.as_ref().map(|idx| index_is_fresh(project_root, idx)).unwrap_or(false), "path": index_path}));
+    let registry_ok = crate::infra::registry::read_registry().projects.iter().any(|p| {
+        Path::new(&p.path).canonicalize().ok() == project_root.canonicalize().ok()
+    });
+    checks.insert("registry".into(), json!({"ok": registry_ok, "linked": registry_ok}));
     let healthy = checks.values().all(|v| v.get("ok").and_then(Value::as_bool).unwrap_or(false));
     Ok(json!({
         "healthy": healthy,
@@ -83,6 +101,8 @@ pub fn doctor_json(project_root: &Path) -> Result<Value> {
 pub fn status_json(project_root: &Path) -> Result<Value> {
     let cat = build_catalog(project_root)?;
     let index = ensure_index(project_root)?;
+    let role = project_link::role(project_root).unwrap_or_else(|_| json!({"role":null,"stack":[]}));
+    let peers = project_link::peers(project_root).unwrap_or_default();
     Ok(json!({
         "version": VERSION,
         "project": project_root,
@@ -99,6 +119,12 @@ pub fn status_json(project_root: &Path) -> Result<Value> {
             "intakes": by_type(&cat, "intake").len(),
             "backlog_items": by_type(&cat, "backlog").len(),
             "reports": by_type(&cat, "report").len(),
+        },
+        "project_link": {
+            "role": role["role"],
+            "stack": role["stack"],
+            "peers": peers,
+            "open_reports": by_type(&cat, "report").iter().filter(|e| e.status == "open" || e.status.is_empty()).count(),
         },
     }))
 }
@@ -149,7 +175,7 @@ pub fn next_items(project_root: &Path, limit: Option<usize>) -> Result<Vec<Value
 
 fn index_is_fresh(project_root: &Path, index: &super::index::ProjectIndex) -> bool {
     let Ok(cat) = build_catalog(project_root) else { return false };
-    if index.project_root != project_root.to_string_lossy() || index.catalog.len() != cat.entries.len() {
+    if !checksum_valid(index) || index.project_root != project_root.to_string_lossy() || index.catalog.len() != cat.entries.len() {
         return false;
     }
     cat.entries.iter().all(|entry| {

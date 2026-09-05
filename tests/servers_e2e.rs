@@ -31,11 +31,16 @@ fn http_get(addr: &str, path: &str) -> (u16, String) {
 }
 
 fn http_post(addr: &str, path: &str, json: &str) -> (u16, String) {
+    http_post_with_headers(addr, path, json, &[])
+}
+
+fn http_post_with_headers(addr: &str, path: &str, json: &str, headers: &[(&str, &str)]) -> (u16, String) {
     let mut stream = TcpStream::connect(addr).expect("connect");
     stream.set_read_timeout(Some(Duration::from_secs(5))).ok();
+    let extra = headers.iter().map(|(name, value)| format!("{name}: {value}\r\n")).collect::<String>();
     let req = format!(
-        "POST {path} HTTP/1.0\r\nHost: {addr}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{json}",
-        json.len()
+        "POST {path} HTTP/1.0\r\nHost: {addr}\r\nContent-Type: application/json\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n{json}",
+        json.len(),
     );
     stream.write_all(req.as_bytes()).unwrap();
     let mut buf = Vec::new();
@@ -49,6 +54,35 @@ fn http_post(addr: &str, path: &str, json: &str) -> (u16, String) {
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
     (status, body.to_string())
+}
+
+#[test]
+fn mcp_mutations_require_token_and_project_binding() {
+    let home = std::env::temp_dir().join(format!("harness-home-mcp-auth-{}", std::process::id()));
+    let tmp = std::env::temp_dir().join(format!("harness-mcp-auth-{}", std::process::id()));
+    std::fs::create_dir_all(&home).unwrap();
+    std::fs::create_dir_all(&tmp).unwrap();
+    let init = Command::new(bin()).args(["init", tmp.to_str().unwrap()]).env("HARNESS_HOME", &home).output().unwrap();
+    assert!(init.status.success(), "{}", String::from_utf8_lossy(&init.stderr));
+    let agents = std::fs::read_to_string(tmp.join("AGENTS.md")).unwrap();
+    let project_id = agents.lines().find_map(|line| line.trim().strip_prefix("<!-- harness-project-id: ").and_then(|s| s.strip_suffix(" -->"))).unwrap().to_string();
+    let mut mcp = Command::new(bin())
+        .args(["mcp", "--host", "127.0.0.1", "--port", "3943", "--dir", tmp.to_str().unwrap(), "--token", "test-token"])
+        .env("HARNESS_HOME", &home)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    wait_port("127.0.0.1:3943");
+    let body = r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"harness_intake","arguments":{"type":"spec_slice","summary":"auth test","lane":"normal"}}}"#;
+    let (status, _) = http_post("127.0.0.1:3943", "/mcp", body);
+    assert_eq!(status, 401);
+    let (status, _) = http_post_with_headers("127.0.0.1:3943", "/mcp", body, &[("Authorization", "Bearer test-token")]);
+    assert_eq!(status, 403);
+    let (status, response) = http_post_with_headers("127.0.0.1:3943", "/mcp", body, &[("Authorization", "Bearer test-token"), ("X-Harness-Project", &project_id)]);
+    assert_eq!(status, 200);
+    assert!(response.contains("Intake IN-001"), "{response}");
+    let _ = mcp.kill();
 }
 
 fn wait_port(addr: &str) {
