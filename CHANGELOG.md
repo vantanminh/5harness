@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Run the Windows CLI entrypoint on a larger stack so the full command tree
+  remains safe for `--version`, `--help`, and subprocess-based integration tests.
+
 ## [0.26.1] - 2026-09-05
 
 ### Added
