@@ -1,10 +1,12 @@
 use std::path::Path;
 
+use serde_json::{json, Value};
+
 use crate::error::Result;
 use crate::VERSION;
 
 use super::catalog::{build_catalog, by_type};
-use super::index::index_json_path;
+use super::index::{ensure_index, index_json_path};
 use super::query::query_stats;
 
 pub fn format_status(project_root: &Path) -> Result<String> {
@@ -53,24 +55,108 @@ pub fn format_doctor(project_root: &Path) -> Result<String> {
     Ok(lines.join("\n"))
 }
 
-pub fn format_next(project_root: &Path) -> Result<String> {
+pub fn doctor_json(project_root: &Path) -> Result<Value> {
+    let mut checks = serde_json::Map::new();
+    let agents_ok = project_root.join("AGENTS.md").is_file();
+    checks.insert("agents".into(), json!({"ok": agents_ok, "path": "AGENTS.md"}));
+    for dir in [
+        "docs/stories",
+        "docs/decisions",
+        "docs/intakes",
+        "docs/backlog",
+        "docs/reports",
+    ] {
+        let ok = project_root.join(dir).is_dir();
+        checks.insert(dir.replace('/', "_"), json!({"ok": ok, "path": dir}));
+    }
+    let index_ok = ensure_index(project_root).is_ok();
+    checks.insert("index".into(), json!({"ok": index_ok, "fresh": index_ok}));
+    let healthy = checks.values().all(|v| v.get("ok").and_then(Value::as_bool).unwrap_or(false));
+    Ok(json!({
+        "healthy": healthy,
+        "project": project_root,
+        "version": VERSION,
+        "checks": checks,
+    }))
+}
+
+pub fn status_json(project_root: &Path) -> Result<Value> {
     let cat = build_catalog(project_root)?;
-    let mut items = Vec::new();
-    for e in by_type(&cat, "story") {
-        if e.status == "in_progress" || e.status == "blocked" || e.status == "planned" {
-            items.push(format!("  [{}] {}  {}", e.status, e.id, e.title));
-        }
-    }
-    for e in by_type(&cat, "report") {
-        if e.status == "open" || e.status.is_empty() {
-            items.push(format!("  [report] {}  {}", e.id, e.title));
-        }
-    }
+    let index = ensure_index(project_root)?;
+    Ok(json!({
+        "version": VERSION,
+        "project": project_root,
+        "index": {
+            "present": index_json_path(project_root).exists(),
+            "fresh": index_is_fresh(project_root, &index),
+            "built_at": index.built_at,
+            "entities": index.catalog.len(),
+            "edges": index.edges.len(),
+        },
+        "counts": {
+            "stories": by_type(&cat, "story").len(),
+            "decisions": by_type(&cat, "decision").len(),
+            "intakes": by_type(&cat, "intake").len(),
+            "backlog_items": by_type(&cat, "backlog").len(),
+            "reports": by_type(&cat, "report").len(),
+        },
+    }))
+}
+
+pub fn format_next(project_root: &Path) -> Result<String> {
+    let items = next_items(project_root, None)?;
     if items.is_empty() {
         Ok("Next work\n  (no active stories or backend reports)".into())
     } else {
-        Ok(format!("Next work\n{}", items.join("\n")))
+        Ok(format!("Next work\n{}", items.iter().map(|item| format!("  [{}] {}  {}", item["kind"].as_str().unwrap_or("work"), item["id"].as_str().unwrap_or(""), item["title"].as_str().unwrap_or(""))).collect::<Vec<_>>().join("\n")))
     }
+}
+
+pub fn next_items(project_root: &Path, limit: Option<usize>) -> Result<Vec<Value>> {
+    let cat = build_catalog(project_root)?;
+    let mut items = Vec::new();
+    for e in by_type(&cat, "report") {
+        if e.status == "open" || e.status.is_empty() {
+            items.push(json!({"kind":"report","id":e.id,"title":e.title,"status":e.status,"priority":0}));
+        }
+    }
+    for e in by_type(&cat, "story") {
+        if matches!(e.status.as_str(), "in_progress" | "blocked" | "planned") {
+            let priority = match e.status.as_str() { "in_progress" => 1, "blocked" => 2, _ => 3 };
+            items.push(json!({"kind":"story","id":e.id,"title":e.title,"status":e.status,"priority":priority}));
+        }
+    }
+    for e in by_type(&cat, "intake") {
+        if e.status.is_empty() || e.status == "pending" {
+            items.push(json!({"kind":"intake","id":e.id,"title":e.title,"status":e.status,"priority":4}));
+        }
+    }
+    for e in by_type(&cat, "backlog") {
+        if e.status == "proposed" || e.status == "accepted" {
+            items.push(json!({"kind":"backlog","id":e.id,"title":e.title,"status":e.status,"priority":5}));
+        }
+    }
+    items.sort_by(|a, b| {
+        a["priority"].as_i64().unwrap_or(99)
+            .cmp(&b["priority"].as_i64().unwrap_or(99))
+            .then_with(|| a["id"].as_str().unwrap_or("").cmp(b["id"].as_str().unwrap_or("")))
+    });
+    if let Some(limit) = limit {
+        items.truncate(limit);
+    }
+    Ok(items)
+}
+
+fn index_is_fresh(project_root: &Path, index: &super::index::ProjectIndex) -> bool {
+    let Ok(cat) = build_catalog(project_root) else { return false };
+    if index.project_root != project_root.to_string_lossy() || index.catalog.len() != cat.entries.len() {
+        return false;
+    }
+    cat.entries.iter().all(|entry| {
+        index.catalog.iter().any(|row| {
+            row.id == entry.id && row.path == entry.path && row.ty == entry.ty && row.mtime_ms == entry.mtime_ms
+        })
+    })
 }
 
 pub fn format_handoff(project_root: &Path) -> Result<String> {

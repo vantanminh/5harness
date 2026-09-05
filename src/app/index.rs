@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::domain::frontmatter::as_string;
 use crate::domain::paths::project_index_dir;
 use crate::domain::wikilinks::{extract_wikilinks, match_link_target, normalize_link_target};
 use crate::error::Result;
@@ -72,16 +71,12 @@ pub fn build_project_index(project_root: &Path) -> Result<ProjectIndex> {
         let body = read_entity_file(project_root, &e.path)?
             .map(|f| f.body)
             .unwrap_or_default();
-        let fm_blob = [
-            e.id.as_str(),
-            e.ty.as_str(),
-            e.title.as_str(),
-            e.status.as_str(),
-            as_string(&e.data, "notes").unwrap_or_default().as_str(),
-            as_string(&e.data, "summary").unwrap_or_default().as_str(),
-            as_string(&e.data, "evidence").unwrap_or_default().as_str(),
-        ]
-        .join(" ");
+        let fm_blob = e
+            .data
+            .iter()
+            .map(|(key, value)| format!("{key}={value:?}"))
+            .collect::<Vec<_>>()
+            .join(" ");
         texts.insert(
             e.id.clone(),
             serde_json::Value::String(format!("{fm_blob}\n{body}")),
@@ -129,12 +124,26 @@ pub fn ensure_index(project_root: &Path) -> Result<ProjectIndex> {
     if path.exists() {
         if let Ok(raw) = std::fs::read_to_string(&path) {
             if let Ok(idx) = serde_json::from_str::<ProjectIndex>(&raw) {
-                return Ok(idx);
+                let current = build_project_index(project_root)?;
+                let fresh = idx.version == INDEX_SCHEMA_VERSION
+                    && idx.project_root == project_root.to_string_lossy()
+                    && idx.catalog.len() == current.catalog.len()
+                    && idx.catalog.iter().all(|row| {
+                        current.catalog.iter().any(|candidate| {
+                            row.id == candidate.id
+                                && row.path == candidate.path
+                                && row.ty == candidate.ty
+                                && row.mtime_ms == candidate.mtime_ms
+                        })
+                    });
+                if fresh {
+                    return Ok(idx);
+                }
             }
         }
     }
     let built = build_project_index(project_root)?;
-    let _ = write_project_index(project_root);
+    write_project_index(project_root)?;
     Ok(built)
 }
 
@@ -145,6 +154,7 @@ pub struct SearchHit {
     pub path: String,
     pub title: String,
     pub snippet: String,
+    pub score: usize,
 }
 
 pub fn search_index(
@@ -171,15 +181,20 @@ pub fn search_index(
             continue;
         }
         let snippet = snippet_of(text, &q);
+        let title_score = row.title.to_ascii_lowercase().matches(&q).count() * 10;
+        let id_score = row.id.to_ascii_lowercase().matches(&q).count() * 8;
+        let text_score = text.to_ascii_lowercase().matches(&q).count();
         hits.push(SearchHit {
             id: row.id.clone(),
             ty: row.ty.clone(),
             path: row.path.clone(),
             title: row.title.clone(),
             snippet,
+            score: title_score + id_score + text_score,
         });
     }
-    hits.truncate(limit.max(1));
+    hits.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.id.cmp(&b.id)));
+    hits.truncate(limit);
     hits
 }
 

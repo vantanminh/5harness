@@ -23,6 +23,7 @@ pub const GITIGNORE_RULES: &[&str] = &[
     "# 5harness local / derived (not SoT)",
     ".5harness/index/",
     ".5harness/local/",
+    ".5harness/mutation.lock",
     "# Optional SQLite import residue (not SoT)",
     SQLITE_DB_BASENAME,
     "harness.db-wal",
@@ -164,7 +165,11 @@ pub fn run_init(
                         link.registry_path.display()
                     ));
                 }
-                Err(err) => logs.push(format!("register skipped ({err})")),
+                Err(err) => {
+                    return Err(Error::new(format!(
+                        "project initialized but registry registration failed: {err}"
+                    )))
+                }
             }
         }
     } else {

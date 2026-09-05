@@ -210,9 +210,9 @@ pub fn query_view(project_root: &Path, view: &str, numeric: bool, open: bool, cl
             };
             query_backlog(project_root, filter)
         }
-        "traces" => Ok("id  recorded_at  summary\n--  -----------  -------".into()),
+        "traces" => query_traces(project_root),
         "reports" => query_reports(project_root),
-        "tools" => Ok("name  kind  capability  responsibility  status  source\n----  ----  ----------  --------------  ------  ------".into()),
+        "tools" => query_tools(project_root),
         _ => Err(Error::new(format!(
             "Unknown query view \"{view}\". Use matrix | stats | intakes | decisions | backlog | stories | traces | tools | reports"
         ))),
@@ -237,6 +237,8 @@ pub fn query_view_json(
                         "integration": proof01(&e.data, "integration"),
                         "e2e": proof01(&e.data, "e2e"),
                         "platform": proof01(&e.data, "platform"),
+                        "evidence": as_string(&e.data, "evidence"),
+                        "verify": as_string(&e.data, "verify"),
                     })
                 })
                 .collect::<Vec<_>>(),
@@ -247,9 +249,19 @@ pub fn query_view_json(
             "decisions": by_type(&cat, "decision").len(),
             "backlog_items": by_type(&cat, "backlog").len(),
             "reports": by_type(&cat, "report").len(),
+            "traces": list_traces(project_root),
         }),
-        _ => serde_json::to_value(
-            by_type(&cat, view.trim_end_matches('s'))
+        "intakes" | "decisions" | "stories" | "backlog" | "reports" => {
+            let ty = match view {
+                "intakes" => "intake",
+                "decisions" => "decision",
+                "stories" => "story",
+                "backlog" => "backlog",
+                "reports" => "report",
+                _ => unreachable!(),
+            };
+            serde_json::to_value(
+                by_type(&cat, ty)
                 .into_iter()
                 .map(|e| {
                     serde_json::json!({
@@ -260,12 +272,46 @@ pub fn query_view_json(
                     })
                 })
                 .collect::<Vec<_>>(),
-        )?,
+            )?
+        }
+        "traces" => serde_json::to_value(crate::app::local::read_records(project_root, "traces")?)?,
+        "tools" => serde_json::to_value(crate::app::local::read_records(project_root, "tools")?)?,
+        _ => return Err(Error::new(format!("Unknown query view \"{view}\""))),
     })
 }
 
-fn list_traces(_project_root: &Path) -> usize {
-    0
+fn list_traces(project_root: &Path) -> usize {
+    crate::app::local::read_records(project_root, "traces")
+        .map(|records| records.len())
+        .unwrap_or(0)
+}
+
+fn query_traces(project_root: &Path) -> Result<String> {
+    let rows = crate::app::local::read_records(project_root, "traces")?
+        .into_iter()
+        .map(|v| vec![
+            v.get("id").and_then(|x| x.as_str()).unwrap_or_default().into(),
+            v.get("created_at").and_then(|x| x.as_str()).unwrap_or_default().into(),
+            v.get("task_summary").and_then(|x| x.as_str()).unwrap_or_default().into(),
+            v.get("outcome").and_then(|x| x.as_str()).unwrap_or_default().into(),
+        ])
+        .collect::<Vec<Vec<String>>>();
+    Ok(format_table(&rows, &["id", "recorded_at", "summary", "outcome"]))
+}
+
+fn query_tools(project_root: &Path) -> Result<String> {
+    let rows = crate::app::local::read_records(project_root, "tools")?
+        .into_iter()
+        .map(|v| vec![
+            v.get("name").and_then(|x| x.as_str()).unwrap_or_default().into(),
+            v.get("kind").and_then(|x| x.as_str()).unwrap_or("external").into(),
+            v.get("capability").and_then(|x| x.as_str()).unwrap_or_default().into(),
+            v.get("responsibility").and_then(|x| x.as_str()).unwrap_or_default().into(),
+            v.get("status").and_then(|x| x.as_str()).unwrap_or("registered").into(),
+            v.get("source").and_then(|x| x.as_str()).unwrap_or("project").into(),
+        ])
+        .collect::<Vec<Vec<String>>>();
+    Ok(format_table(&rows, &["name", "kind", "capability", "responsibility", "status", "source"]))
 }
 
 pub fn catalog(project_root: &Path) -> Result<ProjectCatalog> {

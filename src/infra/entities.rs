@@ -1,8 +1,12 @@
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::fs::{self, OpenOptions};
+use std::io::Write;
+use std::path::{Component, Path, PathBuf};
+use std::thread;
+use std::time::{Duration, Instant};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::domain::entities::{entity_dir, entity_relative_path, ENTITY_TYPES};
+use crate::domain::paths::resolve_project_state_root;
 use crate::domain::frontmatter::{
     as_string, parse_frontmatter, serialize_entity_file, Frontmatter,
 };
@@ -16,6 +20,109 @@ pub struct EntityFile {
     pub body: String,
 }
 
+/// Cross-process lock for durable project mutations.
+///
+/// Every mutation must hold this lock from ID allocation through the atomic
+/// entity write and index rebuild.  A lock file is intentionally used instead
+/// of an in-memory mutex because agents commonly run as separate CLI
+/// processes.  We never remove another process's lock: a crashed writer is
+/// reported after the bounded wait so an operator can recover it explicitly.
+pub struct MutationLock {
+    path: PathBuf,
+}
+
+impl MutationLock {
+    pub fn acquire(project_root: &Path) -> Result<Self> {
+        let state = resolve_project_state_root(project_root);
+        fs::create_dir_all(&state)?;
+        let path = state.join("mutation.lock");
+        let timeout_ms = std::env::var("HARNESS_LOCK_TIMEOUT_MS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(30_000);
+        let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+        loop {
+            match OpenOptions::new().write(true).create_new(true).open(&path) {
+                Ok(mut file) => {
+                    let _ = writeln!(file, "pid={} acquired_at={}", std::process::id(), chrono::Utc::now().to_rfc3339());
+                    return Ok(Self { path });
+                }
+                Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+                    if Instant::now() >= deadline {
+                        return Err(Error::new(format!(
+                            "Project mutation lock is busy: {}. Wait for the active harness process or remove the lock after confirming it is stale.",
+                            path.display()
+                        )));
+                    }
+                    thread::sleep(Duration::from_millis(10));
+                }
+                Err(err) => return Err(Error::new(format!("create mutation lock {}: {err}", path.display()))),
+            }
+        }
+    }
+}
+
+impl Drop for MutationLock {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
+/// Resolve a user-supplied project-relative path without allowing absolute,
+/// parent, or platform-prefix components.  The returned path always uses `/`.
+pub fn safe_relative_path(relative_path: &str) -> Result<String> {
+    let normalized = relative_path.replace('\\', "/");
+    if normalized.trim().is_empty()
+        || normalized.starts_with('/')
+        || normalized.starts_with('~')
+        || Path::new(&normalized).has_root()
+    {
+        return Err(Error::new(format!("Path must be project-relative: {relative_path}")));
+    }
+    let mut parts = Vec::new();
+    for component in Path::new(&normalized).components() {
+        match component {
+            Component::Normal(value) => {
+                let value = value.to_string_lossy();
+                if value.is_empty() {
+                    continue;
+                }
+                parts.push(value.into_owned());
+            }
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(Error::new(format!("Path escapes project root: {relative_path}")));
+            }
+        }
+    }
+    if parts.is_empty() {
+        return Err(Error::new(format!("Path must name a project file: {relative_path}")));
+    }
+    Ok(parts.join("/"))
+}
+
+fn contained_path(project_root: &Path, relative_path: &str, for_write: bool) -> Result<(PathBuf, String)> {
+    let relative = safe_relative_path(relative_path)?;
+    let root = fs::canonicalize(project_root)
+        .map_err(|e| Error::new(format!("project root {} is not accessible: {e}", project_root.display())))?;
+    let candidate = root.join(&relative);
+    if for_write {
+        if let Some(parent) = candidate.parent() {
+            fs::create_dir_all(parent)?;
+            let canonical_parent = fs::canonicalize(parent)?;
+            if !canonical_parent.starts_with(&root) {
+                return Err(Error::new(format!("Path escapes project root: {relative_path}")));
+            }
+        }
+    } else if candidate.exists() {
+        let canonical = fs::canonicalize(&candidate)?;
+        if !canonical.starts_with(&root) {
+            return Err(Error::new(format!("Path escapes project root: {relative_path}")));
+        }
+    }
+    Ok((candidate, relative))
+}
+
 pub fn ensure_entity_dirs(project_root: &Path) -> Result<()> {
     for ty in ENTITY_TYPES {
         fs::create_dir_all(project_root.join(entity_dir(ty)?))?;
@@ -24,7 +131,7 @@ pub fn ensure_entity_dirs(project_root: &Path) -> Result<()> {
 }
 
 pub fn read_entity_file(project_root: &Path, relative_path: &str) -> Result<Option<EntityFile>> {
-    let absolute_path = project_root.join(relative_path);
+    let (absolute_path, relative_path) = contained_path(project_root, relative_path, false)?;
     if !absolute_path.exists() {
         return Ok(None);
     }
@@ -32,7 +139,7 @@ pub fn read_entity_file(project_root: &Path, relative_path: &str) -> Result<Opti
     let (data, body) = parse_frontmatter(&content)?;
     Ok(Some(EntityFile {
         absolute_path,
-        relative_path: relative_path.replace('\\', "/"),
+        relative_path,
         data,
         body,
     }))
@@ -49,10 +156,7 @@ pub fn write_entity_file(
     data: &Frontmatter,
     body: &str,
 ) -> Result<EntityFile> {
-    let absolute_path = project_root.join(relative_path);
-    if let Some(parent) = absolute_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
+    let (absolute_path, relative_path) = contained_path(project_root, relative_path, true)?;
     let content = serialize_entity_file(data, body);
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -63,7 +167,7 @@ pub fn write_entity_file(
     fs::rename(&tmp, &absolute_path)?;
     Ok(EntityFile {
         absolute_path,
-        relative_path: relative_path.replace('\\', "/"),
+        relative_path,
         data: data.clone(),
         body: body.to_string(),
     })

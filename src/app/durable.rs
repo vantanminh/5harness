@@ -11,7 +11,7 @@ use crate::domain::frontmatter::{
 use crate::error::{Error, Result};
 use crate::infra::entities::{
     ensure_entity_dirs, list_entity_files, next_numeric_entity_id, read_entity_by_id,
-    read_entity_file, write_entity_file, EntityFile,
+    read_entity_file, write_entity_file, EntityFile, MutationLock,
 };
 
 use super::index::write_project_index;
@@ -27,8 +27,8 @@ fn with_links(mut data: Frontmatter, links_csv: Option<&str>) -> Frontmatter {
     data
 }
 
-pub fn maybe_reindex(project_root: &Path) {
-    let _ = write_project_index(project_root);
+pub fn maybe_reindex(project_root: &Path) -> Result<()> {
+    write_project_index(project_root).map(|_| ())
 }
 
 pub fn add_story(
@@ -41,6 +41,7 @@ pub fn add_story(
     notes: Option<&str>,
     links: Option<&str>,
 ) -> Result<EntityFile> {
+    let _lock = MutationLock::acquire(project_root)?;
     let id = sanitize_entity_id(id)?;
     let lane = parse_risk_lane(lane)?;
     ensure_entity_dirs(project_root)?;
@@ -69,7 +70,7 @@ pub fn add_story(
     data = with_links(data, links);
     let body = format!("# {title}\n\n");
     let file = write_entity_file(project_root, &relative, &data, &body)?;
-    maybe_reindex(project_root);
+    maybe_reindex(project_root)?;
     Ok(file)
 }
 
@@ -89,6 +90,7 @@ pub struct StoryUpdate {
 }
 
 pub fn update_story(project_root: &Path, input: StoryUpdate) -> Result<EntityFile> {
+    let _lock = MutationLock::acquire(project_root)?;
     let id = sanitize_entity_id(&input.id)?;
     ensure_entity_dirs(project_root)?;
     let file = read_entity_by_id(project_root, "story", &id)?
@@ -153,9 +155,23 @@ pub fn update_story(project_root: &Path, input: StoryUpdate) -> Result<EntityFil
     insert_str(&mut data, "updated_at", now_iso());
     let written = write_entity_file(project_root, &file.relative_path, &data, &file.body)?;
     if as_string(&data, "status").as_deref() == Some("implemented") {
-        let _ = auto_complete_eligible_intakes(project_root);
+        auto_complete_eligible_intakes(project_root)?;
     }
-    maybe_reindex(project_root);
+    maybe_reindex(project_root)?;
+    Ok(written)
+}
+
+pub fn record_story_verification(project_root: &Path, id: &str, passed: bool, output: &str) -> Result<EntityFile> {
+    let _lock = MutationLock::acquire(project_root)?;
+    let id = sanitize_entity_id(id)?;
+    let file = read_entity_by_id(project_root, "story", &id)?.ok_or_else(|| Error::new(format!("Story {id} not found")))?;
+    let mut data = file.data.clone();
+    insert_str(&mut data, "last_verified_at", now_iso());
+    insert_str(&mut data, "last_verified_result", if passed { "passed" } else { "failed" });
+    insert_str(&mut data, "last_verified_output", output);
+    insert_str(&mut data, "updated_at", now_iso());
+    let written = write_entity_file(project_root, &file.relative_path, &data, &file.body)?;
+    maybe_reindex(project_root)?;
     Ok(written)
 }
 
@@ -170,6 +186,7 @@ pub fn add_decision(
     links: Option<&str>,
     force: bool,
 ) -> Result<EntityFile> {
+    let _lock = MutationLock::acquire(project_root)?;
     let id = sanitize_entity_id(id)?;
     let status = match status {
         Some(s) => parse_decision_status(s)?,
@@ -197,7 +214,7 @@ pub fn add_decision(
         data = with_links(data, links);
         let body = format!("# {title}\n\n");
         let file = write_entity_file(project_root, &relative, &data, &body)?;
-        maybe_reindex(project_root);
+        maybe_reindex(project_root)?;
         return Ok(file);
     }
     if read_entity_by_id(project_root, "decision", &id)?.is_some() && !force {
@@ -218,7 +235,7 @@ pub fn add_decision(
     data = with_links(data, links);
     let body = format!("# {title}\n\n");
     let file = write_entity_file(project_root, &relative, &data, &body)?;
-    maybe_reindex(project_root);
+    maybe_reindex(project_root)?;
     Ok(file)
 }
 
@@ -232,6 +249,7 @@ pub fn update_decision(
     notes: Option<&str>,
     links: Option<&str>,
 ) -> Result<EntityFile> {
+    let _lock = MutationLock::acquire(project_root)?;
     let id = sanitize_entity_id(id)?;
     let file = read_entity_by_id(project_root, "decision", &id)?
         .ok_or_else(|| Error::new(format!("Decision {id} not found. Use decision add.")))?;
@@ -270,8 +288,22 @@ pub fn update_decision(
     }
     insert_str(&mut data, "updated_at", now_iso());
     let file = write_entity_file(project_root, &file.relative_path, &data, &file.body)?;
-    maybe_reindex(project_root);
+    maybe_reindex(project_root)?;
     Ok(file)
+}
+
+pub fn record_decision_verification(project_root: &Path, id: &str, passed: bool, output: &str) -> Result<EntityFile> {
+    let _lock = MutationLock::acquire(project_root)?;
+    let id = sanitize_entity_id(id)?;
+    let file = read_entity_by_id(project_root, "decision", &id)?.ok_or_else(|| Error::new(format!("Decision {id} not found")))?;
+    let mut data = file.data.clone();
+    insert_str(&mut data, "last_verified_at", now_iso());
+    insert_str(&mut data, "last_verified_result", if passed { "passed" } else { "failed" });
+    insert_str(&mut data, "last_verified_output", output);
+    insert_str(&mut data, "updated_at", now_iso());
+    let written = write_entity_file(project_root, &file.relative_path, &data, &file.body)?;
+    maybe_reindex(project_root)?;
+    Ok(written)
 }
 
 pub fn add_intake(
@@ -286,6 +318,7 @@ pub fn add_intake(
     notes: Option<&str>,
     links: Option<&str>,
 ) -> Result<(EntityFile, String)> {
+    let _lock = MutationLock::acquire(project_root)?;
     let input_type = parse_input_type(input_type)?;
     let lane = parse_risk_lane(lane)?;
     ensure_entity_dirs(project_root)?;
@@ -330,11 +363,22 @@ pub fn add_intake(
     insert_arr(&mut data, "links", all_links);
     let body = format!("# Intake {id}\n\n{summary}\n");
     let file = write_entity_file(project_root, &relative, &data, &body)?;
-    maybe_reindex(project_root);
+    maybe_reindex(project_root)?;
     Ok((file, id))
 }
 
 pub fn update_intake(
+    project_root: &Path,
+    id: &str,
+    status: Option<&str>,
+    stories: Option<&str>,
+    notes: Option<&str>,
+) -> Result<EntityFile> {
+    let _lock = MutationLock::acquire(project_root)?;
+    update_intake_inner(project_root, id, status, stories, notes)
+}
+
+fn update_intake_inner(
     project_root: &Path,
     id: &str,
     status: Option<&str>,
@@ -382,7 +426,7 @@ pub fn update_intake(
     }
     insert_str(&mut data, "updated_at", now_iso());
     let file = write_entity_file(project_root, &file.relative_path, &data, &file.body)?;
-    maybe_reindex(project_root);
+    maybe_reindex(project_root)?;
     Ok(file)
 }
 
@@ -419,7 +463,7 @@ fn auto_complete_eligible_intakes(project_root: &Path) -> Result<Vec<EntityFile>
             continue;
         }
         if let Some(id) = as_string(&intake.data, "id") {
-            completed.push(update_intake(project_root, &id, Some("completed"), None, None)?);
+            completed.push(update_intake_inner(project_root, &id, Some("completed"), None, None)?);
         }
     }
     Ok(completed)
@@ -436,6 +480,7 @@ pub fn add_backlog(
     notes: Option<&str>,
     links: Option<&str>,
 ) -> Result<(EntityFile, String)> {
+    let _lock = MutationLock::acquire(project_root)?;
     let risk = match risk {
         Some(r) => Some(parse_risk_lane(r)?),
         None => None,
@@ -464,7 +509,7 @@ pub fn add_backlog(
     data = with_links(data, links);
     let body = format!("# {title}\n\n");
     let file = write_entity_file(project_root, &relative, &data, &body)?;
-    maybe_reindex(project_root);
+    maybe_reindex(project_root)?;
     Ok((file, id))
 }
 
@@ -474,6 +519,7 @@ pub fn close_backlog(
     status: Option<&str>,
     outcome: Option<&str>,
 ) -> Result<EntityFile> {
+    let _lock = MutationLock::acquire(project_root)?;
     ensure_entity_dirs(project_root)?;
     let file = read_entity_by_id(project_root, "backlog", id)?
         .ok_or_else(|| Error::new(format!("Backlog item {id} not found")))?;
@@ -496,8 +542,68 @@ pub fn close_backlog(
     }
     insert_str(&mut data, "updated_at", now_iso());
     let file = write_entity_file(project_root, &file.relative_path, &data, &file.body)?;
-    maybe_reindex(project_root);
+    maybe_reindex(project_root)?;
     Ok(file)
+}
+
+pub fn add_report(
+    project_root: &Path,
+    summary: &str,
+    severity: Option<&str>,
+    from_project: Option<&str>,
+    related: Option<&str>,
+) -> Result<(EntityFile, String)> {
+    let _lock = MutationLock::acquire(project_root)?;
+    if summary.trim().is_empty() {
+        return Err(Error::new("report summary must not be empty"));
+    }
+    ensure_entity_dirs(project_root)?;
+    let id = next_numeric_entity_id(project_root, "report", "RP-")?;
+    let relative = entity_relative_path("report", &id, None)?;
+    let mut data = Frontmatter::new();
+    insert_str(&mut data, "id", &id);
+    insert_str(&mut data, "type", "report");
+    insert_str(&mut data, "status", "open");
+    insert_str(&mut data, "summary", summary);
+    set_opt(&mut data, "severity", severity);
+    set_opt(&mut data, "from_project", from_project);
+    set_opt(&mut data, "resolution", None);
+    insert_arr(&mut data, "related", parse_links_csv(related).unwrap_or_default());
+    insert_str(&mut data, "created_at", now_iso());
+    insert_str(&mut data, "updated_at", now_iso());
+    let body = format!("# Report {id}\n\n{summary}\n");
+    let file = write_entity_file(project_root, &relative, &data, &body)?;
+    maybe_reindex(project_root)?;
+    Ok((file, id))
+}
+
+pub fn update_report(
+    project_root: &Path,
+    id: &str,
+    status: &str,
+    resolution: Option<&str>,
+    related: Option<&str>,
+) -> Result<EntityFile> {
+    let _lock = MutationLock::acquire(project_root)?;
+    let allowed = ["open", "acked", "fixed", "wontfix", "needs_info"];
+    if !allowed.contains(&status) {
+        return Err(Error::new(format!("invalid report status {status}")));
+    }
+    if status == "fixed" && resolution.map(str::trim).filter(|v| !v.is_empty()).is_none() {
+        return Err(Error::new("fixed reports require --resolution"));
+    }
+    let id = sanitize_entity_id(id)?;
+    let file = read_entity_by_id(project_root, "report", &id)?
+        .ok_or_else(|| Error::new(format!("Report {id} not found")))?;
+    let mut data = file.data.clone();
+    insert_str(&mut data, "type", "report");
+    insert_str(&mut data, "status", status);
+    if let Some(resolution) = resolution { insert_str(&mut data, "resolution", resolution); }
+    if let Some(related) = related { insert_arr(&mut data, "related", parse_links_csv(Some(related)).unwrap_or_default()); }
+    insert_str(&mut data, "updated_at", now_iso());
+    let written = write_entity_file(project_root, &file.relative_path, &data, &file.body)?;
+    maybe_reindex(project_root)?;
+    Ok(written)
 }
 
 fn set_opt(data: &mut Frontmatter, key: &str, value: Option<&str>) {

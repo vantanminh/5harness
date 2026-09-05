@@ -44,7 +44,7 @@ pub fn link_project(path_input: Option<&str>, cwd: &Path) -> Result<LinkResult> 
     )
     .map_err(Error::new)?;
     let registry_path = write_registry(&next)?;
-    let _ = write_project_index(&absolute);
+    write_project_index(&absolute)?;
     Ok(LinkResult {
         entry,
         created,

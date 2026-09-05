@@ -4,6 +4,8 @@ pub mod durable;
 pub mod index;
 pub mod init;
 pub mod link;
+pub mod local;
 pub mod mcp;
 pub mod query;
+pub mod project_link;
 pub mod status;

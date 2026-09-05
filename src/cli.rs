@@ -5,16 +5,18 @@ use std::path::{Path, PathBuf};
 use clap::{ArgAction, Args, Parser, Subcommand};
 
 use crate::app::durable::{
-    add_backlog, add_decision, add_intake, add_story, close_backlog, get_entity, update_decision,
-    update_intake, update_story, StoryUpdate,
+    add_backlog, add_decision, add_intake, add_report, add_story, close_backlog, get_entity,
+    record_decision_verification, record_story_verification, update_decision, update_intake, update_report, update_story, StoryUpdate,
 };
 use crate::app::index::{
     ensure_index, format_links_view, format_search_hits, links_for, search_index, write_project_index,
 };
 use crate::app::init::{run_init, run_migrate};
 use crate::app::link::{link_project, list_projects, read_project_id, unlink_project};
+use crate::app::local::{append_trace, append_worklog, git_commits, latest_trace, read_records, remove_tool, score_trace, upsert_tool};
+use crate::app::project_link;
 use crate::app::query::{query_view, query_view_json};
-use crate::app::status::{format_doctor, format_handoff, format_next, format_status};
+use crate::app::status::{doctor_json, format_doctor, format_handoff, format_status, next_items, status_json};
 use crate::domain::frontmatter::as_string;
 use crate::domain::paths::resolve_target_dir;
 use crate::error::{Error, Result};
@@ -274,6 +276,34 @@ enum Commands {
         dir: DirOpts,
         #[arg(long = "summary")]
         summary: String,
+        #[arg(long = "intake")]
+        intake: Option<String>,
+        #[arg(long = "story")]
+        story: Option<String>,
+        #[arg(long = "agent")]
+        agent: Option<String>,
+        #[arg(long = "outcome", default_value = "completed")]
+        outcome: String,
+        #[arg(long = "duration")]
+        duration: Option<u64>,
+        #[arg(long = "tokens")]
+        tokens: Option<u64>,
+        #[arg(long = "actions")]
+        actions: Option<String>,
+        #[arg(long = "read")]
+        files_read: Option<String>,
+        #[arg(long = "changed")]
+        files_changed: Option<String>,
+        #[arg(long = "decisions")]
+        decisions: Option<String>,
+        #[arg(long = "errors")]
+        errors: Option<String>,
+        #[arg(long = "friction")]
+        friction: Option<String>,
+        #[arg(long = "notes")]
+        notes: Option<String>,
+        #[arg(long = "json")]
+        json: bool,
     },
     /// Score a trace against quality tiers
     ScoreTrace {
@@ -281,6 +311,8 @@ enum Commands {
         dir: DirOpts,
         #[arg(long = "id")]
         id: Option<String>,
+        #[arg(long = "json")]
+        json: bool,
     },
     /// Durable evidence trail linking implementation to stories
     Worklog {
@@ -331,6 +363,8 @@ enum Commands {
     Audit {
         #[command(flatten)]
         dir: DirOpts,
+        #[arg(long = "json")]
+        json: bool,
     },
     /// Generate improvement proposals from audit findings
     Propose {
@@ -368,6 +402,9 @@ enum Commands {
         host: String,
         #[arg(long = "public-url")]
         public_url: Option<String>,
+        /// bearer token for MCP clients (generated when omitted)
+        #[arg(long = "token")]
+        token: Option<String>,
     },
 }
 
@@ -448,11 +485,15 @@ enum ReportCmd {
         dir: DirOpts,
         #[arg(long = "json")]
         json: bool,
+        #[arg(long = "status")]
+        status: Option<String>,
     },
     Get {
         id: String,
         #[command(flatten)]
         dir: DirOpts,
+        #[arg(long = "from")]
+        from: Option<String>,
     },
     Update {
         #[command(flatten)]
@@ -461,6 +502,10 @@ enum ReportCmd {
         id: String,
         #[arg(long = "status")]
         status: String,
+        #[arg(long = "resolution")]
+        resolution: Option<String>,
+        #[arg(long = "related")]
+        related: Option<String>,
     },
 }
 
@@ -470,21 +515,53 @@ enum PeerCmd {
         query: String,
         #[command(flatten)]
         dir: DirOpts,
+        #[arg(long = "peer")]
+        peer: Option<String>,
+        #[arg(long = "role")]
+        role: Option<String>,
+        #[arg(long = "limit", default_value = "20")]
+        limit: usize,
+        #[arg(long = "json")]
+        json: bool,
     },
     Get {
         id_or_path: String,
         #[command(flatten)]
         dir: DirOpts,
+        #[arg(long = "peer")]
+        peer: Option<String>,
+        #[arg(long = "role")]
+        role: Option<String>,
+        #[arg(long = "summary")]
+        summary: bool,
+        #[arg(long = "json")]
+        json: bool,
     },
     Context {
         id: String,
         #[command(flatten)]
         dir: DirOpts,
+        #[arg(long = "peer")]
+        peer: Option<String>,
+        #[arg(long = "role")]
+        role: Option<String>,
+        #[arg(long = "depth")]
+        depth: Option<u32>,
+        #[arg(long = "max-chars")]
+        max_chars: Option<usize>,
+        #[arg(long = "json")]
+        json: bool,
     },
     Links {
         id: String,
         #[command(flatten)]
         dir: DirOpts,
+        #[arg(long = "peer")]
+        peer: Option<String>,
+        #[arg(long = "role")]
+        role: Option<String>,
+        #[arg(long = "json")]
+        json: bool,
     },
 }
 
@@ -754,6 +831,10 @@ enum WorklogCmd {
         story: String,
         #[arg(long = "summary")]
         summary: String,
+        #[arg(long = "pr")]
+        pr: Option<String>,
+        #[arg(long = "commit")]
+        commit: Option<String>,
     },
     List { #[command(flatten)] dir: DirOpts, #[arg(long = "json")] json: bool },
     FromGit {
@@ -761,6 +842,8 @@ enum WorklogCmd {
         dir: DirOpts,
         #[arg(long = "story")]
         story: String,
+        #[arg(long = "since")]
+        since: Option<String>,
     },
 }
 
@@ -777,14 +860,20 @@ enum ToolCmd {
         description: String,
         #[arg(long = "responsibility")]
         responsibility: String,
+        #[arg(long = "kind", default_value = "external")]
+        kind: String,
+        #[arg(long = "capability")]
+        capability: Option<String>,
+        #[arg(long = "json")]
+        json: bool,
     },
-    Check { #[command(flatten)] dir: DirOpts, #[arg(long = "name")] name: Option<String> },
-    Remove { #[command(flatten)] dir: DirOpts, #[arg(long = "name")] name: String },
+    Check { #[command(flatten)] dir: DirOpts, #[arg(long = "name")] name: Option<String>, #[arg(long = "json")] json: bool },
+    Remove { #[command(flatten)] dir: DirOpts, #[arg(long = "name")] name: String, #[arg(long = "json")] json: bool },
 }
 
 #[derive(Subcommand, Debug)]
 enum ExportCmd {
-    Changelog { #[command(flatten)] dir: DirOpts, #[arg(long = "json")] json: bool },
+    Changelog { #[command(flatten)] dir: DirOpts, #[arg(long = "since")] since: Option<String>, #[arg(long = "json")] json: bool },
 }
 
 pub fn run() -> Result<()> {
@@ -801,7 +890,7 @@ pub fn run() -> Result<()> {
     }
     let cwd = env::current_dir()?;
     match cli.command {
-        None => run_dashboard("127.0.0.1", 3927, true),
+        None => run_dashboard("127.0.0.1", 3927, true, None),
         Some(cmd) => dispatch(cmd, &cwd),
     }
 }
@@ -915,28 +1004,52 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
                 Ok(())
             }
             ProjectCmd::Role { cmd } => {
-                println!("Project Link role: {cmd:?}");
-                Ok(())
+                match cmd {
+                    RoleCmd::Set { role, dir, stack, json } => {
+                        let target = dir.path(None, cwd);
+                        let value = project_link::set_role(&target, &role, stack.as_deref())?;
+                        if json { println!("{}", serde_json::to_string_pretty(&value)?); }
+                        else { println!("Project role set to {}", role); }
+                        Ok(())
+                    }
+                    RoleCmd::Show { dir, json } => {
+                        let value = project_link::role(&dir.path(None, cwd))?;
+                        if json { println!("{}", serde_json::to_string_pretty(&value)?); }
+                        else { println!("role: {}\nstack: {}", value["role"].as_str().unwrap_or("unset"), value["stack"].as_array().map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join(",")).unwrap_or_default()); }
+                        Ok(())
+                    }
+                }
             }
             ProjectCmd::Peer { cmd } => {
-                println!("Project Link peer: {cmd:?}");
-                Ok(())
+                match cmd {
+                    ProjectPeerCmd::Add { id_or_path, dir, role } => {
+                        let value = project_link::add_peer(&dir.path(None, cwd), &id_or_path, role.as_deref())?;
+                        println!("Peer {} configured{}.", value["id"].as_str().unwrap_or(""), if value["reverse_written"] == true { " (reverse marker written)" } else { "" });
+                        Ok(())
+                    }
+                    ProjectPeerCmd::Remove { project_id, dir } => {
+                        if project_link::remove_peer(&dir.path(None, cwd), &project_id)? { println!("Peer {project_id} removed."); } else { println!("Peer {project_id} was not configured."); }
+                        Ok(())
+                    }
+                    ProjectPeerCmd::List { dir, json } => {
+                        let values = project_link::peers(&dir.path(None, cwd))?;
+                        if json { println!("{}", serde_json::to_string_pretty(&values)?); }
+                        else { for value in values { println!("{}  {}  {}", value["id"].as_str().unwrap_or(""), value["role"].as_str().unwrap_or(""), value["path"].as_str().unwrap_or("unresolved")); } }
+                        Ok(())
+                    }
+                }
             }
         },
-        Commands::Report { cmd } => {
-            println!("backend reports: {cmd:?}");
-            Ok(())
-        }
-        Commands::Peer { cmd } => {
-            println!("Project Link peer read: {cmd:?}");
-            Ok(())
-        }
-        Commands::Dashboard { port, host, cmd, .. } => match cmd {
-            Some(DashboardCmd::SetPassword { .. }) => {
-                println!("Dashboard password updated successfully.");
+        Commands::Report { cmd } => report_cmd(cmd, cwd),
+        Commands::Peer { cmd } => peer_cmd(cmd, cwd),
+        Commands::Dashboard { port, host, public_url, cmd } => match cmd {
+            Some(DashboardCmd::SetPassword { password }) => {
+                let password = password.ok_or_else(|| Error::new("dashboard set-password requires --password"))?;
+                let path = crate::app::dashboard::set_dashboard_password(&password)?;
+                println!("Dashboard password updated successfully (stored at {}).", path.display());
                 Ok(())
             }
-            None => run_dashboard(&host, port, true),
+            None => run_dashboard(&host, port, true, public_url.as_deref()),
         },
         Commands::Docs { cmd } => docs_cmd(cmd),
         Commands::Completion { shell } => {
@@ -1032,15 +1145,25 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
             }
             Ok(())
         }
-        Commands::IntakeRun { prompt, summary, json, .. } => {
+        Commands::IntakeRun { prompt, summary, json, commit, dir } => {
             let text = prompt.or(summary).unwrap_or_default();
             let plan = serde_json::json!({
                 "type": "spec_slice",
                 "summary": text,
                 "lane": "normal",
             });
+            if commit {
+                let target = dir.path(None, cwd);
+                let (file, id) = add_intake(&target, "spec_slice", &text, "normal", None, None, None, None, None, None)?;
+                if json {
+                    println!("{}", serde_json::json!({"committed": true, "id": id, "path": file.relative_path, "plan": plan}));
+                } else {
+                    println!("Intake {id} recorded.\n  file: {}", file.relative_path);
+                }
+                return Ok(());
+            }
             if json {
-                println!("{plan}");
+                println!("{}", serde_json::json!({"committed": false, "plan": plan}));
             } else {
                 println!("Suggested intake: spec_slice / normal\n{text}");
             }
@@ -1161,74 +1284,183 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
             }
         },
         Commands::Query { cmd } => query_cmd(cmd, cwd),
-        Commands::Trace { summary, .. } => {
-            println!("Trace recorded: {summary}");
+        Commands::Trace { dir, summary, intake, story, agent, outcome, duration, tokens, actions, files_read, files_changed, decisions, errors, friction, notes, json } => {
+            if summary.trim().chars().count() < 10 { return Err(Error::new("trace --summary must be at least 10 characters")); }
+            let target = dir.path(None, cwd);
+            let record = append_trace(&target, serde_json::json!({
+                "task_summary": summary,
+                "intake_id": intake,
+                "story_id": story,
+                "agent": agent.unwrap_or_else(|| "unknown".into()),
+                "actions_taken": csv_json(actions),
+                "files_read": csv_json(files_read),
+                "files_changed": csv_json(files_changed),
+                "decisions_made": csv_json(decisions),
+                "errors": csv_json(errors),
+                "outcome": outcome,
+                "duration_seconds": duration,
+                "token_estimate": tokens,
+                "harness_friction": friction.unwrap_or_else(|| "none".into()),
+                "notes": notes,
+            }))?;
+            let scored = score_trace(&record);
+            if json { println!("{}", serde_json::json!({"trace":record,"score":scored})); }
+            else { println!("Trace {} recorded ({} tier, score {}).", record["id"].as_str().unwrap_or(""), scored["tier"].as_str().unwrap_or(""), scored["score"].as_u64().unwrap_or(0)); }
             Ok(())
         }
-        Commands::ScoreTrace { .. } => {
-            println!("No traces to score.");
+        Commands::ScoreTrace { dir, id, json } => {
+            let target = dir.path(None, cwd);
+            let record = latest_trace(&target, id.as_deref())?.ok_or_else(|| Error::new("no trace found"))?;
+            let scored = score_trace(&record);
+            if json { println!("{}", serde_json::to_string_pretty(&serde_json::json!({"trace":record,"score":scored}))?); }
+            else { println!("Trace {}: {} (score {})", record["id"].as_str().unwrap_or(""), scored["tier"].as_str().unwrap_or(""), scored["score"].as_u64().unwrap_or(0)); }
             Ok(())
         }
-        Commands::Worklog { cmd } => {
-            println!("Worklog: {cmd:?}");
-            Ok(())
-        }
+        Commands::Worklog { cmd } => match cmd {
+            WorklogCmd::Add { dir, story, summary, pr, commit } => {
+                let target = dir.path(None, cwd);
+                let record = append_worklog(&target, serde_json::json!({"story":story,"summary":summary,"pr":pr,"commit":commit}))?;
+                println!("Worklog {} recorded.", record["id"].as_str().unwrap_or(""));
+                Ok(())
+            }
+            WorklogCmd::List { dir, json } => {
+                let records = read_records(&dir.path(None, cwd), "worklog")?;
+                if json { println!("{}", serde_json::to_string_pretty(&records)?); }
+                else { for record in records { println!("{}  {}  {}", record["id"].as_str().unwrap_or(""), record["story"].as_str().unwrap_or(""), record["summary"].as_str().unwrap_or("")); } }
+                Ok(())
+            }
+            WorklogCmd::FromGit { dir, story, since: _ } => {
+                let target = dir.path(None, cwd);
+                let commits = git_commits(&target, 20)?;
+                for commit in commits {
+                    append_worklog(&target, serde_json::json!({"story":story,"summary":commit["summary"],"commit":commit["commit"],"source":"git"}))?;
+                }
+                println!("Imported git commits into worklog.");
+                Ok(())
+            }
+        },
         Commands::Doctor { dir, json } => {
             let target = dir.path(None, cwd);
-            let text = format_doctor(&target)?;
             if json {
-                println!("{}", serde_json::json!({"report": text}));
+                println!("{}", serde_json::to_string_pretty(&doctor_json(&target)?)?);
             } else {
-                println!("{text}");
+                println!("{}", format_doctor(&target)?);
             }
             Ok(())
         }
         Commands::Status { dir, json } => {
             let target = dir.path(None, cwd);
-            let text = format_status(&target)?;
             if json {
-                println!("{}", serde_json::json!({"status": text, "version": VERSION}));
+                println!("{}", serde_json::to_string_pretty(&status_json(&target)?)?);
             } else {
-                println!("{text}");
+                println!("{}", format_status(&target)?);
             }
             Ok(())
         }
-        Commands::Next { dir, json, .. } => {
+        Commands::Next { dir, json, limit } => {
             let target = dir.path(None, cwd);
-            let text = format_next(&target)?;
             if json {
-                println!("{}", serde_json::json!({"next": text}));
+                println!("{}", serde_json::to_string_pretty(&next_items(&target, limit)?)?);
             } else {
-                println!("{text}");
+                let items = next_items(&target, limit)?;
+                if items.is_empty() {
+                    println!("Next work\n  (no active stories, pending intakes, backlog, or reports)");
+                } else {
+                    println!("Next work\n{}", items.iter().map(|item| format!("  [{}] {}  {}", item["kind"].as_str().unwrap_or("work"), item["id"].as_str().unwrap_or(""), item["title"].as_str().unwrap_or(""))).collect::<Vec<_>>().join("\n"));
+                }
             }
             Ok(())
         }
-        Commands::Context { id, dir, json, .. } => {
+        Commands::Context { id, dir, json, depth, max_chars } => {
             let target = dir.path(None, cwd);
             let file = get_entity(&target, &id)?
                 .ok_or_else(|| Error::new(format!("Entity not found: {id}")))?;
+            let depth = depth.unwrap_or(1).min(3);
+            let max_chars = max_chars.unwrap_or(12_000).max(256);
+            let entity_id = as_string(&file.data, "id").unwrap_or(id.clone());
+            let index = ensure_index(&target)?;
+            let links = crate::app::index::links_for(&index, &entity_id);
+            let mut related = Vec::new();
+            if depth > 0 {
+                for key in ["outbound", "backlinks"] {
+                    if let Some(items) = links.get(key).and_then(|v| v.as_array()) {
+                        for item in items {
+                            if let Some(value) = item.get(if key == "outbound" { "to" } else { "from" }).and_then(|v| v.as_str()) {
+                                related.push(value.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+            related.sort();
+            related.dedup();
+            let body = truncate_chars(&file.body, max_chars);
             if json {
-                println!("{}", serde_json::json!({"id": id, "path": file.relative_path, "body": file.body}));
+                println!("{}", serde_json::json!({"id": entity_id, "path": file.relative_path, "frontmatter": crate::app::durable::fm_json(&file.data), "body": body, "depth": depth, "max_chars": max_chars, "links": links, "related": related}));
             } else {
-                println!("# {id}\npath: {}\n{}", file.relative_path, file.body);
+                println!("# {entity_id}\npath: {}\n{}\n\nlinks: {}", file.relative_path, body, related.join(", "));
             }
             Ok(())
         }
-        Commands::Tool { cmd } => {
-            println!("Tool registry: {cmd:?}");
-            Ok(())
-        }
-        Commands::Audit { dir } => {
-            println!("Audit complete for {}", dir.path(None, cwd).display());
-            Ok(())
-        }
-        Commands::Propose { .. } => {
-            println!("No new proposals.");
-            Ok(())
-        }
-        Commands::Export { cmd: ExportCmd::Changelog { dir, json } } => {
+        Commands::Tool { cmd } => match cmd {
+            ToolCmd::Register { dir, name, command, description, responsibility, kind, capability, json } => {
+                let target = dir.path(None, cwd);
+                let value = upsert_tool(&target, serde_json::json!({"name":name,"command":command,"description":description,"responsibility":responsibility,"kind":kind,"capability":capability,"status":"registered","source":"project"}))?;
+                if json { println!("{}", serde_json::to_string_pretty(&value)?); } else { println!("Tool {} registered.", value["name"].as_str().unwrap_or("")); }
+                Ok(())
+            }
+            ToolCmd::Check { dir, name, json } => {
+                let target = dir.path(None, cwd);
+                let records = read_records(&target, "tools")?;
+                let mut checked = Vec::new();
+                for mut value in records {
+                    if name.as_deref().is_some_and(|filter| value["name"].as_str() != Some(filter)) { continue; }
+                    let command = value["command"].as_str().unwrap_or("");
+                    let ok = if command.is_empty() { false } else {
+                        #[cfg(unix)]
+                        { std::process::Command::new("sh").arg("-c").arg(command).status().map(|s| s.success()).unwrap_or(false) }
+                        #[cfg(windows)]
+                        { std::process::Command::new("cmd").args(["/C", command]).status().map(|s| s.success()).unwrap_or(false) }
+                    };
+                    if let Some(map) = value.as_object_mut() { map.insert("status".into(), serde_json::json!(if ok { "ok" } else { "failed" })); }
+                    checked.push(value);
+                }
+                if json { println!("{}", serde_json::to_string_pretty(&checked)?); } else { for value in checked { println!("{}: {}", value["name"].as_str().unwrap_or(""), value["status"].as_str().unwrap_or("")); } }
+                Ok(())
+            }
+            ToolCmd::Remove { dir, name, json } => {
+                let removed = remove_tool(&dir.path(None, cwd), &name)?;
+                if json { println!("{}", serde_json::json!({"name":name,"removed":removed})); } else { println!("{}", if removed { "Tool removed." } else { "Tool not found." }); }
+                Ok(())
+            }
+        },
+        Commands::Audit { dir, json } => {
             let target = dir.path(None, cwd);
-            let text = "Changelog assist from implemented stories.";
+            let index = ensure_index(&target)?;
+            let broken = index.edges.iter().filter(|e| !e.resolved).count();
+            let records = read_records(&target, "traces")?;
+            let entropy = ((broken * 10) + if index.catalog.is_empty() { 10 } else { 0 }).min(100);
+            let value = serde_json::json!({"project":target,"findings": if broken > 0 { vec![serde_json::json!({"kind":"broken_link","count":broken})] } else { Vec::<serde_json::Value>::new() },"entropy":entropy,"traces":records.len()});
+            if json { println!("{}", serde_json::to_string_pretty(&value)?); } else { println!("Audit entropy: {entropy}/100\nBroken links: {broken}\nTraces: {}", records.len()); }
+            Ok(())
+        }
+        Commands::Propose { dir, commit } => {
+            let target = dir.path(None, cwd);
+            let index = ensure_index(&target)?;
+            let broken = index.edges.iter().filter(|e| !e.resolved).count();
+            if broken == 0 { println!("No new proposals."); return Ok(()); }
+            let title = format!("Resolve {broken} broken entity links");
+            if commit {
+                let (file, id) = add_backlog(&target, &title, Some("audit"), Some("Broken durable links reduce agent context reliability"), Some("Resolve or remove broken links"), Some("normal"), None, None, None)?;
+                println!("Proposal {id} recorded in {}.", file.relative_path);
+            } else { println!("Proposal: {title}\nRun harness propose --commit to record it."); }
+            Ok(())
+        }
+        Commands::Export { cmd: ExportCmd::Changelog { dir, since: _, json } } => {
+            let target = dir.path(None, cwd);
+            let cat = crate::app::catalog::build_catalog(&target)?;
+            let entries: Vec<_> = crate::app::catalog::by_type(&cat, "story").into_iter().filter(|e| e.status == "implemented").map(|e| format!("- {}: {}", e.id, e.title)).collect();
+            let text = if entries.is_empty() { "No implemented stories.".into() } else { entries.join("\n") };
             if json {
                 println!("{}", serde_json::json!({"changelog": text, "root": target}));
             } else {
@@ -1237,11 +1469,18 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
             Ok(())
         }
         Commands::Watch { dir } => {
-            println!(
-                "Watching entity directories under {} (Ctrl+C to stop).",
-                dir.path(None, cwd).display()
-            );
-            Ok(())
+            let target = dir.path(None, cwd);
+            println!("Watching entity directories under {} (Ctrl+C to stop).", target.display());
+            let mut last = entity_mtime_fingerprint(&target);
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                let current = entity_mtime_fingerprint(&target);
+                if current != last {
+                    write_project_index(&target)?;
+                    println!("Reindexed after markdown change.");
+                    last = current;
+                }
+            }
         }
         Commands::Handoff { dir, json, .. } => {
             let target = dir.path(None, cwd);
@@ -1253,12 +1492,15 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
             }
             Ok(())
         }
-        Commands::Mcp { dir, port, host, .. } => {
+        Commands::Mcp { dir, port, host, public_url, token } => {
             let target = dir.path(None, cwd);
-            let dash = crate::app::mcp::start_mcp(&host, port, target, false)?;
+            let dash = crate::app::mcp::start_mcp(&host, port, target, false, public_url.as_deref(), token)?;
             println!("Harness MCP");
             println!("  {}", dash.url);
             println!("  MCP: {}mcp", dash.url);
+            if let Some(token) = &dash.auth_token {
+                println!("  Bearer token: {token}");
+            }
             println!("Press Ctrl+C to stop.");
             loop {
                 std::thread::sleep(std::time::Duration::from_secs(60));
@@ -1340,12 +1582,113 @@ fn story_cmd(cmd: StoryCmd, cwd: &Path) -> Result<()> {
         StoryCmd::Block { id, dir, id_flag, reason } => {
             lifecycle(cwd, &dir, id.or(id_flag), "blocked", "blocked", None, reason)
         }
-        StoryCmd::Verify { id, .. } => {
-            println!("Verify skipped (no verify_command) for {:?}", id);
+        StoryCmd::Verify { id, dir, id_flag } => {
+            let id = id.or(id_flag).ok_or_else(|| Error::new("story verify requires an entity id"))?;
+            let target = dir.path(None, cwd);
+            let file = get_entity(&target, &id)?.ok_or_else(|| Error::new(format!("Story {id} not found")))?;
+            let command = as_string(&file.data, "verify").ok_or_else(|| Error::new(format!("Story {id} has no verify command")))?;
+            let (passed, output) = run_verify_command(&command, &target);
+            record_story_verification(&target, &id, passed, &output)?;
+            println!("Story {id} verification: {}", if passed { "passed" } else { "failed" });
+            if passed { Ok(()) } else { Err(Error::new(format!("story verification failed: {output}"))) }
+        }
+        StoryCmd::VerifyAll { dir } => {
+            let target = dir.path(None, cwd);
+            let files = crate::infra::entities::list_entity_files(&target, "story")?;
+            let mut failures = 0;
+            for file in files {
+                let Some(id) = as_string(&file.data, "id") else { continue };
+                let Some(command) = as_string(&file.data, "verify") else { continue };
+                let (passed, output) = run_verify_command(&command, &target);
+                record_story_verification(&target, &id, passed, &output)?;
+                println!("Story {id}: {}", if passed { "passed" } else { "failed" });
+                if !passed { failures += 1; }
+            }
+            if failures == 0 { Ok(()) } else { Err(Error::new(format!("{failures} story verifications failed"))) }
+        }
+    }
+}
+
+fn report_cmd(cmd: ReportCmd, cwd: &Path) -> Result<()> {
+    match cmd {
+        ReportCmd::Add { dir, to, summary } => {
+            let target = dir.path(None, cwd);
+            let peer_root = project_link::resolve_peer(&target, Some(&to), None)?;
+            let from = read_project_id(&target).ok();
+            let (file, id) = add_report(&peer_root, &summary, None, from.as_deref(), None)?;
+            println!("Report {id} added to {}.\n  file: {}", peer_root.display(), file.relative_path);
             Ok(())
         }
-        StoryCmd::VerifyAll { .. } => {
-            println!("No stories with verify_command.");
+        ReportCmd::List { dir, json, status } => {
+            let target = dir.path(None, cwd);
+            let mut values = Vec::new();
+            for file in crate::infra::entities::list_entity_files(&target, "report")? {
+                let current = as_string(&file.data, "status").unwrap_or_default();
+                if status.as_deref().is_some_and(|filter| filter != current) { continue; }
+                values.push(serde_json::json!({
+                    "id": as_string(&file.data, "id"),
+                    "status": current,
+                    "severity": as_string(&file.data, "severity"),
+                    "summary": as_string(&file.data, "summary"),
+                    "updated_at": as_string(&file.data, "updated_at"),
+                    "path": file.relative_path,
+                }));
+            }
+            if json { println!("{}", serde_json::to_string_pretty(&values)?); }
+            else { for value in values { println!("{}  {}  {}", value["id"].as_str().unwrap_or(""), value["status"].as_str().unwrap_or(""), value["summary"].as_str().unwrap_or("")); } }
+            Ok(())
+        }
+        ReportCmd::Get { id, dir, from } => {
+            let target = dir.path(None, cwd);
+            let root = if let Some(selector) = from { project_link::resolve_peer(&target, Some(&selector), None)? } else { target };
+            let file = get_entity(&root, &id)?.ok_or_else(|| Error::new(format!("Report {id} not found")))?;
+            println!("{}", serde_json::to_string_pretty(&serde_json::json!({"id":id,"path":file.relative_path,"frontmatter":crate::app::durable::fm_json(&file.data),"body":file.body}))?);
+            Ok(())
+        }
+        ReportCmd::Update { dir, id, status, resolution, related } => {
+            let target = dir.path(None, cwd);
+            let file = update_report(&target, &id, &status, resolution.as_deref(), related.as_deref())?;
+            println!("Report {id} updated.\n  status: {}", as_string(&file.data, "status").unwrap_or_default());
+            Ok(())
+        }
+    }
+}
+
+fn peer_cmd(cmd: PeerCmd, cwd: &Path) -> Result<()> {
+    match cmd {
+        PeerCmd::Search { query, dir, peer, role, limit, json } => {
+            let local = dir.path(None, cwd);
+            let root = project_link::resolve_peer(&local, peer.as_deref(), role.as_deref())?;
+            let index = ensure_index(&root)?;
+            let hits = search_index(&index, &query, limit, None);
+            if json { println!("{}", serde_json::to_string_pretty(&hits)?); } else { println!("{}", format_search_hits(&hits)); }
+            Ok(())
+        }
+        PeerCmd::Get { id_or_path, dir, peer, role, summary, json } => {
+            let local = dir.path(None, cwd);
+            let root = project_link::resolve_peer(&local, peer.as_deref(), role.as_deref())?;
+            let file = get_entity(&root, &id_or_path)?.ok_or_else(|| Error::new(format!("Peer entity not found: {id_or_path}")))?;
+            let value = serde_json::json!({"id":as_string(&file.data,"id").unwrap_or(id_or_path),"path":file.relative_path,"frontmatter":crate::app::durable::fm_json(&file.data),"body":if summary { serde_json::Value::Null } else { serde_json::Value::String(file.body) }});
+            if json { println!("{}", serde_json::to_string_pretty(&value)?); } else { println!("{}", value["body"].as_str().unwrap_or("")); }
+            Ok(())
+        }
+        PeerCmd::Context { id, dir, peer, role, depth: _, max_chars, json } => {
+            let local = dir.path(None, cwd);
+            let root = project_link::resolve_peer(&local, peer.as_deref(), role.as_deref())?;
+            let file = get_entity(&root, &id)?.ok_or_else(|| Error::new(format!("Peer entity not found: {id}")))?;
+            let index = ensure_index(&root)?;
+            let entity_id = as_string(&file.data, "id").unwrap_or(id);
+            let body = truncate_chars(&file.body, max_chars.unwrap_or(12_000).max(256));
+            let value = serde_json::json!({"id":entity_id,"path":file.relative_path,"frontmatter":crate::app::durable::fm_json(&file.data),"body":body,"links":crate::app::index::links_for(&index,&entity_id)});
+            if json { println!("{}", serde_json::to_string_pretty(&value)?); } else { println!("{}", body); }
+            Ok(())
+        }
+        PeerCmd::Links { id, dir, peer, role, json } => {
+            let local = dir.path(None, cwd);
+            let root = project_link::resolve_peer(&local, peer.as_deref(), role.as_deref())?;
+            let index = ensure_index(&root)?;
+            let value = crate::app::index::links_for(&index, &id);
+            if json { println!("{}", serde_json::to_string_pretty(&value)?); } else { println!("{}", crate::app::index::format_links_view(&value)); }
             Ok(())
         }
     }
@@ -1443,9 +1786,15 @@ fn decision_cmd(cmd: DecisionCmd, cwd: &Path) -> Result<()> {
             println!("  file: {}", file.relative_path);
             Ok(())
         }
-        DecisionCmd::Verify { id, .. } => {
-            println!("Verify skipped for {:?}", id);
-            Ok(())
+        DecisionCmd::Verify { id, dir, id_flag } => {
+            let id = id.or(id_flag).ok_or_else(|| Error::new("decision verify requires an entity id"))?;
+            let target = dir.path(None, cwd);
+            let file = get_entity(&target, &id)?.ok_or_else(|| Error::new(format!("Decision {id} not found")))?;
+            let command = as_string(&file.data, "verify").ok_or_else(|| Error::new(format!("Decision {id} has no verify command")))?;
+            let (passed, output) = run_verify_command(&command, &target);
+            record_decision_verification(&target, &id, passed, &output)?;
+            println!("Decision {id} verification: {}", if passed { "passed" } else { "failed" });
+            if passed { Ok(()) } else { Err(Error::new(format!("decision verification failed: {output}"))) }
         }
     }
 }
@@ -1510,10 +1859,20 @@ fn docs_cmd(cmd: DocsCmd) -> Result<()> {
             }
         }
         DocsCmd::Read { path, json } => {
-            let full = docs.join(&path);
+            let root = docs
+                .canonicalize()
+                .map_err(|e| Error::new(format!("docs directory unavailable: {e}")))?;
+            let relative = crate::infra::entities::safe_relative_path(&path)?;
+            let full = root.join(&relative);
+            let canonical = full
+                .canonicalize()
+                .map_err(|e| Error::new(format!("documentation file not found: {path}: {e}")))?;
+            if !canonical.starts_with(&root) {
+                return Err(Error::new(format!("Documentation path escapes package docs: {path}")));
+            }
             let text = fs::read_to_string(&full)?;
             if json {
-                println!("{}", serde_json::json!({"path": path, "body": text}));
+                println!("{}", serde_json::json!({"path": relative, "body": text}));
             } else {
                 print!("{text}");
             }
@@ -1536,8 +1895,61 @@ fn collect_md(root: &Path, dir: &Path, out: &mut Vec<String>) {
     }
 }
 
-fn run_dashboard(host: &str, port: u16, forever: bool) -> Result<()> {
-    let dash = crate::app::dashboard::start_dashboard(host, port, false)?;
+fn truncate_chars(text: &str, max_chars: usize) -> String {
+    let mut chars = text.chars();
+    let body: String = chars.by_ref().take(max_chars).collect();
+    if chars.next().is_some() {
+        format!("{body}\n… [truncated]")
+    } else {
+        body
+    }
+}
+
+fn csv_json(value: Option<String>) -> serde_json::Value {
+    serde_json::Value::Array(
+        value
+            .unwrap_or_default()
+            .split(',')
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .map(|v| serde_json::Value::String(v.to_string()))
+            .collect(),
+    )
+}
+
+fn run_verify_command(command: &str, project_root: &Path) -> (bool, String) {
+    #[cfg(unix)]
+    let result = std::process::Command::new("sh").arg("-c").arg(command).current_dir(project_root).output();
+    #[cfg(windows)]
+    let result = std::process::Command::new("cmd").args(["/C", command]).current_dir(project_root).output();
+    match result {
+        Ok(output) => {
+            let mut text = String::from_utf8_lossy(&output.stdout).to_string();
+            text.push_str(&String::from_utf8_lossy(&output.stderr));
+            (output.status.success(), text.trim().chars().take(2_000).collect())
+        }
+        Err(err) => (false, err.to_string()),
+    }
+}
+
+fn entity_mtime_fingerprint(project_root: &Path) -> u128 {
+    let mut latest = 0u128;
+    for ty in crate::domain::entities::ENTITY_TYPES {
+        let dir = project_root.join(crate::domain::entities::entity_dir(ty).unwrap_or(""));
+        let Ok(entries) = fs::read_dir(dir) else { continue };
+        for entry in entries.flatten() {
+            if let Ok(modified) = entry.metadata().and_then(|m| m.modified()) {
+                if let Ok(age) = modified.duration_since(std::time::UNIX_EPOCH) {
+                    latest = latest.max(age.as_nanos());
+                }
+            }
+        }
+    }
+    latest
+}
+
+fn run_dashboard(host: &str, port: u16, forever: bool, public_url: Option<&str>) -> Result<()> {
+    let dash = crate::app::dashboard::start_dashboard(host, port, false, public_url)?;
     println!("Harness dashboard");
     println!("  {}", dash.url);
     println!("  MCP: {}mcp", dash.url);
