@@ -78,7 +78,7 @@ Those stories are implemented; do not treat this file as a second SoT.
 | US-085 | Dashboard 2.0 | yes | yes | yes | yes | planned | |
 | US-086 | Completions + harness-check action | yes | no | no | no | planned | |
 | US-087 | 1.0 contract freeze | yes | yes | yes | yes | planned | |
-| US-092 | Native npm artifacts + direct installers for Linux/macOS/Windows | yes | yes | yes | yes | in_progress | `npm run release:check`; `npm run install:smoke`; CI native-binary and installer jobs |
+| US-092 | Native npm artifacts + direct installers for Linux/macOS/Windows | yes | yes | yes | yes | implemented | `npm run release:check`; `npm run install:smoke`; CI native-binary and installer jobs |
 
 ## Evidence Rules
 

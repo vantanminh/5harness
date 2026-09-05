@@ -22,7 +22,7 @@ and validation work.
 | [E11-dashboard](./epics/E11-dashboard/README.md) | Phase G: local dashboard | US-014 **implemented** |
 | [E16 Project Link](../product/project-link.md) | Phase I: roles, configured peers, bounded reads, reports | US-059–063 **done** (v0.21+) |
 | E17 1.0 maturity | Phase J: contract truth, MCP parity, FTS, dashboard 2.0 | US-069–087 **in_progress** |
-| Distribution | Native installers and release artifacts for Linux/macOS/Windows | US-092 **in_progress** |
+| Distribution | Native installers and release artifacts for Linux/macOS/Windows | US-092 **implemented** |
 
 The complete Phase H / E12–E15 and US-015–US-068 history remains indexed in the
 [roadmap](../product/roadmap.md) and `harness query matrix`.
@@ -54,7 +54,7 @@ The complete Phase H / E12–E15 and US-015–US-068 history remains indexed in 
 | [US-070](./US-070.md) | Policy and help-text sweep | normal | in_progress | [HARNESS.md](../HARNESS.md) |
 | [US-071](./US-071.md) | Sync changelog, roadmap, matrix, story index | tiny | in_progress | [roadmap](../product/roadmap.md) |
 | [US-072](./US-072.md) | Remove leftover debug scripts | tiny | in_progress | [distribution](../product/distribution.md) |
-| [US-092](./US-092.md) | Complete macOS, Linux, and Windows installation artifacts | high-risk | in_progress | [distribution](../product/distribution.md) |
+| [US-092](./US-092.md) | Complete macOS, Linux, and Windows installation artifacts | high-risk | implemented | [distribution](../product/distribution.md) |
 
 ## Recommended implement order
 

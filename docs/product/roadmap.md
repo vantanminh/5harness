@@ -174,7 +174,7 @@ in_progress. Canonical proof: `harness query matrix`.
 | [US-085](../stories/US-085.md) | 3 | Dashboard 2.0 project cockpit | US-084 | planned |
 | [US-086](../stories/US-086.md) | 3 | Completions and harness-check Action | — | planned |
 | [US-087](../stories/US-087.md) | 3 | 1.0 public contract freeze | US-069, 0023 | planned |
-| [US-092](../stories/US-092.md) | distribution | Complete macOS/Linux/Windows native installers and artifacts | 0018, IN-027 | in_progress |
+| [US-092](../stories/US-092.md) | distribution | Complete macOS/Linux/Windows native installers and artifacts | 0018, IN-027 | implemented |
 
 US-077 was dropped (would have implemented `query friction`).
 
