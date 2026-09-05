@@ -152,29 +152,31 @@ Dependency order: **US-059 → US-060 → (US-061 ∥ US-062) → US-063**.
 ## Story checklist (Phase J — 1.0 maturity)
 
 Declared via harness CLI (decision **0023**, intake **IN-024**). Status:
-in_progress. Canonical proof: `harness query matrix`.
+implemented through US-092; US-093 is the active hardening slice. Canonical
+proof: `harness query matrix`.
 
 | ID | Wave | Title | Depends on | Status |
 | --- | --- | --- | --- | --- |
-| [US-069](../stories/US-069.md) | 0 | Remove undocumented phantom commands | 0023 | in_progress |
-| [US-070](../stories/US-070.md) | 0 | Policy and help-text sweep | US-069 | in_progress |
-| [US-071](../stories/US-071.md) | 0 | Sync changelog, roadmap, test matrix, story index | — | in_progress |
-| [US-072](../stories/US-072.md) | 0 | Remove leftover debug scripts | — | in_progress |
-| [US-073](../stories/US-073.md) | 1 | Structured JSON on agent-facing reads | US-009 | planned |
-| [US-074](../stories/US-074.md) | 1 | MCP parity for agent reads | US-073 | planned |
-| [US-075](../stories/US-075.md) | 1 | MCP parity for lifecycle mutations | US-076 | planned |
-| [US-076](../stories/US-076.md) | 1 | decision update and query reports | US-007 | planned |
-| [US-078](../stories/US-078.md) | 1 | Official Harness agent skill on init | US-011 | planned |
-| [US-079](../stories/US-079.md) | 1 | Next scheduling includes reports and blocked work | US-020 | planned |
-| [US-080](../stories/US-080.md) | 2 | Derived SQLite FTS for agent search | US-009 | planned |
-| [US-081](../stories/US-081.md) | 2 | Doctor depth (links, duplicates, sqlite, password) | US-018 | planned |
-| [US-082](../stories/US-082.md) | 2 | Retire SQLite dual-write | US-013 | planned |
-| [US-083](../stories/US-083.md) | 2 | Link resolution hygiene | US-081 | planned |
-| [US-084](../stories/US-084.md) | 3 | Dashboard password hardening | US-042 | planned |
-| [US-085](../stories/US-085.md) | 3 | Dashboard 2.0 project cockpit | US-084 | planned |
-| [US-086](../stories/US-086.md) | 3 | Completions and harness-check Action | — | planned |
-| [US-087](../stories/US-087.md) | 3 | 1.0 public contract freeze | US-069, 0023 | planned |
+| [US-069](../stories/US-069.md) | 0 | Remove undocumented phantom commands | 0023 | implemented |
+| [US-070](../stories/US-070.md) | 0 | Policy and help-text sweep | US-069 | implemented |
+| [US-071](../stories/US-071.md) | 0 | Sync changelog, roadmap, test matrix, story index | — | implemented |
+| [US-072](../stories/US-072.md) | 0 | Remove leftover debug scripts | — | implemented |
+| [US-073](../stories/US-073.md) | 1 | Structured JSON on agent-facing reads | US-009 | implemented |
+| [US-074](../stories/US-074.md) | 1 | MCP parity for agent reads | US-073 | implemented |
+| [US-075](../stories/US-075.md) | 1 | MCP parity for lifecycle mutations | US-076 | implemented |
+| [US-076](../stories/US-076.md) | 1 | decision update and query reports | US-007 | implemented |
+| [US-078](../stories/US-078.md) | 1 | Official Harness agent skill on init | US-011 | implemented |
+| [US-079](../stories/US-079.md) | 1 | Next scheduling includes reports and blocked work | US-020 | implemented |
+| [US-080](../stories/US-080.md) | 2 | Derived search index for agent search | US-009 | implemented |
+| [US-081](../stories/US-081.md) | 2 | Doctor depth (links, duplicates, sqlite, password) | US-018 | implemented |
+| [US-082](../stories/US-082.md) | 2 | Retire SQLite dual-write | US-013 | implemented |
+| [US-083](../stories/US-083.md) | 2 | Link resolution hygiene | US-081 | implemented |
+| [US-084](../stories/US-084.md) | 3 | Dashboard password hardening | US-042 | implemented |
+| [US-085](../stories/US-085.md) | 3 | Dashboard 2.0 project cockpit | US-084 | implemented |
+| [US-086](../stories/US-086.md) | 3 | Completions and harness-check GitHub Action | — | implemented |
+| [US-087](../stories/US-087.md) | 3 | 1.0 public contract freeze | US-069, 0023 | implemented |
 | [US-092](../stories/US-092.md) | distribution | Complete macOS/Linux/Windows native installers and artifacts | 0018, IN-027 | implemented |
+| [US-093](../stories/US-093.md) | high-risk | Implement agent reliability and security hardening | 0023, 0017 | in_progress |
 
 US-077 was dropped (would have implemented `query friction`).
 

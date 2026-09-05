@@ -1154,7 +1154,8 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
         Commands::Links { id, dir, json, broken } => {
             let target = dir.path(None, cwd);
             let index = ensure_index(&target)?;
-            let mut view = links_for(&index, &id);
+            let canonical_id = get_entity(&target, &id)?.and_then(|file| as_string(&file.data, "id")).unwrap_or(id.clone());
+            let mut view = links_for(&index, &canonical_id);
             if broken {
                 if let Some(arr) = view.get("outbound").and_then(|v| v.as_array()).cloned() {
                     let filtered: Vec<_> = arr

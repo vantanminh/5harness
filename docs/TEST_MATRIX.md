@@ -60,25 +60,26 @@ Those stories are implemented; do not treat this file as a second SoT.
 
 | Story | Contract | Unit | Integration | E2E | Platform | Status | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| US-069 | Shipped CLI is the command contract; no phantom commands in policy docs | yes | no | no | no | in_progress | docs contract tests |
-| US-070 | Policy/help match markdown SoT | yes | no | no | no | in_progress | docs + init help |
-| US-071 | Changelog/roadmap/matrix/story index current | yes | no | no | no | in_progress | changelog hygiene |
-| US-072 | No leftover debug scripts in the tree | yes | no | no | no | in_progress | pack:check |
-| US-073 | `--json` on agent reads | yes | yes | yes | no | planned | |
-| US-074 | MCP read parity | yes | yes | yes | no | planned | |
-| US-075 | MCP lifecycle mutation parity | yes | yes | yes | no | planned | |
-| US-076 | `decision update` + `query reports` | yes | yes | yes | no | planned | |
-| US-078 | Official skill on init | yes | yes | no | no | planned | |
-| US-079 | `next` includes reports + blocked | yes | yes | no | no | planned | |
-| US-080 | Derived FTS search | yes | yes | yes | no | planned | |
-| US-081 | Doctor depth | yes | yes | no | no | planned | |
-| US-082 | No SQLite dual-write | yes | yes | yes | no | planned | |
-| US-083 | Broken-link listing | yes | yes | no | no | planned | |
-| US-084 | Dashboard password hardening | yes | yes | yes | no | planned | |
-| US-085 | Dashboard 2.0 | yes | yes | yes | yes | planned | |
-| US-086 | Completions + harness-check action | yes | no | no | no | planned | |
-| US-087 | 1.0 contract freeze | yes | yes | yes | yes | planned | |
+| US-069 | Shipped CLI is the command contract; no phantom commands in policy docs | yes | no | no | no | implemented | docs contract tests |
+| US-070 | Policy/help match markdown SoT | yes | no | no | no | implemented | docs + init help |
+| US-071 | Changelog/roadmap/matrix/story index current | yes | no | no | no | implemented | changelog hygiene |
+| US-072 | No leftover debug scripts in the tree | yes | no | no | no | implemented | pack:check |
+| US-073 | `--json` on agent reads | yes | yes | yes | no | implemented | durable JSON e2e |
+| US-074 | MCP read parity | yes | yes | yes | no | implemented | MCP protocol e2e |
+| US-075 | MCP lifecycle mutation parity | yes | yes | yes | no | implemented | MCP auth/mutation e2e |
+| US-076 | `decision update` + `query reports` | yes | yes | yes | no | implemented | durable CLI e2e |
+| US-078 | Official skill on init | yes | yes | no | no | implemented | init e2e |
+| US-079 | `next` includes reports + blocked | yes | yes | no | no | implemented | next JSON e2e |
+| US-080 | Derived search index | yes | yes | yes | no | implemented | search e2e |
+| US-081 | Doctor depth | yes | yes | no | no | implemented | doctor JSON e2e |
+| US-082 | No SQLite dual-write | yes | yes | yes | no | implemented | release tests |
+| US-083 | Broken-link listing | yes | yes | no | no | implemented | links e2e |
+| US-084 | Dashboard password hardening | yes | yes | yes | no | implemented | dashboard HTTP e2e |
+| US-085 | Dashboard 2.0 | yes | yes | yes | yes | implemented | dashboard HTTP e2e |
+| US-086 | Completions + harness-check action | yes | no | no | no | implemented | completion command |
+| US-087 | 1.0 contract freeze | yes | yes | yes | yes | implemented | full release check |
 | US-092 | Native npm artifacts + direct installers for Linux/macOS/Windows | yes | yes | yes | yes | implemented | `npm run release:check`; `npm run install:smoke`; CI native-binary and installer jobs |
+| US-093 | Agent security, mutation, JSON, index, and command reliability hardening | yes | yes | yes | no | in_progress | hardening e2e; final audit pending |
 
 ## Evidence Rules
 

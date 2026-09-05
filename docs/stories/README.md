@@ -21,7 +21,7 @@ and validation work.
 | [E10-quality-on-md](./epics/E10-quality-on-md/README.md) | Phase F5: quality + SQLite retire | US-012–013 **implemented** |
 | [E11-dashboard](./epics/E11-dashboard/README.md) | Phase G: local dashboard | US-014 **implemented** |
 | [E16 Project Link](../product/project-link.md) | Phase I: roles, configured peers, bounded reads, reports | US-059–063 **done** (v0.21+) |
-| E17 1.0 maturity | Phase J: contract truth, MCP parity, FTS, dashboard 2.0 | US-069–087 **in_progress** |
+| E17 1.0 maturity | Phase J: contract truth, MCP parity, search, dashboard 2.0 | US-069–087 **implemented** |
 | Distribution | Native installers and release artifacts for Linux/macOS/Windows | US-092 **implemented** |
 
 The complete Phase H / E12–E15 and US-015–US-068 history remains indexed in the
@@ -55,6 +55,7 @@ The complete Phase H / E12–E15 and US-015–US-068 history remains indexed in 
 | [US-071](./US-071.md) | Sync changelog, roadmap, matrix, story index | tiny | in_progress | [roadmap](../product/roadmap.md) |
 | [US-072](./US-072.md) | Remove leftover debug scripts | tiny | in_progress | [distribution](../product/distribution.md) |
 | [US-092](./US-092.md) | Complete macOS, Linux, and Windows installation artifacts | high-risk | implemented | [distribution](../product/distribution.md) |
+| [US-093](./US-093.md) | Implement agent reliability and security hardening | high-risk | in_progress | [cli-contract](../product/cli-contract.md) |
 
 ## Recommended implement order
 

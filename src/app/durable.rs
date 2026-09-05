@@ -615,7 +615,11 @@ fn set_opt(data: &mut Frontmatter, key: &str, value: Option<&str>) {
 
 pub fn get_entity(project_root: &Path, id_or_path: &str) -> Result<Option<EntityFile>> {
     let catalog = super::catalog::build_catalog(project_root)?;
-    if let Some(entry) = catalog.entries.iter().find(|e| e.id == id_or_path) {
+    if let Some(entry) = catalog.entries.iter().find(|e| {
+        e.id == id_or_path
+            || e.path == id_or_path
+            || Path::new(&e.path).file_stem().and_then(|s| s.to_str()) == Some(id_or_path)
+    }) {
         return read_entity_file(project_root, &entry.path);
     }
     if id_or_path.ends_with(".md") || id_or_path.contains('/') || id_or_path.contains('\\') {

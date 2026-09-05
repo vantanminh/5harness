@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::collections::BTreeMap;
 
 use serde_json::{json, Value};
 
@@ -89,6 +90,15 @@ pub fn doctor_json(project_root: &Path) -> Result<Value> {
         Path::new(&p.path).canonicalize().ok() == project_root.canonicalize().ok()
     });
     checks.insert("registry".into(), json!({"ok": registry_ok, "linked": registry_ok}));
+    let catalog = build_catalog(project_root)?;
+    let mut counts = BTreeMap::<String, usize>::new();
+    for entry in &catalog.entries { *counts.entry(entry.id.clone()).or_default() += 1; }
+    let duplicates: Vec<_> = counts.into_iter().filter_map(|(id, count)| (count > 1).then_some(json!({"id":id,"count":count}))).collect();
+    checks.insert("duplicates".into(), json!({"ok": duplicates.is_empty(), "items": duplicates}));
+    if let Ok(index) = ensure_index(project_root) {
+        let broken = index.edges.iter().filter(|edge| !edge.resolved).count();
+        checks.insert("links".into(), json!({"ok": true, "warning": broken > 0, "broken": broken}));
+    }
     let healthy = checks.values().all(|v| v.get("ok").and_then(Value::as_bool).unwrap_or(false));
     Ok(json!({
         "healthy": healthy,

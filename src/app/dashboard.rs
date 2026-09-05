@@ -95,7 +95,10 @@ pub fn start_dashboard(host: &str, port: u16, serve_forever: bool, public_url: O
     let server = Server::from_listener(listener, None).map_err(|e| {
         Error::new(format!("dashboard server: {e}"))
     })?;
-    let url = format!("http://{host}:{actual}/");
+    let local_url = format!("http://{host}:{actual}/");
+    let url = public_url
+        .map(|value| format!("{}/", value.trim_end_matches('/')))
+        .unwrap_or(local_url);
     let shutdown = Arc::new(AtomicBool::new(false));
     let flag = shutdown.clone();
     let handle = thread::spawn(move || dashboard_loop(server, flag));

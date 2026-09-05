@@ -15,9 +15,10 @@ use crate::error::{Error, Result};
 use crate::VERSION;
 
 use super::dashboard::RunningServer;
-use super::durable::{add_decision, add_intake, add_report, add_story, get_entity, update_report};
+use super::durable::{add_backlog, add_decision, add_intake, add_report, add_story, get_entity, update_report, update_story, StoryUpdate};
 use super::index::{ensure_index, format_search_hits, search_index};
 use super::project_link;
+use super::status::{doctor_json, next_items, status_json};
 use super::query::{query_matrix, query_stats, query_view_json};
 
 pub fn mcp_tools() -> Value {
@@ -26,10 +27,17 @@ pub fn mcp_tools() -> Value {
         {"name":"harness_search","description":"Search entity catalog with ranked hits and snippets.","inputSchema":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}},
         {"name":"harness_query_matrix","description":"Story matrix: all stories with status, proof, evidence.","inputSchema":{"type":"object","properties":{}}},
         {"name":"harness_query_stats","description":"Summary counts by category.","inputSchema":{"type":"object","properties":{}}},
+        {"name":"harness_next","description":"Ranked next work items.","inputSchema":{"type":"object","properties":{"limit":{"type":"integer"}}}},
+        {"name":"harness_context","description":"Read bounded context for one local entity.","inputSchema":{"type":"object","properties":{"id":{"type":"string"},"max_chars":{"type":"integer"}},"required":["id"]}},
+        {"name":"harness_links","description":"Read outbound links and backlinks.","inputSchema":{"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}},
+        {"name":"harness_doctor","description":"Run structured workspace health checks.","inputSchema":{"type":"object","properties":{}}},
         {"name":"harness_status","description":"Project snapshot: work counts, Project Link role/peers/reports, version, index.","inputSchema":{"type":"object","properties":{}}},
         {"name":"harness_intake","description":"Record a feature intake. Mutates durable markdown.","inputSchema":{"type":"object","properties":{"type":{"type":"string"},"summary":{"type":"string"},"lane":{"type":"string"}},"required":["type","summary","lane"]}},
         {"name":"harness_story_add","description":"Add a story. Mutates durable markdown.","inputSchema":{"type":"object","properties":{"id":{"type":"string"},"title":{"type":"string"},"lane":{"type":"string"}},"required":["id","title","lane"]}},
+        {"name":"harness_story_update","description":"Update a story. Mutates durable markdown.","inputSchema":{"type":"object","properties":{"id":{"type":"string"},"status":{"type":"string"},"evidence":{"type":"string"},"unit":{"type":"string"},"integration":{"type":"string"},"e2e":{"type":"string"},"platform":{"type":"string"}},"required":["id"]}},
         {"name":"harness_decision_add","description":"Add a decision. Mutates durable markdown.","inputSchema":{"type":"object","properties":{"id":{"type":"string"},"title":{"type":"string"}},"required":["id","title"]}},
+        {"name":"harness_backlog_add","description":"Add a backlog item. Mutates durable markdown.","inputSchema":{"type":"object","properties":{"title":{"type":"string"},"risk":{"type":"string"}},"required":["title"]}},
+        {"name":"harness_reindex","description":"Rebuild the derived project index.","inputSchema":{"type":"object","properties":{}}},
         {"name":"harness_project_role","description":"Read local Project Link role and stack.","inputSchema":{"type":"object","properties":{}}},
         {"name":"harness_project_peers","description":"List configured Project Link peers.","inputSchema":{"type":"object","properties":{}}}
     ])
@@ -145,7 +153,25 @@ fn call_tool(root: &PathBuf, name: &str, args: &Value) -> Result<String> {
         }
         "harness_query_matrix" => query_matrix(root, false),
         "harness_query_stats" => query_stats(root),
-        "harness_status" => super::status::format_status(root),
+        "harness_status" => Ok(serde_json::to_string(&status_json(root)?)?),
+        "harness_next" => {
+            let items = next_items(root, args.get("limit").and_then(|v| v.as_u64()).map(|v| v as usize))?;
+            Ok(serde_json::to_string(&items)?)
+        }
+        "harness_context" => {
+            let id = args.get("id").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_context requires id"))?;
+            let file = get_entity(root, id)?.ok_or_else(|| Error::new(format!("Entity not found: {id}")))?;
+            let index = ensure_index(root)?;
+            let max_chars = args.get("max_chars").and_then(|v| v.as_u64()).unwrap_or(12_000) as usize;
+            let body: String = file.body.chars().take(max_chars.min(100_000)).collect();
+            Ok(serde_json::to_string(&json!({"id":id,"path":file.relative_path,"frontmatter":super::durable::fm_json(&file.data),"body":body,"links":super::index::links_for(&index,id)}))?)
+        }
+        "harness_links" => {
+            let id = args.get("id").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_links requires id"))?;
+            let index = ensure_index(root)?;
+            Ok(serde_json::to_string(&super::index::links_for(&index,id))?)
+        }
+        "harness_doctor" => Ok(serde_json::to_string(&doctor_json(root)?)?),
         "harness_project_role" => Ok(serde_json::to_string(&project_link::role(root)?)?),
         "harness_project_peers" => Ok(serde_json::to_string(&project_link::peers(root)?)?),
         "harness_intake" => {
@@ -166,6 +192,11 @@ fn call_tool(root: &PathBuf, name: &str, args: &Value) -> Result<String> {
                 Err(e) => Err(e),
             }
         }
+        "harness_story_update" => {
+            let id = args.get("id").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_story_update requires id"))?;
+            update_story(root, StoryUpdate { id:id.into(), status:args.get("status").and_then(|v|v.as_str()).map(str::to_string), evidence:args.get("evidence").and_then(|v|v.as_str()).map(str::to_string), unit:args.get("unit").and_then(|v|v.as_str()).map(str::to_string), integration:args.get("integration").and_then(|v|v.as_str()).map(str::to_string), e2e:args.get("e2e").and_then(|v|v.as_str()).map(str::to_string), platform:args.get("platform").and_then(|v|v.as_str()).map(str::to_string), verify:None,title:None,notes:None,contract:None,links:None })?;
+            Ok(format!("Story {id} updated."))
+        }
         "harness_decision_add" => {
             let id = args.get("id").and_then(|v| v.as_str()).filter(|v| !v.trim().is_empty()).ok_or_else(|| Error::new("harness_decision_add requires id"))?;
             let title = args.get("title").and_then(|v| v.as_str()).filter(|v| !v.trim().is_empty()).ok_or_else(|| Error::new("harness_decision_add requires title"))?;
@@ -173,6 +204,15 @@ fn call_tool(root: &PathBuf, name: &str, args: &Value) -> Result<String> {
                 Ok(_) => Ok(format!("Decision {id} added.")),
                 Err(e) => Err(e),
             }
+        }
+        "harness_backlog_add" => {
+            let title = args.get("title").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_backlog_add requires title"))?;
+            let (_, id) = add_backlog(root, title, None, None, None, args.get("risk").and_then(|v|v.as_str()), None, None, None)?;
+            Ok(format!("Backlog {id} added."))
+        }
+        "harness_reindex" => {
+            let (_, entities, edges) = super::index::write_project_index(root)?;
+            Ok(format!("Reindexed {entities} entities, {edges} edges."))
         }
         "harness_peer_search" => {
             let query = args.get("query").and_then(|v| v.as_str()).ok_or_else(|| Error::new("harness_peer_search requires query"))?;
@@ -278,7 +318,10 @@ pub fn start_mcp(
     let actual = listener.local_addr()?.port();
     let server = Server::from_listener(listener, None)
         .map_err(|e| Error::new(format!("mcp server: {e}")))?;
-    let url = format!("http://{host}:{actual}/");
+    let local_url = format!("http://{host}:{actual}/");
+    let url = public_url
+        .map(|value| format!("{}/", value.trim_end_matches('/')))
+        .unwrap_or(local_url);
     let shutdown = Arc::new(AtomicBool::new(false));
     let flag = shutdown.clone();
     let auth_token = token.clone();

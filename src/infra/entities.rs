@@ -8,7 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::domain::entities::{entity_dir, entity_relative_path, ENTITY_TYPES};
 use crate::domain::paths::resolve_project_state_root;
 use crate::domain::frontmatter::{
-    as_string, parse_frontmatter, serialize_entity_file, Frontmatter,
+    as_string, insert_str, parse_frontmatter, serialize_entity_file, Frontmatter,
 };
 use crate::error::{Error, Result};
 
@@ -137,13 +137,41 @@ pub fn read_entity_file(project_root: &Path, relative_path: &str) -> Result<Opti
         return Ok(None);
     }
     let content = fs::read_to_string(&absolute_path)?;
-    let (data, body) = parse_frontmatter(&content)?;
+    let (mut data, body) = parse_frontmatter(&content)?;
+    infer_entity_metadata(&mut data, &relative_path, &body);
     Ok(Some(EntityFile {
         absolute_path,
         relative_path,
         data,
         body,
     }))
+}
+
+fn infer_entity_metadata(data: &mut Frontmatter, relative_path: &str, body: &str) {
+    if relative_path.ends_with("/README.md") || relative_path == "README.md" {
+        return;
+    }
+    let Some((ty, _)) = ENTITY_TYPES.iter().find_map(|ty| {
+        let prefix = format!("{}/", entity_dir(ty).ok()?);
+        relative_path.strip_prefix(&prefix).map(|rest| (*ty, rest))
+    }) else { return };
+    if as_string(data, "id").is_none() {
+        if let Some(id) = Path::new(relative_path).file_stem().and_then(|s| s.to_str()) {
+            insert_str(data, "id", id);
+        }
+    }
+    if as_string(data, "type").is_none() {
+        insert_str(data, "type", ty);
+    }
+    if as_string(data, "title").is_none() && as_string(data, "summary").is_none() {
+        if let Some(title) = body.lines().find_map(|line| line.strip_prefix("# ")).map(str::trim).filter(|v| !v.is_empty()) {
+            if ty == "intake" || ty == "report" { insert_str(data, "summary", title); }
+            else { insert_str(data, "title", title); }
+        }
+    }
+    if as_string(data, "status").is_none() {
+        insert_str(data, "status", if ty == "decision" { "accepted" } else if ty == "intake" { "pending" } else if ty == "report" { "open" } else { "planned" });
+    }
 }
 
 pub fn read_entity_by_id(project_root: &Path, ty: &str, id: &str) -> Result<Option<EntityFile>> {
