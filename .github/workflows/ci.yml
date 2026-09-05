@@ -7,7 +7,8 @@
 #
 # Auto-release flow (push to main only):
 #   1. build-test matrix: ubuntu/windows/macos × Node 22.x/24.x (US-035)
-#   2. auto-release (ubuntu + Node 24 only): bump → commit + tag → npm publish
+#   2. native-binaries matrix: Linux/macOS/Windows × x64/ARM64
+#   3. auto-release (ubuntu + Node 24 only): bump → commit + tag → npm publish
 #      with OIDC trusted publishing + provenance (US-036 / decision 0018)
 #
 # npm Trusted Publisher (npmjs.com → package 5harness → Settings → Trusted Publisher):
@@ -81,8 +82,11 @@ jobs:
       - name: Release check
         run: npm run release:check
 
+      - name: npm tarball install smoke
+        run: npm run install:smoke
+
   native-binaries:
-    name: native ${{ matrix.os }}
+    name: native ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -90,26 +94,89 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
             artifact: harness-x86_64-unknown-linux-gnu
-            src: target/release/harness
+            src: target/x86_64-unknown-linux-gnu/release/harness
           - os: windows-latest
+            target: x86_64-pc-windows-msvc
             artifact: harness-x86_64-pc-windows-msvc.exe
-            src: target/release/harness.exe
+            src: target/x86_64-pc-windows-msvc/release/harness.exe
           - os: macos-latest
+            target: aarch64-apple-darwin
             artifact: harness-aarch64-apple-darwin
-            src: target/release/harness
+            src: target/aarch64-apple-darwin/release/harness
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            artifact: harness-aarch64-unknown-linux-gnu
+            src: target/aarch64-unknown-linux-gnu/release/harness
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            artifact: harness-x86_64-apple-darwin
+            src: target/x86_64-apple-darwin/release/harness
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            artifact: harness-aarch64-pc-windows-msvc.exe
+            src: target/aarch64-pc-windows-msvc/release/harness.exe
     steps:
       - name: Checkout
         uses: actions/checkout@v6
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
       - name: Build release binary
-        run: cargo build --release
+        run: cargo build --release --target "${{ matrix.target }}"
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.src }}
+          if-no-files-found: error
+
+  linux-auto-install:
+    name: Linux auto-install
+    needs: native-binaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Download Linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: harness-x86_64-unknown-linux-gnu
+          path: artifacts
+      - name: Run local auto-install
+        run: |
+          set -euo pipefail
+          chmod +x artifacts/harness || chmod +x artifacts/harness-x86_64-unknown-linux-gnu || true
+          export HARNESS_INSTALL_FROM="$PWD/artifacts"
+          export HARNESS_INSTALL_PREFIX="$HOME/.5harness-ci"
+          export HARNESS_INSTALL_SKIP_PATH=1
+          bash install/linux.sh
+          "$HOME/.5harness-ci/bin/harness" --version
+
+  windows-auto-install:
+    name: Windows auto-install
+    needs: native-binaries
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Download Windows binary
+        uses: actions/download-artifact@v4
+        with:
+          name: harness-x86_64-pc-windows-msvc.exe
+          path: artifacts
+      - name: Run local auto-install
+        shell: pwsh
+        run: |
+          $env:HARNESS_INSTALL_FROM = (Join-Path $PWD "artifacts")
+          $env:HARNESS_INSTALL_PREFIX = Join-Path $env:RUNNER_TEMP "5harness-ci"
+          $env:HARNESS_INSTALL_SKIP_PATH = "1"
+          & "$PWD/install/windows.ps1"
+          & (Join-Path $env:RUNNER_TEMP "5harness-ci\bin\harness.exe") --version
 
   macos-auto-install:
     name: macOS auto-install
@@ -130,6 +197,7 @@ jobs:
           chmod +x artifacts/harness || chmod +x artifacts/harness-aarch64-apple-darwin || true
           export HARNESS_INSTALL_FROM="$PWD/artifacts"
           export HARNESS_INSTALL_PREFIX="$HOME/.5harness-ci"
+          export HARNESS_INSTALL_SKIP_PATH=1
           bash install/macos.sh
           "$HOME/.5harness-ci/bin/harness" --version
 
@@ -138,7 +206,7 @@ jobs:
   # (root cause of local non-fast-forward / package.json merge fights).
   auto-release:
     name: Auto-release
-    needs: [build-test, native-binaries]
+    needs: [build-test, native-binaries, linux-auto-install, windows-auto-install, macos-auto-install]
     if: >
       github.ref == 'refs/heads/main' &&
       github.event_name == 'push' &&
@@ -325,14 +393,14 @@ jobs:
         if: steps.plan.outputs.skip != 'true'
         run: |
           set -euo pipefail
-          mkdir -p bin
-          find artifacts -type f -name 'harness*' -print
-          cp artifacts/harness-x86_64-unknown-linux-gnu/harness bin/harness-x86_64-unknown-linux-gnu
-          cp artifacts/harness-x86_64-pc-windows-msvc.exe/harness.exe bin/harness-x86_64-pc-windows-msvc.exe || \
-            cp artifacts/harness-x86_64-pc-windows-msvc.exe/harness-x86_64-pc-windows-msvc.exe bin/harness-x86_64-pc-windows-msvc.exe
-          cp artifacts/harness-aarch64-apple-darwin/harness bin/harness-aarch64-apple-darwin
-          chmod +x bin/harness-x86_64-unknown-linux-gnu bin/harness-aarch64-apple-darwin
+          node scripts/stage-native.mjs --from artifacts
           ls -la bin
+
+      - name: Verify complete native package
+        if: steps.plan.outputs.skip != 'true'
+        env:
+          HARNESS_REQUIRED_NATIVE_TARGETS: "all"
+        run: node scripts/pack-check.mjs
 
       - name: Publish to npm (OIDC + provenance)
         id: npm_publish

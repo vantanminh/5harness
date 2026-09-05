@@ -42,7 +42,16 @@ irm https://raw.githubusercontent.com/vantanminh/5harness/main/install/windows.p
 curl -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh | bash
 ```
 
-Point either script at a local build with `HARNESS_INSTALL_FROM` (directory or binary path). npm install remains available.
+**Linux:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh | bash
+```
+
+Point any native installer at a local build with `HARNESS_INSTALL_FROM`
+(directory or binary path). Pin a release with `HARNESS_INSTALL_VERSION=0.25.3`
+and use `HARNESS_INSTALL_SKIP_PATH=1` in automation. npm install remains the
+preferred option and works on all three supported operating systems.
 
 Project-local (optional):
 
@@ -240,7 +249,8 @@ node dist/cli.js --help
 
 ## CI / CD
 
-- **CI** (push/PR): `release:check` on **ubuntu / windows / macos × Node 22 + 24**
+- **CI** (push/PR): `release:check` + npm tarball smoke on **ubuntu / windows /
+  macos × Node 22 + 24**, plus native installer smoke on each OS
 - **Auto-release** (push to `main`): bump, tag, **OIDC npm publish --provenance**,
   GitHub Release + SBOM (skip with `[skip release]`)
 - **Manual:** Actions → Release, or matching `v*` tag

@@ -10,6 +10,7 @@
 | **Preferred install** | `npm i -g 5harness` |
 | Windows auto-install | `irm https://raw.githubusercontent.com/vantanminh/5harness/main/install/windows.ps1 \| iex` |
 | macOS auto-install | `curl -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh \| bash` |
+| Linux auto-install | `curl -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh \| bash` |
 | Alternate install | `npm i -D 5harness` + `npx harness …` |
 | Node | `>=22.5.0` (packaging/publish glue; CLI runtime is native) |
 | License | MIT |
@@ -28,6 +29,41 @@ harness link          # register path + reindex committed history
 Global install matches multi-project use and a future local dashboard. Project
 files (markdown) remain in the repo for GitHub backup and collaborator clones.
 
+### Native installers
+
+The direct installers are useful on a machine that does not have Node.js. They
+download the native binary for the current OS and CPU from the matching GitHub
+Release asset, install it under `~/.5harness/bin` (macOS/Linux) or
+`%LOCALAPPDATA%\5harness\bin` (Windows), and run `harness --version` before
+returning. Supported release targets are Linux `x86_64`/`aarch64`, macOS
+`x86_64`/`arm64`, and Windows `x86_64`/`arm64`; the release workflows build
+and publish each of these six target assets.
+
+```bash
+# Linux or macOS
+curl -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh | bash
+curl -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh | bash
+
+# Pin a release or install an offline/local artifact
+export HARNESS_INSTALL_VERSION=0.25.3
+curl -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh | bash
+HARNESS_INSTALL_FROM=/path/to/artifacts ./install/linux.sh
+```
+
+```powershell
+# Windows PowerShell
+irm https://raw.githubusercontent.com/vantanminh/5harness/main/install/windows.ps1 | iex
+$env:HARNESS_INSTALL_VERSION = "0.25.3"
+$env:HARNESS_INSTALL_FROM = "D:\path\to\harness-x86_64-pc-windows-msvc.exe"
+powershell -File install/windows.ps1
+```
+
+Set `HARNESS_INSTALL_PREFIX` to choose another install root and
+`HARNESS_INSTALL_SKIP_PATH=1` when a CI job should not edit the user's PATH.
+The installer scripts are shipped in the npm tarball as well as attached to
+GitHub Releases, so the same commands can be tested offline with
+`HARNESS_INSTALL_FROM`.
+
 ## Published artifacts
 
 The npm tarball **must** include:
@@ -36,6 +72,7 @@ The npm tarball **must** include:
 - `bin/harness-*` platform binaries (Rust CLI)
 - `templates/**` (init payload + `manifest.json`)
 - `install/windows.ps1` and `install/macos.sh`
+- `install/linux.sh`
 - schema/templates needed for entity writes (as implemented)
 - `package.json`, `README.md`, `LICENSE`
 
@@ -61,7 +98,8 @@ functionality.
 ### Default (automatic)
 
 1. Merge / push to `main` (do **not** hand-bump the version).
-2. CI runs `release:check` on **ubuntu / windows / macos × Node 22.x + 24.x**.
+2. CI runs `release:check` on **ubuntu / windows / macos × Node 22.x + 24.x**
+   and runs native installer smoke tests on all three OSes.
 3. On success, **Auto-release** (ubuntu + Node 24 only):
    - Detects bump kind from commits since last `v*` tag
      (`feat:` → minor, `BREAKING CHANGE` / `type!:` → major, else patch).
@@ -81,8 +119,9 @@ functionality.
    - **npm publish** via **OIDC trusted publishing** with **`--provenance`**
      (green provenance check on npm when configured).
    - Creates a **GitHub Release** with notes from `CHANGELOG.md` plus optional
-     export-changelog assist (`scripts/release-notes.mjs --with-export`) and
-     attaches an **SPDX SBOM** (`sbom.spdx.json` from `npm sbom`).
+     export-changelog assist (`scripts/release-notes.mjs --with-export`), all
+     six native target binaries, and an **SPDX SBOM** (`sbom.spdx.json` from
+     `npm sbom`).
 
 ### Pushing from a local clone (avoid non-fast-forward)
 
@@ -188,8 +227,8 @@ node scripts/release-notes.mjs 1.2.3 --with-export -o release-notes.md
 
 | Workflow | Trigger | What it does |
 | --- | --- | --- |
-| [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) | push/PR → `main` | `release:check` on **ubuntu + windows + macos × Node 22.x + 24.x** (US-035); on push to `main`, auto-bump + tag + **OIDC npm publish --provenance** + **GitHub Release** + SBOM (US-036) |
-| [`.github/workflows/release.yml`](../../.github/workflows/release.yml) | tag `v*` **or** workflow_dispatch | Manual bump+publish, or publish when a human/PAT pushes a version tag — same OIDC/provenance/Release/SBOM path |
+| [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) | push/PR → `main` | `release:check` + npm tarball smoke on **ubuntu + windows + macos × Node 22.x + 24.x**, native installer smoke on all three OSes, and six-target native artifact build; on push to `main`, auto-bump + tag + **OIDC npm publish --provenance** + **GitHub Release** + SBOM (US-036) |
+| [`.github/workflows/release.yml`](../../.github/workflows/release.yml) | tag `v*` **or** workflow_dispatch | Builds six native targets, then manual bump+publish, or publish when a human/PAT pushes a version tag — same OIDC/provenance/Release/SBOM path |
 
 Actions are pinned to Node-24-ready major versions (`actions/checkout@v6`,
 `actions/setup-node@v6`) and set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` per
@@ -207,13 +246,15 @@ npm audit signatures
 # or inspect the package on https://www.npmjs.com/package/5harness
 ```
 
-GitHub Releases for each `vX.Y.Z` include release notes and `sbom.spdx.json`.
+GitHub Releases for each `vX.Y.Z` include release notes, all six native target
+assets, and `sbom.spdx.json`.
 
 ## Native engine packaging
 
 The current package ships the supported native artifacts under `bin/` and uses
-the fixed-path npm bridge above. Release jobs build each target independently,
-stage the binaries, and publish with npm provenance. Do not add a postinstall
-downloader or an environment-controlled executable override; use a separately
-reviewed platform-package design if the target matrix grows beyond the current
+the fixed-path npm bridge above. Release jobs build each OS target
+independently, stage the binaries, attach the same files to the GitHub Release,
+and publish with npm provenance. Do not add a postinstall downloader or an
+environment-controlled executable override; use a separately reviewed
+platform-package design if the target matrix grows beyond the current
 artifacts.

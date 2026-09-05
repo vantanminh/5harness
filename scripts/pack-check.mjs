@@ -123,6 +123,34 @@ if (!fs.existsSync(native)) {
   fail(`native binary missing after build: bin/harness${ext}`);
 }
 
+// Local builds stage only the current host binary. Release jobs download the
+// native-binaries matrix and opt into a complete target check with
+// HARNESS_REQUIRED_NATIVE_TARGETS (comma-separated target triples or `all`).
+const supportedNativeTargets = [
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+  "x86_64-apple-darwin",
+  "aarch64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+  "aarch64-pc-windows-msvc",
+];
+const requiredTargets = (process.env.HARNESS_REQUIRED_NATIVE_TARGETS ?? "").trim();
+if (requiredTargets) {
+  const targets = requiredTargets === "all"
+    ? supportedNativeTargets
+    : requiredTargets.split(",").map((target) => target.trim()).filter(Boolean);
+  const unknown = targets.filter((target) => !supportedNativeTargets.includes(target));
+  if (unknown.length > 0) {
+    fail(`HARNESS_REQUIRED_NATIVE_TARGETS contains unknown target(s): ${unknown.join(", ")}`);
+  }
+  const missingTargets = targets.filter(
+    (target) => !fs.existsSync(path.join(root, "bin", `harness-${target}${target.includes("windows") ? ".exe" : ""}`)),
+  );
+  if (missingTargets.length > 0) {
+    fail(`required native target binary missing: ${missingTargets.join(", ")}`);
+  }
+}
+
 const requiredOnDisk = [
   "templates/manifest.json",
   "migrations/001-init.sql",
@@ -132,6 +160,7 @@ const requiredOnDisk = [
   "SECURITY.md",
   "docs/SECURITY.md",
   "docs/product/project-link.md",
+  "install/linux.sh",
   "install/windows.ps1",
   "install/macos.sh",
   "Cargo.toml",
@@ -139,6 +168,14 @@ const requiredOnDisk = [
 for (const rel of requiredOnDisk) {
   if (!fs.existsSync(path.join(root, rel))) {
     fail(`required file missing: ${rel}`);
+  }
+}
+if (process.platform !== "win32") {
+  for (const rel of ["install/linux.sh", "install/macos.sh"]) {
+    const mode = fs.statSync(path.join(root, rel)).mode;
+    if ((mode & 0o111) === 0) {
+      fail(`${rel} must be executable`);
+    }
   }
 }
 
@@ -226,6 +263,7 @@ const mustPack = [
   "templates/manifest.json",
   "migrations/001-init.sql",
   "migrations/002-quality.sql",
+  "install/linux.sh",
   "install/windows.ps1",
   "install/macos.sh",
 ];

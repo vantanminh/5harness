@@ -27,6 +27,7 @@
     "prepack": "npm run build",
     "security:check": "node scripts/security-check.mjs",
     "pack:check": "node scripts/pack-check.mjs",
+    "install:smoke": "node scripts/npm-install-smoke.mjs",
     "bump": "node scripts/bump-version.mjs",
     "push": "node scripts/safe-push.mjs",
     "release:check": "npm run security:check && cargo test && npm run pack:check",

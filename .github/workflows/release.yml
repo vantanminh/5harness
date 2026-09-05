@@ -21,6 +21,8 @@
 # Tag convention: vX.Y.Z must match package.json version (e.g. v0.9.11).
 #
 # Node 24 Actions runtime: same migration notes as ci.yml.
+# Every release also builds six native target binaries (Linux/macOS/Windows ×
+# x64/ARM64) before publishing the npm tarball and GitHub Release assets.
 
 name: Release
 
@@ -53,9 +55,61 @@ env:
   HARNESS_NO_UPDATE_CHECK: "1"
 
 jobs:
+  # Build one standalone binary for each OS supported by the direct installers
+  # and npm launcher. The same artifacts are attached to GitHub Releases and
+  # staged into the npm tarball by the publish jobs below.
+  native-binaries:
+    name: native ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: harness-x86_64-unknown-linux-gnu
+            src: target/x86_64-unknown-linux-gnu/release/harness
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: harness-x86_64-pc-windows-msvc.exe
+            src: target/x86_64-pc-windows-msvc/release/harness.exe
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: harness-aarch64-apple-darwin
+            src: target/aarch64-apple-darwin/release/harness
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            artifact: harness-aarch64-unknown-linux-gnu
+            src: target/aarch64-unknown-linux-gnu/release/harness
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            artifact: harness-x86_64-apple-darwin
+            src: target/x86_64-apple-darwin/release/harness
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            artifact: harness-aarch64-pc-windows-msvc.exe
+            src: target/aarch64-pc-windows-msvc/release/harness.exe
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Build release binary
+        run: cargo build --release --target "${{ matrix.target }}"
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.src }}
+          if-no-files-found: error
+
   # Manual release from Actions UI: bump → commit + tag → publish.
   manual-release:
     name: Manual release
+    needs: native-binaries
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -90,8 +144,18 @@ jobs:
           echo "version=$NEW" >> "$GITHUB_OUTPUT"
           echo "New version: $NEW"
 
+      - name: Download native release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Stage native binaries
+        run: node scripts/stage-native.mjs --from artifacts
+
       - name: Release check
-        run: npm run release:check
+        run: |
+          npm run release:check
+          HARNESS_REQUIRED_NATIVE_TARGETS=all node scripts/pack-check.mjs
 
       - name: Commit and tag
         run: |
@@ -103,7 +167,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # CHANGELOG.md may be promoted from [Unreleased] by bump-version (US-038).
-          git add package.json package-lock.json src/version.ts templates/AGENTS.md AGENTS.md CHANGELOG.md
+          git add package.json package-lock.json Cargo.toml templates/AGENTS.md AGENTS.md CHANGELOG.md
           git commit -m "chore(release): ${VERSION}"
           git tag -a "$TAG" -m "Release ${TAG}"
           git push origin HEAD:main
@@ -152,10 +216,19 @@ jobs:
               --verify-tag \
               sbom.spdx.json
           fi
+          gh release upload "$TAG" \
+            bin/harness-x86_64-unknown-linux-gnu \
+            bin/harness-aarch64-unknown-linux-gnu \
+            bin/harness-x86_64-apple-darwin \
+            bin/harness-x86_64-pc-windows-msvc.exe \
+            bin/harness-aarch64-pc-windows-msvc.exe \
+            bin/harness-aarch64-apple-darwin \
+            --clobber
 
   # Tag-triggered publish (manual git tag from a developer machine / PAT).
   publish:
     name: Publish to npm
+    needs: native-binaries
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -179,8 +252,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Download native release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Stage native binaries
+        run: node scripts/stage-native.mjs --from artifacts
+
       - name: Release check
-        run: npm run release:check
+        run: |
+          npm run release:check
+          HARNESS_REQUIRED_NATIVE_TARGETS=all node scripts/pack-check.mjs
 
       - name: Verify tag matches package version
         id: version
@@ -239,3 +322,11 @@ jobs:
               --verify-tag \
               sbom.spdx.json
           fi
+          gh release upload "$TAG" \
+            bin/harness-x86_64-unknown-linux-gnu \
+            bin/harness-aarch64-unknown-linux-gnu \
+            bin/harness-x86_64-apple-darwin \
+            bin/harness-x86_64-pc-windows-msvc.exe \
+            bin/harness-aarch64-pc-windows-msvc.exe \
+            bin/harness-aarch64-apple-darwin \
+            --clobber

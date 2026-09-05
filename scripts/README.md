@@ -22,6 +22,24 @@ migrations, version sync). Used by `npm run pack:check` and `release:check`.
 npm run pack:check
 ```
 
+## npm-install-smoke
+
+`npm-install-smoke.mjs` packs the current tree, installs that tarball into a
+temporary isolated npm prefix, and runs the installed `harness --version`.
+It is used by the CI OS matrix to prove the npm launcher resolves the native
+binary on Linux, macOS, and Windows.
+
+```bash
+npm run install:smoke
+```
+
+## stage-native
+
+`stage-native.mjs` collects target-scoped artifacts downloaded from the native
+build matrix and writes `bin/harness-<rust-target>` files for npm packaging and
+GitHub Release uploads. It fails when a supported target is missing or
+ambiguous.
+
 ## bump-version
 
 `bump-version.mjs` increments the package version and keeps release-critical

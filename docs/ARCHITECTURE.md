@@ -6,15 +6,15 @@
 | --- | --- |
 | Product surface | CLI first (`harness` via npm `bin`); local dashboard later |
 | Preferred install | `npm i -g 5harness` (project-local `npx` allowed) |
-| User runtime | Node.js + npm |
-| Implementation language | TypeScript today; native engine optional later |
+| User runtime | Native Rust CLI (npm shim or standalone installer) |
+| Implementation language | Rust runtime with a Node.js npm launcher |
 | **Durable SoT** | **Markdown entities in each project** (Git-backed) — decision 0011 |
 | Derived index | `.5harness/index/` rebuildable; atomic write + checksum (US-034); may use SQLite FTS internally |
 | Mutation lock | `.5harness/mutation.lock` during index write (stale reclaim ~30s) |
 | Global registry | `HARNESS_HOME` / `~/.5harness` project pointers only |
 | Project Link | Git-tracked peer ids + machine-local registry resolution; no cloud graph |
 | Traces | Machine-local (not default Git) |
-| Packaging | npm package; optional native packages later |
+| Packaging | npm package containing target-native binaries; standalone installers for Linux/macOS/Windows |
 | Project SQLite as SoT | **Retired** (was v0.5 MVP; supersedes decision 0004 for this product) |
 
 Record locking choices under `docs/decisions/`.

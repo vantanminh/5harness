@@ -35,15 +35,32 @@ fn cargo_version_matches_package_json() {
 }
 
 #[test]
-fn windows_and_macos_install_scripts_exist() {
-    let win = root().join("install").join("windows.ps1");
-    let mac = root().join("install").join("macos.sh");
-    assert!(win.is_file(), "{}", win.display());
-    assert!(mac.is_file(), "{}", mac.display());
-    let win_txt = fs::read_to_string(&win).unwrap();
-    let mac_txt = fs::read_to_string(&mac).unwrap();
-    assert!(win_txt.contains("HARNESS_INSTALL_FROM") || win_txt.contains("Install"));
-    assert!(mac_txt.contains("HARNESS_INSTALL_FROM") || mac_txt.contains("install"));
+fn all_native_install_scripts_exist_and_support_local_artifacts() {
+    for name in ["linux.sh", "macos.sh", "windows.ps1"] {
+        let path = root().join("install").join(name);
+        assert!(path.is_file(), "{}", path.display());
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(text.contains("HARNESS_INSTALL_FROM"), "{name} lacks offline install support");
+        assert!(text.contains("HARNESS_INSTALL_PREFIX"), "{name} lacks configurable prefix");
+        assert!(text.contains("--version"), "{name} lacks post-install smoke check");
+    }
+    let linux = fs::read_to_string(root().join("install/linux.sh")).unwrap();
+    assert!(linux.contains("x86_64-unknown-linux-gnu"));
+    assert!(linux.contains("aarch64-unknown-linux-gnu"));
+    let win = fs::read_to_string(root().join("install/windows.ps1")).unwrap();
+    assert!(win.contains("Expand-Archive"));
+    assert!(win.contains("harness-$Target.exe"));
+    let stage = fs::read_to_string(root().join("scripts/stage-native.mjs")).unwrap();
+    for target in [
+        "x86_64-unknown-linux-gnu",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-apple-darwin",
+        "aarch64-apple-darwin",
+        "x86_64-pc-windows-msvc",
+        "aarch64-pc-windows-msvc",
+    ] {
+        assert!(stage.contains(target), "native staging matrix lacks {target}");
+    }
 }
 
 #[test]
@@ -53,6 +70,22 @@ fn ci_still_publishes_to_npmjs_with_provenance() {
     assert!(ci.contains("npm publish --access public --provenance"));
     assert!(rel.contains("npm publish --access public --provenance"));
     assert!(ci.contains("id-token: write"));
+    assert!(ci.contains("install/linux.sh"));
+    assert!(ci.contains("install/macos.sh"));
+    assert!(ci.contains("install/windows.ps1"));
+    assert!(ci.contains("npm run install:smoke"));
+    assert!(rel.contains("stage-native.mjs"));
+    for target in [
+        "x86_64-unknown-linux-gnu",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-apple-darwin",
+        "aarch64-apple-darwin",
+        "x86_64-pc-windows-msvc",
+        "aarch64-pc-windows-msvc",
+    ] {
+        assert!(ci.contains(target), "ci matrix lacks {target}");
+        assert!(rel.contains(target), "release matrix lacks {target}");
+    }
 }
 
 #[test]

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Automatic macOS install for 5harness (native CLI).
+# Automatic Linux install for 5harness (native CLI).
 # Documented command:
-#   curl -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh | bash
 # Local artifact (tests / CI):
-#   HARNESS_INSTALL_FROM=/path/to/artifact-dir-or-bin ./install/macos.sh
+#   HARNESS_INSTALL_FROM=/path/to/artifact-dir-or-bin ./install/linux.sh
 #
 # The installer intentionally has no Node.js dependency. npm remains the
 # preferred cross-platform installation path; this script is for machines
@@ -20,14 +20,14 @@ command -v mkdir >/dev/null 2>&1 || fail "mkdir is required"
 command -v cp >/dev/null 2>&1 || fail "cp is required"
 
 case "$(uname -s)" in
-  Darwin) ;;
-  *) fail "this installer is for macOS; use install/linux.sh on Linux" ;;
+  Linux) ;;
+  *) fail "this installer is for Linux; use install/macos.sh on macOS" ;;
 esac
 
 case "$(uname -m)" in
-  arm64|aarch64) target="aarch64-apple-darwin" ;;
-  x86_64|amd64) target="x86_64-apple-darwin" ;;
-  *) fail "unsupported macOS architecture: $(uname -m) (supported: x86_64, arm64)" ;;
+  x86_64|amd64) target="x86_64-unknown-linux-gnu" ;;
+  aarch64|arm64) target="aarch64-unknown-linux-gnu" ;;
+  *) fail "unsupported Linux architecture: $(uname -m) (supported: x86_64, aarch64)" ;;
 esac
 
 prefix="${HARNESS_INSTALL_PREFIX:-${HOME}/.5harness}"
@@ -66,7 +66,7 @@ find_local() {
       return
     fi
   fi
-  fail "HARNESS_INSTALL_FROM did not contain a harness macOS binary for ${target}: $from"
+  fail "HARNESS_INSTALL_FROM did not contain a harness Linux binary for ${target}: $from"
 }
 
 add_path() {
