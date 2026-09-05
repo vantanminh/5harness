@@ -34,12 +34,11 @@ prefix="${HARNESS_INSTALL_PREFIX:-${HOME}/.5harness}"
 bin_dir="${prefix}/bin"
 mkdir -p "${bin_dir}"
 
-tmp_files=()
+tmp_file=""
 cleanup() {
-  local path
-  for path in "${tmp_files[@]}"; do
-    rm -f "$path"
-  done
+  if [[ -n "${tmp_file:-}" ]]; then
+    rm -f "$tmp_file"
+  fi
 }
 trap cleanup EXIT
 
@@ -134,7 +133,7 @@ fi
 asset="harness-${target}"
 url="https://github.com/${repo}/releases/download/${tag}/${asset}"
 tmp="$(mktemp "${TMPDIR:-/tmp}/5harness.XXXXXX")"
-tmp_files+=("$tmp")
+tmp_file="$tmp"
 echo "Downloading 5harness ${tag} (${target}) from GitHub (${repo})..."
 curl --proto '=https' --tlsv1.2 -fL --retry 2 -o "$tmp" "$url" || \
   fail "could not download ${asset}; choose a published version with HARNESS_INSTALL_VERSION or use HARNESS_INSTALL_FROM"
