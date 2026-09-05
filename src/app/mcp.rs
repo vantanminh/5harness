@@ -19,6 +19,7 @@ use super::durable::{add_backlog, add_decision, add_intake, add_report, add_stor
 use super::index::{ensure_index, format_search_hits, search_index};
 use super::project_link;
 use super::status::{doctor_json, next_items, status_json};
+use crate::infra::entities::MutationLock;
 use super::query::{query_matrix, query_stats, query_view_json};
 
 pub fn mcp_tools() -> Value {
@@ -211,6 +212,7 @@ fn call_tool(root: &PathBuf, name: &str, args: &Value) -> Result<String> {
             Ok(format!("Backlog {id} added."))
         }
         "harness_reindex" => {
+            let _lock = MutationLock::acquire(root)?;
             let (_, entities, edges) = super::index::write_project_index(root)?;
             Ok(format!("Reindexed {entities} entities, {edges} edges."))
         }

@@ -158,7 +158,7 @@ same-machine registry. Registry `harness link` keeps its existing meaning.
 | `harness report get <id> [--from <role\|id>]` | Get one local report, or read it from a configured peer |
 | `harness report update --id <id> --status <status> [--resolution <text>] [--related <csv>]` | Update a report owned by the local project and reindex locally; `fixed` requires a resolution |
 
-Peer selectors are capability selectors, not arbitrary paths or OAuth routing.
+Peer selectors are capability selectors, not arbitrary paths or MCP project routing.
 `--role` must identify exactly one configured peer; `--peer`, `--to`, and
 `--from` must name a configured peer id/role. There is no peer-of-peer traversal.
 Cross-project mutation is limited to `report add`; report lifecycle updates are
@@ -169,9 +169,9 @@ MCP exposes `harness_project_role` and `harness_project_peers` for the calling
 project. When that project has peers it additionally exposes
 `harness_peer_search`, `harness_peer_get`, `harness_peer_context`,
 `harness_peer_links`, `harness_report_add`, `harness_report_list`,
-`harness_report_get`, and `harness_report_update`. With an all-projects grant,
-`X-Harness-Project`/`?project=` selects the calling project; MCP `peer_id`,
-`role`, `to`, and `from` never replace that OAuth selection.
+`harness_report_get`, and `harness_report_update`. `X-Harness-Project`/`?project=`
+selects the calling project; MCP `peer_id`, `role`, `to`, and `from` never
+replace that selection.
 
 ## Commands deferred (later)
 

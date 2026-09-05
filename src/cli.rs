@@ -16,6 +16,7 @@ use crate::app::init::{run_init, run_migrate};
 use crate::app::link::{link_project, list_projects, read_project_id, unlink_project};
 use crate::app::local::{append_trace, append_worklog, git_commits, latest_trace, read_records, remove_tool, score_trace, upsert_tool};
 use crate::app::project_link;
+use crate::infra::entities::MutationLock;
 use crate::app::query::{query_view, query_view_json};
 use crate::app::status::{doctor_json, format_doctor, format_handoff, format_status, next_items, status_json};
 use crate::domain::frontmatter::as_string;
@@ -1093,6 +1094,7 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
         }
         Commands::Reindex { dir } => {
             let target = dir.path(None, cwd);
+            let _lock = MutationLock::acquire(&target)?;
             let (path, entities, edges) = write_project_index(&target)?;
             println!("Reindexed {entities} entities, {edges} edges");
             println!("Index: {}", path.display());
@@ -1313,6 +1315,7 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
         Commands::Query { cmd } => query_cmd(cmd, cwd),
         Commands::Trace { dir, summary, intake, story, agent, outcome, duration, tokens, actions, files_read, files_changed, decisions, errors, friction, notes, json } => {
             if summary.trim().chars().count() < 10 { return Err(Error::new("trace --summary must be at least 10 characters")); }
+            if !["completed", "blocked", "partial", "failed"].contains(&outcome.as_str()) { return Err(Error::new("trace --outcome must be completed, blocked, partial, or failed")); }
             let target = dir.path(None, cwd);
             let record = append_trace(&target, serde_json::json!({
                 "task_summary": summary,
@@ -1504,6 +1507,7 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
                 std::thread::sleep(std::time::Duration::from_millis(500));
                 let current = entity_mtime_fingerprint(&target);
                 if current != last {
+                    let _lock = MutationLock::acquire(&target)?;
                     write_project_index(&target)?;
                     println!("Reindexed after markdown change.");
                     last = current;

@@ -10,6 +10,7 @@ use crate::infra::registry::{
 
 use super::init::ensure_project_id;
 use super::index::write_project_index;
+use crate::infra::entities::MutationLock;
 
 pub struct LinkResult {
     pub entry: RegistryProject,
@@ -44,6 +45,7 @@ pub fn link_project(path_input: Option<&str>, cwd: &Path) -> Result<LinkResult> 
     )
     .map_err(Error::new)?;
     let registry_path = write_registry(&next)?;
+    let _lock = MutationLock::acquire(&absolute)?;
     write_project_index(&absolute)?;
     Ok(LinkResult {
         entry,

@@ -146,8 +146,8 @@ but before planned stories.
 
 MCP always binds the caller first. Peer read and report tools are advertised
 dynamically only when the calling project has configured peers. With an
-all-projects OAuth grant, `X-Harness-Project` selects the calling project; the
-peer id is resolved afterward and never acts as the OAuth selector.
+MCP bearer authentication plus `X-Harness-Project` selects the calling project;
+the peer id is resolved afterward and never acts as the project selector.
 
 ### Product CLI
 

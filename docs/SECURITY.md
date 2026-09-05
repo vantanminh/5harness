@@ -141,11 +141,11 @@ expected/actual values, and resolutions must be sanitized: never include
 credentials, tokens, secrets, passwords, or unnecessary personal data.
 Field-length validation is not secret detection or automatic redaction.
 
-For MCP, OAuth continues to authorize the **calling** project. A single grant is
-forced to its consent-selected project; an all-projects grant uses
-`X-Harness-Project` or `?project=` to select the calling project on every
-request. Tool arguments `peer_id`, `role`, `to`, and `from` only select a
-configured capability from that root and never replace OAuth project routing.
+For MCP, the bearer token authenticates the process and `X-Harness-Project`
+authorizes the **calling** project bound at startup. The compatibility query
+parameter `?project=` is also accepted. Tool arguments `peer_id`, `role`, `to`,
+and `from` only select a configured capability from that root and never replace
+project routing.
 `harness_project_role` and `harness_project_peers` remain visible after binding;
 peer-read/report tools are not advertised when the calling project has no
 configured peers. Dynamic hiding reduces tool noise; it is not the authorization
