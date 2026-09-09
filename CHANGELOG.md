@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Added a Codex `Stop` hook workflow that reviews uncommitted changes and
+  automatically continues once to fix actionable findings and run relevant
+  checks, with a guard against review/fix loops.
+
 ## [0.26.2] - 2026-09-05
 
 ### Fixed
