@@ -37,6 +37,14 @@ list — the shipped CLI is the contract (decision 0023).
 
 **Tracking:** `docs/product/roadmap.md` and `docs/stories/README.md`.
 
+## Release and Changelog
+
+**Changelog rule (mandatory):** every version bump or release preparation must
+update `CHANGELOG.md` in the same slice and commit. Add the user-visible entry
+under `## [Unreleased]` before bumping the version; when releasing, promote it
+to the new version heading with the release date. Do not change the package or
+Rust version without a corresponding `CHANGELOG.md` entry.
+
 ## Product Direction (locked — decision 0011)
 
 1. **Distribution:** npm package **`5harness`** with bins `harness` / `5harness`; preferred `npm i -g 5harness`.
