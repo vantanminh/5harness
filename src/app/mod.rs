@@ -1,4 +1,5 @@
 pub mod catalog;
+pub mod auth;
 pub mod dashboard;
 pub mod durable;
 pub mod index;
@@ -7,3 +8,4 @@ pub mod link;
 pub mod mcp;
 pub mod query;
 pub mod status;
+pub mod sync;

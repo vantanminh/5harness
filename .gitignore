@@ -10,6 +10,12 @@ harness.db-shm
 node_modules/
 dist/
 target/
+web/dist/
+web/.wrangler/
+firebase/functions/lib/
+firebase/functions/.firebase/
+firebase-debug.log
+firebase-export-*/
 bin/harness
 bin/harness.exe
 bin/harness-*
@@ -17,6 +23,13 @@ bin/harness-*
 coverage/
 *.tgz
 .5harness-backup/
+
+# Local cloud configuration (examples remain tracked)
+.env
+.env.local
+.env.*.local
+firebase/.firebaserc
+firebase/functions/.env
 
 # Derived 5harness runtime (index, local traces)
 .5harness/*

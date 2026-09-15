@@ -159,6 +159,22 @@ enum Commands {
         #[command(subcommand)]
         cmd: Option<DashboardCmd>,
     },
+    /// Authorize this CLI with the hosted Harness cloud through a browser
+    Login {
+        #[arg(long = "server")]
+        server: Option<String>,
+        #[arg(long = "no-browser")]
+        no_browser: bool,
+        #[arg(long = "timeout-seconds", default_value_t = 300)]
+        timeout_seconds: u64,
+    },
+    /// Remove the local Harness cloud credential and revoke it remotely
+    Logout,
+    /// Synchronize durable Harness markdown with the authenticated cloud
+    Sync {
+        #[command(subcommand)]
+        cmd: SyncCmd,
+    },
     /// Browse and search harness documentation
     Docs {
         #[command(subcommand)]
@@ -494,6 +510,43 @@ enum DashboardCmd {
     SetPassword {
         #[arg(long = "password")]
         password: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum SyncCmd {
+    /// Encrypt and upload the current durable markdown snapshot
+    Push {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "passphrase")]
+        passphrase: Option<String>,
+        #[arg(long = "passphrase-stdin")]
+        passphrase_stdin: bool,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Download, decrypt, validate, and apply a cloud snapshot
+    Pull {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "passphrase")]
+        passphrase: Option<String>,
+        #[arg(long = "passphrase-stdin")]
+        passphrase_stdin: bool,
+        #[arg(long = "force")]
+        force: bool,
+        #[arg(long = "prune")]
+        prune: bool,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Show the local and cloud snapshot metadata without decrypting content
+    Status {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "json")]
+        json: bool,
     },
 }
 
@@ -937,6 +990,104 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
                 Ok(())
             }
             None => run_dashboard(&host, port, true),
+        },
+        Commands::Login {
+            server,
+            no_browser,
+            timeout_seconds,
+        } => {
+            let auth = crate::app::auth::login(server.as_deref(), no_browser, timeout_seconds)?;
+            match auth.user_email {
+                Some(email) => println!("Harness cloud login complete for {email}."),
+                None => println!("Harness cloud login complete."),
+            }
+            println!("Credential stored in {}", crate::app::auth::auth_file_path().display());
+            Ok(())
+        }
+        Commands::Logout => {
+            if crate::app::auth::logout()? {
+                println!("Harness cloud logout complete; local credential removed.");
+            } else {
+                println!("Harness cloud was not connected on this machine.");
+            }
+            Ok(())
+        }
+        Commands::Sync { cmd } => match cmd {
+            SyncCmd::Push {
+                dir,
+                passphrase,
+                passphrase_stdin,
+                json,
+            } => {
+                let target = dir.path(None, cwd);
+                let result = crate::app::sync::run_push(
+                    &target,
+                    passphrase.as_deref(),
+                    passphrase_stdin,
+                )?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&result)?);
+                } else {
+                    println!("{}", result.message);
+                    if let Some(revision) = result.revision {
+                        println!("Revision: {revision}");
+                    }
+                }
+                Ok(())
+            }
+            SyncCmd::Pull {
+                dir,
+                passphrase,
+                passphrase_stdin,
+                force,
+                prune,
+                json,
+            } => {
+                let target = dir.path(None, cwd);
+                let result = crate::app::sync::run_pull(
+                    &target,
+                    passphrase.as_deref(),
+                    passphrase_stdin,
+                    force,
+                    prune,
+                )?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&result)?);
+                } else {
+                    println!("{}", result.message);
+                    if let Some(revision) = result.revision {
+                        println!("Revision: {revision}");
+                    }
+                }
+                Ok(())
+            }
+            SyncCmd::Status { dir, json } => {
+                let target = dir.path(None, cwd);
+                let result = crate::app::sync::run_status(&target)?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&result)?);
+                } else {
+                    println!(
+                        "Project: {}",
+                        result["project_id"].as_str().unwrap_or("unknown")
+                    );
+                    println!("Server: {}", result["server"].as_str().unwrap_or("unknown"));
+                    match result.get("cloud") {
+                        Some(value) if value.is_null() => println!("Cloud snapshot: none"),
+                        Some(value) => println!(
+                            "Cloud snapshot: {}",
+                            value["revision"].as_str().unwrap_or("unknown")
+                        ),
+                        None => println!("Cloud snapshot: unavailable"),
+                    }
+                    if result.get("local").is_some_and(|value| !value.is_null()) {
+                        println!("Local sync state: present");
+                    } else {
+                        println!("Local sync state: none");
+                    }
+                }
+                Ok(())
+            }
         },
         Commands::Docs { cmd } => docs_cmd(cmd),
         Commands::Completion { shell } => {

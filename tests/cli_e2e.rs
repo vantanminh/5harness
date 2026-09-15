@@ -60,6 +60,35 @@ fn help_lists_init_and_product_contract() {
         "{text}"
     );
     assert!(text.contains("register the project"), "{text}");
+    assert!(text.contains("login"), "{text}");
+    assert!(text.contains("sync"), "{text}");
+}
+
+#[test]
+fn cloud_commands_expose_safe_subcommand_contract() {
+    let login = run(&["login", "--help"], None);
+    assert!(login.status.success(), "{}", stderr(&login));
+    let login_help = stdout(&login);
+    assert!(login_help.contains("--server"), "{login_help}");
+    assert!(login_help.contains("--no-browser"), "{login_help}");
+
+    let sync = run(&["sync", "--help"], None);
+    assert!(sync.status.success(), "{}", stderr(&sync));
+    let sync_help = stdout(&sync);
+    assert!(sync_help.contains("push"), "{sync_help}");
+    assert!(sync_help.contains("pull"), "{sync_help}");
+    assert!(sync_help.contains("status"), "{sync_help}");
+}
+
+#[test]
+fn cloud_sync_fails_closed_without_local_login() {
+    let dir = tempfile_dir("harness-e2e-cloud-no-login-");
+    let init = run(&["init", "--dir", dir.to_str().unwrap()], None);
+    assert!(init.status.success(), "{}", stderr(&init) + &stdout(&init));
+    let sync = run(&["sync", "push", "--dir", dir.to_str().unwrap(), "--passphrase", "a long enough passphrase"], None);
+    assert!(!sync.status.success());
+    let text = stderr(&sync) + &stdout(&sync);
+    assert!(text.contains("harness login"), "{text}");
 }
 
 #[test]
