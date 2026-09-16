@@ -3,8 +3,8 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, ".", "");
-  const target = env.VITE_FIREBASE_API_URL || "http://127.0.0.1:5001";
-  const proxyToken = env.FIREBASE_PROXY_TOKEN;
+  const target = env.VITE_FIREBASE_API_URL || "http://127.0.0.1:8787";
+  const workerBackend = env.VITE_WORKER_DEV === "true" || target.includes(":8787");
   return {
     plugins: [react()],
     server: {
@@ -13,8 +13,7 @@ export default defineConfig(({ mode }) => {
         "/api": {
           target,
           changeOrigin: true,
-          headers: proxyToken ? { "X-Harness-Proxy": proxyToken } : undefined,
-          rewrite: (path) => path.replace(/^\/api/, ""),
+          rewrite: workerBackend ? undefined : (path) => path.replace(/^\/api/, ""),
         },
       },
     },

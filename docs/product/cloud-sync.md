@@ -8,7 +8,7 @@ the repository remains the source of truth.
 
 ```text
 harness login
-    -> Cloudflare Pages /authorize
+    -> Cloudflare Worker /authorize
     -> Firebase Auth in the browser
     -> one-time PKCE code to the loopback CLI callback
     -> rotated opaque CLI credentials in ~/.5harness/auth.json
@@ -16,17 +16,20 @@ harness login
 harness sync push
     -> deterministic durable-file manifest
     -> PBKDF2-HMAC-SHA256 + AES-256-GCM on the client
-    -> Firebase Functions API
-    -> user-scoped Firestore ciphertext
+    -> Cloudflare Worker API
+    -> Firebase Firestore REST under users/{uid}/projects/{projectId}
 ```
 
-The browser dashboard uses Firebase Auth and a Pages Function proxy at `/api/*`.
-The proxy keeps the Firebase Functions origin out of browser CORS setup and
-keeps the backend URL out of the static application bundle. The Firebase Admin
-SDK is used only inside Functions.
-The proxy also injects a high-entropy `FIREBASE_PROXY_TOKEN`; Functions require
-the matching `CLOUD_PROXY_TOKEN` secret, so the public Firebase URL is not a
-usable unauthenticated write surface.
+The Worker verifies Firebase ID tokens with Google's Secure Token JWKS and
+refreshes Firebase sessions when serving CLI/MCP requests. OAuth codes,
+tokens, encrypted grant properties, quotas, and rate-limit buckets are stored
+in Cloudflare KV through `@cloudflare/workers-oauth-provider`. No Firebase
+Functions, Admin SDK, Secret Manager, or Firestore TTL is required, so the
+Firebase project can remain on Spark.
+
+The Worker also serves the SPA assets. An existing Cloudflare Pages project
+may proxy `/api/*` to the Worker for dashboard compatibility, but the Worker
+URL is the canonical CLI and MCP OAuth server.
 
 ## What is synchronized
 
@@ -45,36 +48,36 @@ hashes, UTF-8 content, and confined paths before making atomic local writes.
 ## Conflict behavior
 
 Each project has one encrypted snapshot per Firebase account. Push uses a
-revision compare-and-swap. A stale remote revision returns a conflict instead
-of silently overwriting another device. Pull checks the local file digest since
-the last successful sync; local divergence requires the explicit
-`harness sync pull --force` flag. `--prune` is separate and must be requested to
-remove local durable Markdown that is absent from the snapshot.
+Firestore REST compare-and-swap on the document update time and the logical
+revision. A stale remote revision returns a conflict instead of silently
+overwriting another device. Pull checks the local file digest since the last
+successful sync; local divergence requires the explicit
+`harness sync pull --force` flag. `--prune` is separate and must be requested
+to remove local durable Markdown that is absent from the snapshot.
 
 ## Security boundary
 
 - The sync passphrase is never sent to Firebase. It derives the AES key locally.
-- Firestore client rules deny every direct read and write; only Admin SDK code
-  in Functions can access documents.
-- Browser routes require Firebase Auth plus Firebase App Check. CLI routes use
-  short-lived access tokens issued after PKCE authorization.
+- Firestore rules allow a signed-in user to access only that user's project
+  documents and validate the encrypted envelope shape.
+- Browser API routes require a verified Firebase ID token. CLI and MCP routes
+  use short-lived OAuth access tokens whose grant properties are encrypted in
+  KV and contain a refresh credential only for the same Firebase account.
 - Access tokens are opaque; only hashes are stored. Refresh tokens rotate, and
   replay revokes the whole refresh family.
 - Payload size, file count, project count, request rate, daily operations, daily
-  bytes, and retention are bounded in the backend. IP rate-limit keys are
-  salted hashes, not raw addresses.
-- The Pages-to-Firebase proxy token is stored only as a Cloudflare Pages secret
-  and Firebase Secret Manager value; the proxy overwrites client-supplied
-  copies before forwarding.
-- OAuth redirects are exact loopback callbacks with PKCE S256 and one-time
+  bytes, and retention are bounded in the Worker. IP rate-limit keys are salted
+  hashes, not raw addresses.
+- OAuth redirects use exact loopback callbacks with PKCE S256 and one-time
   authorization codes. No service-account key belongs in the browser or repo.
 
 ## Deployment guides
 
-- [Firebase Functions and Firestore](../../firebase/README.md)
-- [Vite + Cloudflare Pages](../../web/README.md)
+- [Firebase Auth and Firestore](../../firebase/README.md)
+- [Cloudflare Worker and dashboard](../../web/README.md)
 - [Security model](../SECURITY.md#harness-cloud-sync)
 
-The Firebase project id, Firebase web configuration, Pages project, App Check
-site key, CORS origins, and Secret Manager value are deployment inputs. They are
-intentionally not committed to this repository.
+The Firebase project id, Firebase web configuration, Cloudflare KV namespace,
+Worker rate-limit secret, CORS origins, and optional Pages project are
+deployment inputs. The Firebase Web API key is public configuration; the
+rate-limit salt and OAuth data remain outside the repository.

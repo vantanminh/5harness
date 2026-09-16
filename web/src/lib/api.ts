@@ -24,7 +24,7 @@ export async function apiFetch<T>(
   const response = await fetch(apiBase + path, {
     ...init,
     headers,
-    credentials: "omit",
+    credentials: init.credentials ?? "omit",
   });
   if (!response.ok) {
     let payload: { error?: string; message?: string } = {};

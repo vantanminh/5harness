@@ -1,8 +1,11 @@
 # Harness Cloud web dashboard
 
-The dashboard is a Vite + React Router single-page app deployed to Cloudflare
-Pages. Pages Functions proxy `/api/*` to Firebase Functions, while Firebase
-Auth handles the human browser session.
+The dashboard is a Vite + React Router single-page app served by the same
+Cloudflare Worker as the Harness Cloud API. Firebase Auth handles human
+sign-in; the Worker verifies Firebase ID tokens, calls Firestore through its
+REST API, and stores OAuth state, grants, and quota counters in Cloudflare KV.
+This keeps the Firebase project on the Spark plan: Firebase Functions,
+firebase-admin, Secret Manager, and Firestore TTL are not part of production.
 
 ## Configure locally
 
@@ -11,81 +14,95 @@ npm install
 cp .env.example .env.local
 npm run check
 npm test
+npm run test:worker
 npm run build
 ```
 
 Fill the public `VITE_FIREBASE_*` values from Firebase Console. These values
-are safe to embed in a browser bundle; they are not service credentials. Set
-`VITE_FIREBASE_APPCHECK_SITE_KEY` to the reCAPTCHA Enterprise score key used by
-Firebase App Check.
+are safe to embed in a browser bundle; they are not service credentials. The
+App Check site key is optional for the Worker backend and may be left blank in
+local development.
 
-For a local Firebase emulator, set `VITE_FIREBASE_API_URL` to the full
-project-shaped Functions URL described in `firebase/README.md`. In production,
-leave `VITE_API_BASE_URL` at its default `/api`: the Pages Function forwards the
-request to the runtime `FIREBASE_API_URL` variable.
+For a local Worker, build the SPA, copy `.dev.vars.example` to `.dev.vars`,
+then run:
+
+```bash
+npx wrangler dev --config wrangler.worker.jsonc
+```
+
+The Vite dev-server proxy keeps `/api` in the request path when
+`VITE_WORKER_DEV=true` (the default). The legacy Firebase Functions emulator
+is still available for historical tests; point `VITE_FIREBASE_API_URL` at its
+project-shaped `/api` URL and set `VITE_WORKER_DEV=false` if you need it.
 
 ## Routes
 
 - `/` — product landing page and Google sign-in
-- `/authorize` — PKCE consent screen used by `harness login`
+- `/authorize` — OAuth consent screen used by `harness login` and MCP clients
 - `/dashboard` — account-scoped encrypted snapshot metadata
 - `/projects/:projectId` — local-in-browser unlock and manifest inspection
 - `/settings` — setup, privacy boundary, and CLI session revocation
+- `/mcp` — stateless MCP JSON-RPC endpoint protected by OAuth/KV
 
 The passphrase is held only in React state while a snapshot is unlocked. The
 Web Crypto API performs PBKDF2 and AES-GCM decryption in the browser; plaintext
 is not sent to the backend.
 
-## Cloudflare Pages deployment
+## Cloudflare Worker deployment
 
-Install and authenticate Wrangler once, then create the Pages project:
+Install and authenticate Wrangler once:
 
 ```bash
 npx wrangler login
-npx wrangler pages project create 5harness-cloud
+npx wrangler kv namespace create OAUTH_KV
+npx wrangler types --config wrangler.worker.jsonc
 ```
 
-Set the Firebase Functions URL as a Pages runtime variable/secret. The value is
-an endpoint, not a credential, but keeping it out of source makes staging and
-production safer to operate:
+Put the returned KV namespace id in `wrangler.worker.jsonc`. Set the Firebase
+project id, public Web API key, and exact browser origins in that config. Keep
+the rate-limit salt as a Worker secret and use at least 32 random bytes:
+
+```bash
+npx wrangler secret put RATE_LIMIT_SALT --config wrangler.worker.jsonc
+npm run deploy:worker
+```
+
+`deploy:worker` builds the SPA, typechecks the Worker, and deploys
+`wrangler.worker.jsonc`. The Worker serves `/api/*`, `/authorize`,
+`/oauth/*`, `/.well-known/*`, `/mcp`, and the SPA assets from one origin. Use
+the resulting `https://<worker>.<account>.workers.dev` URL as the CLI server:
+
+```bash
+harness login --server https://<worker>.<account>.workers.dev
+```
+
+The Worker configuration intentionally contains only public Firebase web
+configuration. OAuth grant properties are encrypted by
+`@cloudflare/workers-oauth-provider`; the salt is never bundled.
+
+## Optional Pages compatibility deployment
+
+The existing Pages project can continue serving the static dashboard. Deploy
+the SPA with `npm run deploy`, then set its `FIREBASE_API_URL` runtime value to
+the Worker API base, including `/api`:
 
 ```bash
 npx wrangler pages secret put FIREBASE_API_URL --project-name=5harness-cloud
 ```
 
-When prompted, enter the deployed Firebase URL ending in `/api`. Configure the
-matching `FIREBASE_PROXY_TOKEN` Pages secret too; it must equal the
-`CLOUD_PROXY_TOKEN` Firebase secret and is never bundled into the SPA:
-
-```bash
-npx wrangler pages secret put FIREBASE_PROXY_TOKEN --project-name=5harness-cloud
-```
-
-Configure the
-public `VITE_FIREBASE_*` values in the Pages project build environment (or in a
-local, ignored `.env.production.local` for direct uploads). Then deploy from
-this directory:
-
-```bash
-npm run deploy
-```
-
-`wrangler.jsonc` sets the Pages output directory and compatibility date.
-`functions/api/[[path]].ts` is included from the project root, and
-`public/_redirects` keeps client-side React Router paths working on refresh.
-The proxy strips incoming private-header attempts and adds the configured
-runtime secret itself. For local Pages Functions development, copy
-`.dev.vars.example` to `.dev.vars`.
-Use `npm run deploy:preview` for a preview branch, and add that preview origin
-to Firebase `WEB_ORIGINS` before testing browser API calls.
+Enter `https://<worker>.<account>.workers.dev/api` when prompted. The Pages
+Function forwards `/api/*` and cookies to the Worker; use the Worker URL for
+the CLI and MCP OAuth server because Pages does not proxy root OAuth routes.
+`FIREBASE_PROXY_TOKEN` is obsolete and is not required by the Worker.
 
 ## Production checklist
 
-1. Deploy Firebase Functions and Firestore rules first.
-2. Register the Pages hostname in Firebase Auth authorized domains.
-3. Register the Pages web app in Firebase App Check and set its site key.
-4. Set `WEB_ORIGINS` to exact production/preview origins; never use `*`.
-5. Set `FIREBASE_API_URL` and `FIREBASE_PROXY_TOKEN` in Pages, plus the public
-   `VITE_FIREBASE_*` build vars.
-6. Run `harness login --server https://<pages-domain>` and then
-   `harness sync push` with a long passphrase.
+1. Enable Google sign-in and deploy Auth/Firestore rules from `../firebase`.
+   The Firebase deploy script only publishes `auth`, `firestore:rules`, and
+   `firestore:indexes`; it does not deploy Functions.
+2. Add the Worker hostname (and the Pages hostname if it serves the UI) to
+   Firebase Auth authorized domains.
+3. Set exact `CORS_ORIGINS`; never use `*` for a credentialed browser origin.
+4. Configure the `OAUTH_KV` namespace and `RATE_LIMIT_SALT` secret.
+5. Run the Worker health check at `/api/health`, then use the returned Worker
+   URL with `harness login --server` and `harness sync push`.

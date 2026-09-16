@@ -7,19 +7,25 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "check": "tsc -b --pretty false",
+    "worker:check": "tsc -p worker/tsconfig.json --noEmit",
+    "check": "tsc -b --pretty false && npm run worker:check",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run --config vitest.config.ts",
+    "test:worker": "vitest run --config vitest.worker.config.ts",
     "deploy": "npm run build && wrangler pages deploy dist --project-name=5harness-cloud",
-    "deploy:preview": "npm run build && wrangler pages deploy dist --project-name=5harness-cloud --branch=preview"
+    "deploy:preview": "npm run build && wrangler pages deploy dist --project-name=5harness-cloud --branch=preview",
+    "deploy:worker": "npm run build && npm run worker:check && wrangler deploy --config wrangler.worker.jsonc",
+    "deploy:worker:dry": "npm run build && npm run worker:check && wrangler deploy --config wrangler.worker.jsonc --dry-run"
   },
   "dependencies": {
+    "@cloudflare/workers-oauth-provider": "^0.10.3",
     "firebase": "^11.6.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.5.3"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
     "@cloudflare/workers-types": "^5.20260915.1",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
@@ -28,7 +34,7 @@
     "playwright": "^1.63.0",
     "typescript": "^5.8.2",
     "vite": "^6.2.5",
-    "vitest": "^5.0.1",
+    "vitest": "^4.1.11",
     "wrangler": "^4.132.0"
   }
 }

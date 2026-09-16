@@ -69,6 +69,11 @@ export async function idToken(): Promise<string | null> {
   return auth?.currentUser?.getIdToken() ?? null;
 }
 
+/** Used only during the HTTPS OAuth consent handoff to the own Worker. */
+export async function firebaseRefreshToken(): Promise<string | null> {
+  return auth?.currentUser?.refreshToken ?? null;
+}
+
 export async function appCheckToken(): Promise<string | null> {
   if (!appCheck) return null;
   try {

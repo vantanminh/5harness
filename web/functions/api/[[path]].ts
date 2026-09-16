@@ -39,7 +39,6 @@ export const onRequest = async ({ request, env, params }: PagesContext): Promise
   const headers = new Headers(request.headers);
   headers.delete("host");
   headers.delete("content-length");
-  headers.delete("cookie");
   headers.delete("x-harness-proxy");
   if (env.FIREBASE_PROXY_TOKEN) {
     headers.set("X-Harness-Proxy", env.FIREBASE_PROXY_TOKEN);

@@ -1,8 +1,11 @@
-# Harness Cloud Firebase backend
+# Harness Cloud Firebase configuration
 
-This directory contains the Firebase Functions API and the deny-by-default
-Firestore policy used by Harness Cloud. The API stores encrypted envelopes;
-it never receives the sync passphrase or plaintext durable Markdown.
+Firebase remains the identity provider and encrypted snapshot database for
+Harness Cloud. The production API runs on Cloudflare Workers, so this project
+does not deploy Firebase Functions and does not require the Blaze plan.
+
+The historical `functions/` package is retained for emulator compatibility and
+reference only. It is not included by the production deploy script.
 
 ## Prerequisites
 
@@ -16,95 +19,66 @@ Sign in with the Firebase CLI, then select the project locally:
 firebase login
 cp .firebaserc.example .firebaserc
 firebase use <your-firebase-project-id>
-npm --prefix functions install
-npm --prefix functions run build
-npm --prefix functions test
 ```
 
-`.firebaserc` is ignored and must not be committed. In Firebase Console,
-enable Google under Authentication → Sign-in method and add the Cloudflare
-Pages hostname under Authentication → Settings → Authorized domains.
-
-## Configure the backend
-
-Copy `functions/.env.example` to `functions/.env` and set exact origins:
-
-```text
-WEB_ORIGINS=https://<pages-project>.pages.dev,http://localhost:5173
-ENFORCE_APP_CHECK=true
-```
-
-For an emulator, set a random local `RATE_LIMIT_SALT` in that file. For a
-deployed function, remove the local value and create a Firebase Secret Manager
-version instead:
-
-```bash
-firebase functions:secrets:set RATE_LIMIT_SALT
-```
-
-Use at least 32 random bytes. The function declares this secret explicitly and
-fails closed with `service_misconfigured` if it is absent. Do not use a service
-account JSON key in the web app or commit one to this repository.
-
-Create a separate random `CLOUD_PROXY_TOKEN` as well. The Pages Function sends
-it in a private header and Firebase rejects direct API calls without the
-matching value. Use the local value in `functions/.env` for emulator work; in
-production store it as a second Firebase secret:
-
-```bash
-firebase functions:secrets:set CLOUD_PROXY_TOKEN
-```
-
-## App Check
-
-Register the web application in Firebase App Check with a reCAPTCHA Enterprise
-score key restricted to the deployed Pages hostname, and put its site key in
-`web/.env.local` as
-`VITE_FIREBASE_APPCHECK_SITE_KEY`. Keep `ENFORCE_APP_CHECK=true` for deployed
-Functions. The emulator bypasses App Check only when Firebase sets
-`FUNCTIONS_EMULATOR=true`.
-
-## Deploy
-
-From this directory, deploy the Functions API, Firestore rules, and TTL/index
-configuration:
-
-```bash
-npm run deploy
-```
-
-The API endpoint is:
-
-```text
-https://us-central1-<your-firebase-project-id>.cloudfunctions.net/api
-```
-
-Set this URL as `FIREBASE_API_URL` in the Cloudflare Pages project. When using a
-custom Firebase region, update both `firebase/firebase.json` and the URL used
-by the Pages proxy before deploying.
+In Firebase Console, enable Google under Authentication → Sign-in method and
+add the Cloudflare Worker hostname under Authentication → Settings →
+Authorized domains. Add the Pages hostname too if it serves the dashboard.
 
 ## Local emulator
 
-Set a local `RATE_LIMIT_SALT` in `functions/.env`, then run:
+The Functions emulator is kept for the legacy backend tests. The production
+Worker uses Firestore REST, so local Worker development normally uses the
+Firestore emulator URL in `web/.dev.vars`:
 
 ```bash
 npm run emulators
 ```
 
-The Functions emulator uses a project-shaped URL. For Vite, set
-`VITE_FIREBASE_API_URL` to:
+The Worker accepts `FIRESTORE_API_BASE_URL=http://127.0.0.1:8080` for this
+loopback-only case. Do not put service-account JSON keys in the web app or
+repository.
 
-```text
-http://127.0.0.1:5001/<your-firebase-project-id>/us-central1/api
+## Deploy Firebase resources
+
+From this directory:
+
+```bash
+npm run deploy
 ```
 
-The Firestore rules intentionally deny direct client access. Local requests
-still go through the Functions API so emulator behavior matches production.
+This publishes only:
+
+- Firebase Authentication provider configuration
+- Firestore Security Rules
+- Firestore composite indexes (currently none)
+
+The rules permit a signed-in user to access only
+`users/{uid}/projects/{projectId}` and validate the encrypted envelope schema.
+OAuth codes, access/refresh credentials, quotas, and rate-limit buckets live
+in Cloudflare KV instead of Firestore. Snapshot retention is enforced by the
+Worker and expired documents are deleted opportunistically; Firebase TTL is
+not enabled.
+
+## Cloudflare Worker deployment
+
+Configure the Firebase project id and public Web API key in
+`web/wrangler.worker.jsonc`, then create the KV namespace and secret from
+[`web/README.md`](../web/README.md):
+
+```bash
+npx wrangler kv namespace create OAUTH_KV
+npx wrangler secret put RATE_LIMIT_SALT --config ../web/wrangler.worker.jsonc
+npm --prefix ../web run deploy:worker
+```
+
+The Firebase Web API key is public client configuration. The Worker never uses
+the Firebase Admin SDK, service-account credentials, Secret Manager, or a
+Firebase Functions endpoint.
 
 ## Operations
 
-The backend has bounded Firebase Functions instances, exact CORS origins,
-App Check, salted IP rate limits, per-account quotas, per-account project caps,
-payload/file limits, token expiry/rotation/replay detection, and Firestore TTL
-cleanup. Review `docs/product/cloud-sync.md` and
-`docs/SECURITY.md#harness-cloud-sync` before changing those controls.
+Keep the exact browser origins in the Worker `CORS_ORIGINS` variable. Review
+[`docs/product/cloud-sync.md`](../docs/product/cloud-sync.md) and
+[`docs/SECURITY.md`](../docs/SECURITY.md#harness-cloud-sync) before changing
+the owner-scoped rules, OAuth boundary, quotas, or retention behavior.

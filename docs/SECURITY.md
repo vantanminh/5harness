@@ -217,41 +217,43 @@ snapshots. It does not replace Git-backed Markdown as the source of truth.
   `docs/reports/`.
 - The CLI derives an AES-256-GCM key locally with PBKDF2-HMAC-SHA256. The sync
   passphrase and plaintext never enter browser requests, Firebase, Firestore,
-  Pages logs, or the local auth file.
+  Worker logs, or the local auth file.
 - `~/.5harness/auth.json` contains the CLI's rotating opaque credentials. It is
   machine-local, written atomically, mode `0600` on Unix, and never committed.
 - Firebase web configuration values are public client identifiers. Firebase
-  Admin credentials and service-account JSON keys must remain server-side and
-  are not part of this repository.
-- The Pages proxy and Firebase Functions share a separate high-entropy proxy
-  token. Pages injects it at runtime and strips any client-supplied value;
-  Firebase rejects direct API calls without the matching secret.
+  Admin credentials and service-account JSON keys are not part of this
+  repository and are not used by the production Worker.
+- OAuth grant properties are encrypted by `@cloudflare/workers-oauth-provider`
+  before storage in Cloudflare KV. The Worker rate-limit salt is a Cloudflare
+  secret and is never bundled.
 
 ### Authorization and isolation
 
 - `harness login` uses an exact loopback redirect, OAuth authorization code,
   PKCE S256, one-time code storage, short-lived access tokens, and refresh-token
   rotation. Replay revokes the refresh family.
-- Browser API routes require Firebase Auth and App Check. CLI data routes use
-  the issued access token. Every Firestore path is nested below the verified
-  Firebase uid; direct client Firestore rules deny all access.
+- Browser API routes require a verified Firebase ID token. CLI data routes use
+  the issued access token, which the Worker exchanges for a fresh Firebase ID
+  token before calling Firestore REST. Every Firestore path is nested below the
+  verified Firebase uid and owner-scoped rules validate the envelope.
 - Push uses a Firestore transaction with a revision compare-and-swap. Pull
   validates the project id, path roots, file hashes, UTF-8 content, and local
   divergence before atomic writes. `--force` and `--prune` are explicit flags.
 
 ### Abuse and cost controls
 
-- Functions have bounded instances, concurrency, body size, file count,
-  project count, retention, per-IP salted-hash rate limits, and per-account
-  daily operation/byte quotas.
-- Production requires `RATE_LIMIT_SALT` and `CLOUD_PROXY_TOKEN` from Firebase
-  Secret Manager plus exact `WEB_ORIGINS`; wildcard CORS is rejected. App Check
-  must remain enforced.
-- Firestore TTL fields clean up authorization codes, access/refresh credentials,
-  rate buckets, usage counters, refresh families, and expired snapshots.
+- The Worker bounds body size, file count, project count, retention, per-IP
+  salted-hash rate limits, and per-account daily operation/byte quotas.
+- Production requires the Worker `RATE_LIMIT_SALT` secret, an `OAUTH_KV`
+  namespace, and exact `CORS_ORIGINS`; wildcard CORS is rejected for the normal
+  credentialed configuration.
+- Cloudflare KV TTLs expire OAuth credentials, rate buckets, and usage counters.
+  Snapshot retention is checked on every read/write and expired Firestore
+  documents are deleted opportunistically; Firestore TTL is intentionally not
+  enabled.
 - Operators should also configure Firebase budget alerts and Cloudflare WAF or
-  rate limiting for the Pages hostname. Application quotas are defense in
-  depth, not a promise of unlimited free usage.
+  rate limiting for the Worker/Pages hostname. Application quotas are defense
+  in depth, not a promise of unlimited free usage.
 
 Deployment and local-emulator instructions are in
 [`docs/product/cloud-sync.md`](product/cloud-sync.md),

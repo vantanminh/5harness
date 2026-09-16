@@ -23,6 +23,7 @@ import type { User } from "firebase/auth";
 import { apiFetch, jsonBody, type ApiFailure } from "./lib/api";
 import {
   firebaseConfigured,
+  firebaseRefreshToken,
   signIn as signInWithGoogle,
   signOut as signOutFromFirebase,
   subscribeToAuth,
@@ -109,7 +110,7 @@ function SiteLayout() {
       <main className="page"><Outlet /></main>
       <footer className="footer">
         <span>5harness cloud sync</span>
-        <span>Encrypted before upload · Firebase backend · Cloudflare Pages</span>
+        <span>Encrypted before upload · Firebase Auth · Cloudflare Worker</span>
       </footer>
     </div>
   );
@@ -203,9 +204,16 @@ function AuthorizePage() {
     setBusy(true);
     setError("");
     try {
+      const refreshToken = await firebaseRefreshToken();
+      if (!refreshToken) throw new Error("Firebase session is unavailable. Sign in again.");
       const result = await apiFetch<{ redirect_uri: string; code: string; state: string }>("/oauth/authorize", {
         method: "POST",
-        body: jsonBody(request.params),
+        credentials: "include",
+        body: jsonBody({
+          ...request.params,
+          csrf_token: request.csrfToken,
+          firebase_refresh_token: refreshToken,
+        }),
       });
       const callback = new URL(result.redirect_uri);
       callback.searchParams.set("code", result.code);
@@ -416,7 +424,7 @@ function SettingsPage() {
     <section className="settings-layout">
       <div><p className="eyebrow">Account and setup</p><h1>Settings</h1><p className="muted">Cloud sync is designed so your Firebase project is usable by many accounts without exposing service credentials.</p></div>
       <div className="settings-card"><div className="settings-avatar">{(user?.displayName || user?.email || "U").slice(0, 1).toUpperCase()}</div><div><span className="card-kicker">Signed in account</span><h2>{user?.displayName || user?.email}</h2><p className="muted">{user?.email}</p></div></div>
-      <div className="settings-card stacked"><span className="card-kicker">CLI connection</span><h2>Authorize from your terminal</h2><pre><code>harness login --server https://your-cloudflare-pages-domain</code></pre><p className="muted">Then set a long passphrase and run <code>harness sync push</code>. Pulling on a new device requires the same passphrase.</p></div>
+      <div className="settings-card stacked"><span className="card-kicker">CLI connection</span><h2>Authorize from your terminal</h2><pre><code>harness login --server https://your-worker.workers.dev</code></pre><p className="muted">Then set a long passphrase and run <code>harness sync push</code>. Pulling on a new device requires the same passphrase.</p></div>
       <div className="settings-card stacked"><span className="card-kicker">Privacy boundary</span><div className="check-row"><span className="check">✓</span><span>Firebase stores an encrypted envelope scoped to your user id.</span></div><div className="check-row"><span className="check">✓</span><span>OAuth refresh credentials are rotated and never shown in this UI.</span></div><div className="check-row"><span className="check">✓</span><span>Deleting a cloud snapshot does not delete your local repository files.</span></div></div>
       <div className="settings-card stacked danger-zone"><span className="card-kicker">Access control</span><h2>Revoke CLI access</h2><p className="muted">Use this after losing a device. It revokes every active CLI token family; your Firebase browser session stays signed in.</p><button className="danger-button" onClick={() => void revokeCliSessions()} disabled={revoking}>{revoking ? "Revoking…" : "Revoke all CLI sessions"}</button>{message && <Notice tone="info">{message}</Notice>}{error && <Notice tone="error">{error}</Notice>}</div>
     </section>
@@ -439,8 +447,10 @@ function StatCard({ label, value, note }: { label: string; value: string; note: 
   return <div className="stat-card"><span>{label}</span><strong>{value}</strong><small>{note}</small></div>;
 }
 
-function parseAuthorizationRequest(): { valid: true; params: Record<string, string> } | { valid: false; error: string } {
-  const search = new URLSearchParams(window.location.search);
+function parseAuthorizationRequest(): { valid: true; params: Record<string, string>; csrfToken: string } | { valid: false; error: string } {
+  const outer = new URLSearchParams(window.location.search);
+  const embedded = outer.get("oauth");
+  const search = embedded ? new URLSearchParams(embedded) : outer;
   const params = {
     client_id: search.get("client_id") || "",
     redirect_uri: search.get("redirect_uri") || "",
@@ -449,17 +459,23 @@ function parseAuthorizationRequest(): { valid: true; params: Record<string, stri
     code_challenge_method: search.get("code_challenge_method") || "",
     scope: search.get("scope") || "",
     state: search.get("state") || "",
+    ...(search.get("resource") ? { resource: search.get("resource") || "" } : {}),
   };
   try {
     const callback = new URL(params.redirect_uri);
-    const callbackValid = callback.protocol === "http:" && ["127.0.0.1", "localhost"].includes(callback.hostname) && callback.pathname === "/callback" && Number(callback.port) >= 1 && Number(callback.port) <= 65535 && !callback.search && !callback.hash && !callback.username && !callback.password;
-    if (params.client_id !== "harness-cli" || params.response_type !== "code" || !callbackValid || params.code_challenge_method !== "S256" || !/^[A-Za-z0-9_-]{43,128}$/.test(params.code_challenge) || params.scope !== "sync:read sync:write" || params.state.length < 16 || params.state.length > 512) {
-      return { valid: false, error: "The CLI request is missing a safe loopback redirect, PKCE challenge, or valid scope." };
+    const loopback = ["127.0.0.1", "localhost", "::1", "[::1]"].includes(callback.hostname);
+    const callbackValid = (
+      (callback.protocol === "http:" && loopback && callback.pathname === "/callback" && Boolean(callback.port)) ||
+      (callback.protocol === "https:" && Boolean(callback.hostname))
+    ) && !callback.username && !callback.password && !callback.hash;
+    const scopes = params.scope.split(" ").filter(Boolean);
+    if (!params.client_id || params.client_id.length > 512 || params.response_type !== "code" || !callbackValid || params.code_challenge_method !== "S256" || !/^[A-Za-z0-9_-]{43,128}$/.test(params.code_challenge) || !scopes.includes("sync:read") || scopes.some((scope) => !["sync:read", "sync:write", "offline_access"].includes(scope)) || params.state.length < 16 || params.state.length > 512) {
+      return { valid: false, error: "The OAuth request is missing a safe redirect, PKCE challenge, or supported scope." };
     }
   } catch {
-    return { valid: false, error: "The redirect target is not a valid local callback." };
+    return { valid: false, error: "The redirect target is not valid." };
   }
-  return { valid: true, params };
+  return { valid: true, params, csrfToken: outer.get("oauth_csrf") || "" };
 }
 
 function errorMessage(reason: unknown): string {

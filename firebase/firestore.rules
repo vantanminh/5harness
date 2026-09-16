@@ -1,10 +1,65 @@
 rules_version = '2';
 
-// The web and CLI clients never talk to Firestore directly.  All reads and
-// writes go through the Functions API, which verifies Firebase/Auth/App Check
-// and applies quotas before using the Admin SDK.
+// The Cloudflare Worker calls Firestore REST with the user's Firebase ID
+// token.  Keep the database owner-scoped so a Worker bug cannot cross user
+// boundaries; OAuth state and quota counters live in Cloudflare KV instead.
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function validEnvelope(projectId) {
+      return request.resource.data.envelope is map
+        && request.resource.data.envelope.project_id == projectId
+        && request.resource.data.envelope.schema_version == 1
+        && request.resource.data.envelope.format == 'harness-sync-envelope'
+        && request.resource.data.envelope.kdf == 'PBKDF2-HMAC-SHA256'
+        && request.resource.data.envelope.cipher == 'AES-256-GCM'
+        && request.resource.data.envelope.project_name is string
+        && request.resource.data.envelope.plaintext_sha256 is string
+        && request.resource.data.envelope.salt_base64 is string
+        && request.resource.data.envelope.nonce_base64 is string
+        && request.resource.data.envelope.ciphertext_base64 is string;
+    }
+
+    function validProject(uid, projectId) {
+      return owner(uid)
+        && request.resource.data.keys().hasOnly([
+          'projectId',
+          'projectName',
+          'revision',
+          'envelope',
+          'plaintextSha256',
+          'ciphertextBytes',
+          'createdAt',
+          'updatedAt',
+          'expiresAt'
+        ])
+        && request.resource.data.projectId == projectId
+        && request.resource.data.projectName is string
+        && request.resource.data.projectName.size() <= 200
+        && request.resource.data.revision is string
+        && request.resource.data.plaintextSha256 is string
+        && request.resource.data.ciphertextBytes is int
+        && request.resource.data.ciphertextBytes >= 16
+        && request.resource.data.ciphertextBytes <= 900000
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.expiresAt is timestamp
+        && validEnvelope(projectId);
+    }
+
+    match /users/{uid}/projects/{projectId} {
+      allow read: if owner(uid);
+      allow create, update: if validProject(uid, projectId);
+      allow delete: if owner(uid);
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
