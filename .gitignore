@@ -12,6 +12,8 @@ dist/
 target/
 web/dist/
 web/.wrangler/
+.dev.vars
+.wrangler/
 firebase/functions/lib/
 firebase/functions/.firebase/
 firebase-debug.log

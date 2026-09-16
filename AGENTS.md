@@ -57,6 +57,21 @@ discussion, feature intake, docs, or story shaping. The skill is
 project-scoped; `harness init` installs it. Do not use a global copy as the
 source of truth.
 
+## Optional Harness Cloud sync
+
+This repository also contains the hosted sync surfaces under `firebase/` and
+`web/`. Durable Markdown remains the Git-backed source of truth. Cloud sync
+must include only the supported durable roots, encrypt before upload, and keep
+`.5harness/`, credentials, traces, indexes, and arbitrary project files local.
+
+- Use `harness login --server https://<pages-domain>` for browser PKCE login.
+- Use `harness sync push|pull|status`; never hand-edit sync state or durable
+  entity Markdown to resolve a conflict.
+- Never commit Firebase service-account keys, `.env`, `.firebaserc`, Pages
+  secrets, or a sync passphrase.
+- Backend and deployment runbooks live in `docs/product/cloud-sync.md`,
+  `firebase/README.md`, and `web/README.md`.
+
 <!-- HARNESS:BEGIN -->
 <!-- harness-version: 0.25.3 -->
 <!-- harness-project-id: 2155089a1e379d9ebae4b4ac654e7360 -->

@@ -4,6 +4,16 @@ If `.agents/skills/harness/SKILL.md` exists, use it for the work loop,
 mutation rules, and tool-only durable writes. `harness init` installs that
 skill.
 
+## Optional Harness Cloud sync
+
+If this project opts into cloud sync, use `harness login --server
+https://<pages-domain>` followed by `harness sync push|pull|status`. The CLI
+encrypts supported durable Markdown before upload; the passphrase never leaves
+the device. Do not sync `.5harness/`, credentials, traces, indexes, or
+arbitrary files. Never commit `.env`, Firebase service-account keys, Pages
+secrets, or a sync passphrase. Review the project's cloud sync runbook before
+enabling it.
+
 <!-- HARNESS:BEGIN -->
 <!-- harness-version: 0.25.3 -->
 ## Harness

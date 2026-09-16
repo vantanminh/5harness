@@ -1,0 +1,53 @@
+name: Cloud surfaces
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "firebase/**"
+      - "web/**"
+      - ".github/workflows/cloud.yml"
+  pull_request:
+    paths:
+      - "firebase/**"
+      - "web/**"
+      - ".github/workflows/cloud.yml"
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  firebase:
+    name: Firebase Functions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22.x"
+          cache: npm
+          cache-dependency-path: firebase/functions/package-lock.json
+      - run: npm ci --prefix firebase/functions
+      - run: npm --prefix firebase/functions run build
+      - run: npm --prefix firebase/functions test
+      - run: npm --prefix firebase/functions audit --omit=dev
+
+  web:
+    name: Cloudflare Pages web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22.x"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --prefix web
+      - run: npm --prefix web run check
+      - run: npm --prefix web test
+      - run: npm --prefix web run build

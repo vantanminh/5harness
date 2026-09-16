@@ -90,6 +90,7 @@ harness dashboard            # or bare: harness
 | **Agent loop** | `doctor`, `status`, `next`, `context`, `handoff`, `watch` |
 | **MCP** | Local `harness mcp` / dashboard MCP — reads + durable mutations (US-041) |
 | **Dashboard** | Localhost multi-project UI + optional MCP monitoring |
+| **Cloud sync** | Optional encrypted snapshots with Firebase backend + Cloudflare Pages dashboard |
 | **Releases** | CI multi-OS matrix, OIDC publish, GitHub Releases, SBOM |
 
 ### Project Link (opt-in)
@@ -174,6 +175,25 @@ reverse proxy and its canonical URL, for example
 
 Product pivot: [decision 0011](docs/decisions/0011-global-tool-markdown-durable-index.md).
 
+## Optional cloud sync
+
+The optional Harness Cloud surfaces synchronize encrypted durable-history
+snapshots across trusted devices:
+
+```bash
+harness login --server https://<pages-domain>
+harness sync push --passphrase-stdin < passphrase.txt
+harness sync status
+harness sync pull --passphrase-stdin < passphrase.txt
+```
+
+The CLI encrypts the supported Markdown roots locally with PBKDF2 + AES-256-GCM
+before uploading to Firebase. The web dashboard uses Firebase Auth and a
+Cloudflare Pages proxy; it can inspect metadata and unlock a snapshot locally
+with the same passphrase. Configure and deploy the two surfaces using
+[`docs/product/cloud-sync.md`](docs/product/cloud-sync.md),
+[`firebase/README.md`](firebase/README.md), and [`web/README.md`](web/README.md).
+
 ## Agent rules (summary)
 
 1. **First commands:** `harness doctor --json`, `harness next --json`. Then
@@ -222,6 +242,7 @@ harness export changelog [--since 2026-07-01]
 | Project Link (roles / peers / reports) | Shipped (v0.21+) |
 | MCP core (reads + intake/story/decision/backlog mutations) | Shipped |
 | Local dashboard + MCP monitor | Shipped |
+| Cloud sync CLI + Firebase/Cloudflare surfaces | Shipped (optional) |
 | CI multi-OS + OIDC provenance releases | Shipped |
 | Legacy SQLite import | Optional (`harness import-sqlite`) |
 
@@ -231,6 +252,12 @@ harness export changelog [--since 2026-07-01]
 npm install
 npm run build
 npm test
+npm --prefix firebase/functions install
+npm run cloud:build
+npm run cloud:test
+npm --prefix web install
+npm run web:build
+npm run web:test
 npm run pack:check          # tarball + version sync
 # full gate:
 npm run release:check
@@ -240,6 +267,8 @@ node dist/cli.js --help
 
 ## CI / CD
 
+- **Cloud surfaces**: Firebase Functions + Vite/Cloudflare Pages checks on
+  changes under `firebase/` or `web/`
 - **CI** (push/PR): `release:check` on **ubuntu / windows / macos × Node 22 + 24**
 - **Auto-release** (push to `main`): bump, tag, **OIDC npm publish --provenance**,
   GitHub Release + SBOM (skip with `[skip release]`)

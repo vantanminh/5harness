@@ -18,6 +18,7 @@ and CI. Implementation references point into `src/` where useful.
 | Project Link reports | Project Git authors + configured reporter peer | Target project's durable markdown |
 | Dashboard | Loopback HTTP | `127.0.0.1` by default |
 | MCP server | OAuth 2.1 protected resource | Loopback HTTP by default |
+| Harness Cloud | Optional Firebase/Cloudflare service | User-scoped ciphertext + browser auth |
 | npm update check | Public registry read | Advisory stderr only |
 | npm publish / Releases | Maintainer CI (OIDC) | Provenance when configured |
 
@@ -189,6 +190,55 @@ Implementation: `src/domain/paths.ts`, `src/application/registry.ts`.
 
 ---
 
+## Harness Cloud sync
+
+Harness Cloud is an optional hosted transport for encrypted durable-history
+snapshots. It does not replace Git-backed Markdown as the source of truth.
+
+### Data and credentials
+
+- The CLI includes only non-`README.md` UTF-8 Markdown under
+  `docs/stories/`, `docs/decisions/`, `docs/intakes/`, `docs/backlog/`, and
+  `docs/reports/`.
+- The CLI derives an AES-256-GCM key locally with PBKDF2-HMAC-SHA256. The sync
+  passphrase and plaintext never enter browser requests, Firebase, Firestore,
+  Pages logs, or the local auth file.
+- `~/.5harness/auth.json` contains the CLI's rotating opaque credentials. It is
+  machine-local, written atomically, mode `0600` on Unix, and never committed.
+- Firebase web configuration values are public client identifiers. Firebase
+  Admin credentials and service-account JSON keys must remain server-side and
+  are not part of this repository.
+
+### Authorization and isolation
+
+- `harness login` uses an exact loopback redirect, OAuth authorization code,
+  PKCE S256, one-time code storage, short-lived access tokens, and refresh-token
+  rotation. Replay revokes the refresh family.
+- Browser API routes require Firebase Auth and App Check. CLI data routes use
+  the issued access token. Every Firestore path is nested below the verified
+  Firebase uid; direct client Firestore rules deny all access.
+- Push uses a Firestore transaction with a revision compare-and-swap. Pull
+  validates the project id, path roots, file hashes, UTF-8 content, and local
+  divergence before atomic writes. `--force` and `--prune` are explicit flags.
+
+### Abuse and cost controls
+
+- Functions have bounded instances, concurrency, body size, file count,
+  project count, retention, per-IP salted-hash rate limits, and per-account
+  daily operation/byte quotas.
+- Production requires `RATE_LIMIT_SALT` from Firebase Secret Manager and exact
+  `WEB_ORIGINS`; wildcard CORS is rejected. App Check must remain enforced.
+- Firestore TTL fields clean up authorization codes, access/refresh credentials,
+  rate buckets, usage counters, refresh families, and expired snapshots.
+- Operators should also configure Firebase budget alerts and Cloudflare WAF or
+  rate limiting for the Pages hostname. Application quotas are defense in
+  depth, not a promise of unlimited free usage.
+
+Deployment and local-emulator instructions are in
+[`docs/product/cloud-sync.md`](product/cloud-sync.md),
+[`firebase/README.md`](../firebase/README.md), and
+[`web/README.md`](../web/README.md).
+
 ## Secrets handling
 
 | Concern | Practice |
@@ -287,5 +337,6 @@ entities. See decision **0017** and the harness block in `AGENTS.md` /
 | --- | --- |
 | [SECURITY.md](../SECURITY.md) | Public vulnerability reporting policy |
 | [docs/product/distribution.md](product/distribution.md) | Install + release + OIDC setup |
+| [docs/product/cloud-sync.md](product/cloud-sync.md) | Hosted sync contract and deployment links |
 | `.github/dependabot.yml` | Automated dependency PRs |
 | `.github/workflows/ci.yml` / `release.yml` | Test matrix + provenance publish |

@@ -4,7 +4,7 @@
 
 | Concern | Direction |
 | --- | --- |
-| Product surface | CLI first (`harness` via npm `bin`); local dashboard later |
+| Product surface | CLI first (`harness` via npm `bin`); optional hosted dashboard |
 | Preferred install | `npm i -g 5harness` (project-local `npx` allowed) |
 | User runtime | Node.js + npm |
 | Implementation language | TypeScript today; native engine optional later |
@@ -15,6 +15,8 @@
 | Project Link | Git-tracked peer ids + machine-local registry resolution; no cloud graph |
 | Traces | Machine-local (not default Git) |
 | Packaging | npm package; optional native packages later |
+| Cloud backend | Firebase Functions + Admin SDK; Firestore ciphertext only |
+| Cloud frontend | Vite + React Router on Cloudflare Pages; Pages Function API proxy |
 | Project SQLite as SoT | **Retired** (was v0.5 MVP; supersedes decision 0004 for this product) |
 
 Record locking choices under `docs/decisions/`.
@@ -66,6 +68,21 @@ For MCP, OAuth first binds the calling project; `peer_id`, `role`, `to`, and
 `from` then select only that project's configured capabilities. They do not
 replace the single-project consent selection or the all-projects
 `X-Harness-Project`/`?project=` caller selector.
+
+## Hosted cloud sync (optional)
+
+```text
+trusted device
+  -> harness login (loopback callback + PKCE)
+  -> browser Firebase Auth + App Check
+  -> Cloudflare Pages /api proxy
+  -> Firebase Functions (Admin SDK, quotas, CAS revisions)
+  -> user-scoped Firestore encrypted envelope
+```
+
+The cloud flow is specified in [`docs/product/cloud-sync.md`](cloud-sync.md).
+The hosted service is a transport for encrypted snapshots; Git-backed Markdown
+remains the durable source of truth.
 
 ## Discovery Before Shape
 
