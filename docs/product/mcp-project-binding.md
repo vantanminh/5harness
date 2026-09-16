@@ -7,6 +7,13 @@
 **Supersedes (behavior):** implicit cwd/`--dir` bind on `harness mcp`; dashboard
 MCP cwd/first-linked fallback without grant-time selection.
 
+> **Current Rust implementation note (v0.26):** the shipped transport uses a
+> per-process bearer token (`--token` / `HARNESS_MCP_TOKEN`) and requires the
+> durable `X-Harness-Project` selector on every tool call. The dashboard
+> `/mcp` route is discovery-only; authenticated tool calls use `harness mcp`.
+> The OAuth flow described below is a future protocol boundary, not an active
+> implementation.
+
 ---
 
 ## 1. Problem
@@ -221,12 +228,12 @@ MCP client ── Bearer token ──► harness mcp / dashboard /mcp
 
 | Area | Files (current) |
 | --- | --- |
-| MCP bind | `src/commands/mcp.ts`, `src/application/mcp-server.ts` |
-| Dashboard MCP | `src/application/dashboard.ts` (`resolveMcpProjectRoot`) |
-| OAuth grant | `src/application/mcp-oauth.ts`, `mcp-oauth-http.ts`, auth pages |
-| Registry | `src/domain/registry.ts`, link/init |
-| AGENTS markers | `src/domain/upgrade.ts`, `src/infrastructure/upgrade.ts`, templates |
-| CLI | `src/cli.ts` — project identity, role, peer, and report command groups |
+| MCP bind | `src/app/mcp.rs` |
+| Dashboard MCP | `src/app/dashboard.rs` (discovery-only) |
+| Bearer token / project selector | `src/app/mcp.rs` |
+| Registry | `src/domain/registry.rs`, `src/infra/registry.rs`, link/init |
+| AGENTS markers | `src/domain/upgrade.rs`, `src/app/project_link.rs`, templates |
+| CLI | `src/cli.rs` — project identity, role, peer, and report command groups |
 | Docs | `docs/SECURITY.md`, `docs/product/cli-contract.md`, `templates/AGENTS.md` |
 
 ---

@@ -1,10 +1,14 @@
+use std::collections::BTreeMap;
 use std::path::Path;
+
+use serde_json::{json, Value};
 
 use crate::error::Result;
 use crate::VERSION;
 
 use super::catalog::{build_catalog, by_type};
-use super::index::index_json_path;
+use super::index::{checksum_valid, ensure_index, index_json_path};
+use super::project_link;
 use super::query::query_stats;
 
 pub fn format_status(project_root: &Path) -> Result<String> {
@@ -46,6 +50,22 @@ pub fn format_doctor(project_root: &Path) -> Result<String> {
             ok = false;
         }
     }
+    if index_json_path(project_root).is_file() {
+        lines.push("  index: present".into());
+    } else {
+        lines.push("  index: missing — run harness reindex".into());
+        ok = false;
+    }
+    let linked = crate::infra::registry::read_registry()
+        .projects
+        .iter()
+        .any(|p| Path::new(&p.path).canonicalize().ok() == project_root.canonicalize().ok());
+    if linked {
+        lines.push("  registry: linked".into());
+    } else {
+        lines.push("  registry: missing — run harness link".into());
+        ok = false;
+    }
     lines.push(format!(
         "  result: {}",
         if ok { "healthy" } else { "issues found" }
@@ -53,24 +73,192 @@ pub fn format_doctor(project_root: &Path) -> Result<String> {
     Ok(lines.join("\n"))
 }
 
-pub fn format_next(project_root: &Path) -> Result<String> {
+pub fn doctor_json(project_root: &Path) -> Result<Value> {
+    let mut checks = serde_json::Map::new();
+    let agents_ok = project_root.join("AGENTS.md").is_file();
+    checks.insert(
+        "agents".into(),
+        json!({"ok": agents_ok, "path": "AGENTS.md"}),
+    );
+    for dir in [
+        "docs/stories",
+        "docs/decisions",
+        "docs/intakes",
+        "docs/backlog",
+        "docs/reports",
+    ] {
+        let ok = project_root.join(dir).is_dir();
+        checks.insert(dir.replace('/', "_"), json!({"ok": ok, "path": dir}));
+    }
+    let index_path = index_json_path(project_root);
+    let index_result = if index_path.exists() {
+        ensure_index(project_root)
+    } else {
+        Err(crate::error::Error::new("index missing"))
+    };
+    let index_ok = index_result.is_ok();
+    checks.insert("index".into(), json!({"ok": index_ok, "fresh": index_result.as_ref().map(|idx| index_is_fresh(project_root, idx)).unwrap_or(false), "path": index_path}));
+    let registry_ok = crate::infra::registry::read_registry()
+        .projects
+        .iter()
+        .any(|p| Path::new(&p.path).canonicalize().ok() == project_root.canonicalize().ok());
+    checks.insert(
+        "registry".into(),
+        json!({"ok": registry_ok, "linked": registry_ok}),
+    );
+    let catalog = build_catalog(project_root)?;
+    let mut counts = BTreeMap::<String, usize>::new();
+    for entry in &catalog.entries {
+        *counts.entry(entry.id.clone()).or_default() += 1;
+    }
+    let duplicates: Vec<_> = counts
+        .into_iter()
+        .filter_map(|(id, count)| (count > 1).then_some(json!({"id":id,"count":count})))
+        .collect();
+    checks.insert(
+        "duplicates".into(),
+        json!({"ok": duplicates.is_empty(), "items": duplicates}),
+    );
+    if let Ok(index) = ensure_index(project_root) {
+        let broken = index.edges.iter().filter(|edge| !edge.resolved).count();
+        checks.insert(
+            "links".into(),
+            json!({"ok": true, "warning": broken > 0, "broken": broken}),
+        );
+    }
+    let healthy = checks
+        .values()
+        .all(|v| v.get("ok").and_then(Value::as_bool).unwrap_or(false));
+    Ok(json!({
+        "healthy": healthy,
+        "project": project_root,
+        "version": VERSION,
+        "checks": checks,
+    }))
+}
+
+pub fn status_json(project_root: &Path) -> Result<Value> {
     let cat = build_catalog(project_root)?;
-    let mut items = Vec::new();
-    for e in by_type(&cat, "story") {
-        if e.status == "in_progress" || e.status == "blocked" || e.status == "planned" {
-            items.push(format!("  [{}] {}  {}", e.status, e.id, e.title));
-        }
-    }
-    for e in by_type(&cat, "report") {
-        if e.status == "open" || e.status.is_empty() {
-            items.push(format!("  [report] {}  {}", e.id, e.title));
-        }
-    }
+    let index = ensure_index(project_root)?;
+    let role = project_link::role(project_root).unwrap_or_else(|_| json!({"role":null,"stack":[]}));
+    let peers = project_link::peers(project_root).unwrap_or_default();
+    Ok(json!({
+        "version": VERSION,
+        "project": project_root,
+        "index": {
+            "present": index_json_path(project_root).exists(),
+            "fresh": index_is_fresh(project_root, &index),
+            "built_at": index.built_at,
+            "entities": index.catalog.len(),
+            "edges": index.edges.len(),
+        },
+        "counts": {
+            "stories": by_type(&cat, "story").len(),
+            "decisions": by_type(&cat, "decision").len(),
+            "intakes": by_type(&cat, "intake").len(),
+            "backlog_items": by_type(&cat, "backlog").len(),
+            "reports": by_type(&cat, "report").len(),
+        },
+        "project_link": {
+            "role": role["role"],
+            "stack": role["stack"],
+            "peers": peers,
+            "open_reports": by_type(&cat, "report").iter().filter(|e| e.status == "open" || e.status.is_empty()).count(),
+        },
+    }))
+}
+
+pub fn format_next(project_root: &Path) -> Result<String> {
+    let items = next_items(project_root, None)?;
     if items.is_empty() {
         Ok("Next work\n  (no active stories or backend reports)".into())
     } else {
-        Ok(format!("Next work\n{}", items.join("\n")))
+        Ok(format!(
+            "Next work\n{}",
+            items
+                .iter()
+                .map(|item| format!(
+                    "  [{}] {}  {}",
+                    item["kind"].as_str().unwrap_or("work"),
+                    item["id"].as_str().unwrap_or(""),
+                    item["title"].as_str().unwrap_or("")
+                ))
+                .collect::<Vec<_>>()
+                .join("\n")
+        ))
     }
+}
+
+pub fn next_items(project_root: &Path, limit: Option<usize>) -> Result<Vec<Value>> {
+    let cat = build_catalog(project_root)?;
+    let mut items = Vec::new();
+    for e in by_type(&cat, "report") {
+        if e.status == "open" || e.status.is_empty() {
+            items.push(
+                json!({"kind":"report","id":e.id,"title":e.title,"status":e.status,"priority":0}),
+            );
+        }
+    }
+    for e in by_type(&cat, "story") {
+        if matches!(e.status.as_str(), "in_progress" | "blocked" | "planned") {
+            let priority = match e.status.as_str() {
+                "in_progress" => 1,
+                "blocked" => 2,
+                _ => 3,
+            };
+            items.push(json!({"kind":"story","id":e.id,"title":e.title,"status":e.status,"priority":priority}));
+        }
+    }
+    for e in by_type(&cat, "intake") {
+        if e.status.is_empty() || e.status == "pending" {
+            items.push(
+                json!({"kind":"intake","id":e.id,"title":e.title,"status":e.status,"priority":4}),
+            );
+        }
+    }
+    for e in by_type(&cat, "backlog") {
+        if e.status == "proposed" || e.status == "accepted" {
+            items.push(
+                json!({"kind":"backlog","id":e.id,"title":e.title,"status":e.status,"priority":5}),
+            );
+        }
+    }
+    items.sort_by(|a, b| {
+        a["priority"]
+            .as_i64()
+            .unwrap_or(99)
+            .cmp(&b["priority"].as_i64().unwrap_or(99))
+            .then_with(|| {
+                a["id"]
+                    .as_str()
+                    .unwrap_or("")
+                    .cmp(b["id"].as_str().unwrap_or(""))
+            })
+    });
+    if let Some(limit) = limit {
+        items.truncate(limit);
+    }
+    Ok(items)
+}
+
+fn index_is_fresh(project_root: &Path, index: &super::index::ProjectIndex) -> bool {
+    let Ok(cat) = build_catalog(project_root) else {
+        return false;
+    };
+    if !checksum_valid(index)
+        || index.project_root != project_root.to_string_lossy()
+        || index.catalog.len() != cat.entries.len()
+    {
+        return false;
+    }
+    cat.entries.iter().all(|entry| {
+        index.catalog.iter().any(|row| {
+            row.id == entry.id
+                && row.path == entry.path
+                && row.ty == entry.ty
+                && row.mtime_ms == entry.mtime_ms
+        })
+    })
 }
 
 pub fn format_handoff(project_root: &Path) -> Result<String> {

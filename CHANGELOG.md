@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Added a Codex `Stop` hook workflow that reviews uncommitted changes and
+  automatically continues once to fix actionable findings and run relevant
+  checks, with a guard against review/fix loops.
+
+## [0.26.2] - 2026-09-05
+
+### Fixed
+
+- Run the Windows CLI entrypoint on a larger stack so the full command tree
+  remains safe for `--version`, `--help`, and subprocess-based integration tests.
+
+## [0.26.1] - 2026-09-05
+
+### Added
+
+- Agent traces, worklog/tool registry flows, project links, cross-project
+  reports, and bounded JSON context/query surfaces.
+
+### Changed
+
+- Hardened concurrent durable mutations, index freshness/checksums, structured
+  errors, path containment, MCP project binding, and dashboard authentication.
+
+### Fixed
+
+- Corrected legacy decision/document link resolution and removed false broken
+  link warnings from agent health checks.
+
 ## [0.25.1] - 2026-09-02
 
 ### Security

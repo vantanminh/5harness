@@ -1,6 +1,6 @@
 {
   "name": "5harness",
-  "version": "0.25.3",
+  "version": "0.27.1",
   "description": "Agent-ready repository harness — global CLI with markdown durable SoT",
   "type": "module",
   "bin": {
@@ -26,7 +26,9 @@
     "clean": "node -e \"import('node:fs').then(fs=>{fs.rmSync('dist',{recursive:true,force:true});fs.rmSync('target',{recursive:true,force:true})})\"",
     "prepack": "npm run build",
     "security:check": "node scripts/security-check.mjs",
+    "checksums": "node scripts/checksums.mjs",
     "pack:check": "node scripts/pack-check.mjs",
+    "install:smoke": "node scripts/npm-install-smoke.mjs",
     "cloud:build": "npm --prefix firebase/functions run build",
     "cloud:test": "npm --prefix firebase/functions test",
     "cloud:deploy": "npm --prefix firebase run deploy",
@@ -35,7 +37,7 @@
     "web:deploy": "npm --prefix web run deploy",
     "bump": "node scripts/bump-version.mjs",
     "push": "node scripts/safe-push.mjs",
-    "release:check": "npm run security:check && cargo test && npm run pack:check",
+    "release:check": "npm run security:check && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --all-targets && npm run pack:check",
     "test": "cargo test",
     "test:watch": "cargo test",
     "harness": "cargo run --",

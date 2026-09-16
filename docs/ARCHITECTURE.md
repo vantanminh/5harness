@@ -6,15 +6,15 @@
 | --- | --- |
 | Product surface | CLI first (`harness` via npm `bin`); optional hosted dashboard |
 | Preferred install | `npm i -g 5harness` (project-local `npx` allowed) |
-| User runtime | Node.js + npm |
-| Implementation language | TypeScript today; native engine optional later |
+| User runtime | Native Rust CLI (npm shim or standalone installer) |
+| Implementation language | Rust runtime with a Node.js npm launcher |
 | **Durable SoT** | **Markdown entities in each project** (Git-backed) — decision 0011 |
 | Derived index | `.5harness/index/` rebuildable; atomic write + checksum (US-034); may use SQLite FTS internally |
-| Mutation lock | `.5harness/mutation.lock` during index write (stale reclaim ~30s) |
+| Mutation lock | `.5harness/mutation.lock` across durable ID allocation, entity write, and index write; bounded contention failure |
 | Global registry | `HARNESS_HOME` / `~/.5harness` project pointers only |
 | Project Link | Git-tracked peer ids + machine-local registry resolution; no cloud graph |
 | Traces | Machine-local (not default Git) |
-| Packaging | npm package; optional native packages later |
+| Packaging | npm package containing target-native binaries; standalone installers for Linux/macOS/Windows |
 | Cloud backend | Firebase Functions + Admin SDK; Firestore ciphertext only |
 | Cloud frontend | Vite + React Router on Cloudflare Pages; Pages Function API proxy |
 | Project SQLite as SoT | **Retired** (was v0.5 MVP; supersedes decision 0004 for this product) |
@@ -64,7 +64,8 @@ calling project AGENTS.md
 ```
 
 Peer selectors never accept arbitrary roots or perform peer-of-peer traversal.
-For MCP, OAuth first binds the calling project; `peer_id`, `role`, `to`, and
+For MCP, a bearer token plus `X-Harness-Project` binds the calling project;
+`peer_id`, `role`, `to`, and
 `from` then select only that project's configured capabilities. They do not
 replace the single-project consent selection or the all-projects
 `X-Harness-Project`/`?project=` caller selector.
@@ -125,8 +126,8 @@ lives in the `templates/AGENTS.md` harness block.
 **Auto-reindex (US-015):** Every mutation command (intake, story add/update,
 decision add, backlog add/close, and report add/update) auto-reindexes the
 project that owns the successful write. Agents never need to call
-`harness reindex` manually after a mutation. The shared helper
-`src/commands/_reindex-helper.ts` encapsulates this pattern.
+`harness reindex` manually after a mutation. The shared helper in
+`src/app/durable.rs` encapsulates this pattern.
 
 ## Upgrade system (US-016)
 

@@ -23,21 +23,12 @@ pub fn format_table(rows: &[Vec<String>], columns: &[&str]) -> String {
             .collect::<Vec<_>>()
             .join("  ")
     };
-    let header = pad(
-        &columns
-            .iter()
-            .map(|c| c.to_string())
-            .collect::<Vec<_>>(),
-    );
+    let header = pad(&columns.iter().map(|c| c.to_string()).collect::<Vec<_>>());
     let sep = widths
         .iter()
         .map(|w| "-".repeat(*w))
         .collect::<Vec<_>>()
         .join("  ");
-    let body = rows
-        .iter()
-        .map(|r| pad(r))
-        .collect::<Vec<_>>()
-        .join("\n");
+    let body = rows.iter().map(|r| pad(r)).collect::<Vec<_>>().join("\n");
     format!("{header}\n{sep}\n{body}")
 }

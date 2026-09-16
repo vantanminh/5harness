@@ -92,10 +92,7 @@ fn parse_simple_yaml(block: &str) -> Result<Frontmatter> {
             let arr = if inner.is_empty() {
                 Vec::new()
             } else {
-                inner
-                    .split(',')
-                    .map(|s| unquote(s.trim()))
-                    .collect()
+                inner.split(',').map(|s| unquote(s.trim())).collect()
             };
             data.insert(key, FmValue::Arr(arr));
             i += 1;
@@ -184,7 +181,9 @@ fn unquote(raw: &str) -> String {
         if let Ok(v) = serde_json::from_str::<String>(raw) {
             return v;
         }
-        return raw[1..raw.len() - 1].replace("\\\"", "\"").replace("\\\\", "\\");
+        return raw[1..raw.len() - 1]
+            .replace("\\\"", "\"")
+            .replace("\\\\", "\\");
     }
     if raw.len() >= 2 && raw.starts_with('\'') && raw.ends_with('\'') {
         return raw[1..raw.len() - 1].to_string();
@@ -205,7 +204,9 @@ fn format_scalar(value: &FmValue) -> String {
 
 fn format_scalar_str(value: &str) -> String {
     if value.is_empty()
-        || value.chars().any(|c| ":#[]{},&*!|>'\"%@`".contains(c) || c == '\n' || c == '\r')
+        || value
+            .chars()
+            .any(|c| ":#[]{},&*!|>'\"%@`".contains(c) || c == '\n' || c == '\r')
         || value.starts_with(' ')
         || value.ends_with(' ')
         || looks_int(value)

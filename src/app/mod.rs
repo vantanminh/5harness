@@ -1,11 +1,13 @@
-pub mod catalog;
 pub mod auth;
+pub mod catalog;
 pub mod dashboard;
 pub mod durable;
 pub mod index;
 pub mod init;
 pub mod link;
+pub mod local;
 pub mod mcp;
+pub mod project_link;
 pub mod query;
 pub mod status;
 pub mod sync;

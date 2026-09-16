@@ -1,4 +1,5 @@
 use crate::error::{Error, Result};
+use crate::infra::entities::safe_relative_path;
 
 pub const ENTITY_TYPES: &[&str] = &["story", "decision", "intake", "backlog", "report"];
 
@@ -40,9 +41,12 @@ pub fn sanitize_entity_id(id: &str) -> Result<String> {
 
 pub fn entity_relative_path(ty: &str, id: &str, explicit: Option<&str>) -> Result<String> {
     if let Some(path) = explicit.map(str::trim).filter(|s| !s.is_empty()) {
-        let rel = path.replace('\\', "/").trim_start_matches("./").to_string();
-        if rel.contains("..") {
-            return Err(Error::new(format!("Invalid entity path: {path}")));
+        let rel = safe_relative_path(path)?;
+        let expected = format!("{}/", entity_dir(ty)?);
+        if !rel.starts_with(&expected) || !rel.ends_with(".md") {
+            return Err(Error::new(format!(
+                "Invalid {ty} entity path: {path}. Expected a markdown file under {expected}"
+            )));
         }
         return Ok(rel);
     }

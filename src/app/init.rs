@@ -3,18 +3,16 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-use crate::domain::conflicts::{
-    blocking_conflicts, classify_file_plan, PlannedWrite,
-};
+use crate::domain::conflicts::{blocking_conflicts, classify_file_plan, PlannedWrite};
 use crate::domain::entities::ENTITY_TYPES;
 use crate::domain::paths::{
-    project_backup_root, resolve_db_path, resolve_target_dir, SQLITE_DB_BASENAME,
-    PROJECT_STATE_DIRNAME,
+    project_backup_root, resolve_db_path, resolve_target_dir, PROJECT_STATE_DIRNAME,
+    SQLITE_DB_BASENAME,
 };
 use crate::domain::project_id::{extract_project_id, insert_project_id_marker};
 use crate::domain::upgrade::{extract_harness_block, replace_harness_block};
 use crate::error::{Error, Result};
-use crate::infra::entities::{atomic_write, ensure_entity_dirs};
+use crate::infra::entities::{atomic_write, ensure_directory_no_symlink, ensure_entity_dirs};
 use crate::infra::package_root::resolve_package_root;
 
 use super::link::link_project;
@@ -23,6 +21,7 @@ pub const GITIGNORE_RULES: &[&str] = &[
     "# 5harness local / derived (not SoT)",
     ".5harness/index/",
     ".5harness/local/",
+    ".5harness/mutation.lock",
     "# Optional SQLite import residue (not SoT)",
     SQLITE_DB_BASENAME,
     "harness.db-wal",
@@ -65,9 +64,7 @@ pub fn run_init(
 
     let agents_path = target_dir.join("AGENTS.md");
     let existing_agents_text = fs::read_to_string(&agents_path).ok();
-    let existing_project_id = existing_agents_text
-        .as_deref()
-        .and_then(extract_project_id);
+    let existing_project_id = existing_agents_text.as_deref().and_then(extract_project_id);
 
     let mut plans: Vec<PlannedWrite> = manifest
         .files
@@ -127,7 +124,7 @@ pub fn run_init(
     let mut registry_path = None;
 
     if !dry_run {
-        fs::create_dir_all(&target_dir)?;
+        ensure_directory_no_symlink(&target_dir)?;
         ensure_entity_dirs(&target_dir)?;
         write_entity_dir_readmes(&target_dir)?;
         ensure_project_id(&target_dir, existing_project_id.as_deref())?;
@@ -164,7 +161,11 @@ pub fn run_init(
                         link.registry_path.display()
                     ));
                 }
-                Err(err) => logs.push(format!("register skipped ({err})")),
+                Err(err) => {
+                    return Err(Error::new(format!(
+                        "project initialized but registry registration failed: {err}"
+                    )))
+                }
             }
         }
     } else {
@@ -214,23 +215,44 @@ fn write_template_file(package_root: &Path, target_dir: &Path, relative: &str) -
     }
     let dest = target_dir.join(relative);
     if let Some(parent) = dest.parent() {
-        fs::create_dir_all(parent)?;
+        ensure_directory_no_symlink(parent)?;
+    }
+    if dest
+        .symlink_metadata()
+        .map(|metadata| metadata.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err(Error::new(format!(
+            "refusing to overwrite symlinked template path: {}",
+            dest.display()
+        )));
     }
     fs::copy(source, dest)?;
     Ok(())
 }
 
 fn backup_file(target_dir: &Path, relative: &str) -> Result<String> {
-    let stamp = chrono::Utc::now()
-        .to_rfc3339()
-        .replace(':', "-")
-        .replace('.', "-");
+    let stamp = chrono::Utc::now().to_rfc3339().replace([':', '.'], "-");
     let backup_root = project_backup_root(target_dir, &stamp);
     let dest = backup_root.join(relative);
     if let Some(parent) = dest.parent() {
-        fs::create_dir_all(parent)?;
+        ensure_directory_no_symlink(parent)?;
     }
-    fs::copy(target_dir.join(relative), &dest)?;
+    let source = target_dir.join(relative);
+    if let Some(parent) = source.parent() {
+        ensure_directory_no_symlink(parent)?;
+    }
+    if source
+        .symlink_metadata()
+        .map(|metadata| metadata.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err(Error::new(format!(
+            "refusing to back up symlinked path: {}",
+            source.display()
+        )));
+    }
+    fs::copy(source, &dest)?;
     Ok(dest
         .strip_prefix(target_dir)
         .unwrap_or(&dest)
@@ -243,6 +265,17 @@ fn apply_gitignore(target_dir: &Path, action: &str) -> Result<()> {
         return Ok(());
     }
     let gitignore_path = target_dir.join(".gitignore");
+    ensure_directory_no_symlink(target_dir)?;
+    if gitignore_path
+        .symlink_metadata()
+        .map(|metadata| metadata.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        return Err(Error::new(format!(
+            "refusing to update symlinked .gitignore: {}",
+            gitignore_path.display()
+        )));
+    }
     if action == "create" {
         fs::write(&gitignore_path, format!("{}\n", GITIGNORE_RULES.join("\n")))?;
         return Ok(());
@@ -290,10 +323,19 @@ fn write_entity_dir_readmes(target_dir: &Path) -> Result<()> {
     ];
     for (rel, content) in readmes {
         let dir = target_dir.join(rel);
-        fs::create_dir_all(&dir)?;
+        ensure_directory_no_symlink(&dir)?;
         let readme = dir.join("README.md");
-        if !readme.exists() {
+        if readme.symlink_metadata().is_err() {
             fs::write(readme, content)?;
+        } else if readme
+            .symlink_metadata()
+            .map(|metadata| metadata.file_type().is_symlink())
+            .unwrap_or(false)
+        {
+            return Err(Error::new(format!(
+                "refusing to write symlinked entity README: {}",
+                readme.display()
+            )));
         }
     }
     let _ = ENTITY_TYPES;

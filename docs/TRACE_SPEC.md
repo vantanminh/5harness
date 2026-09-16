@@ -11,8 +11,8 @@ names below describe the durable trace record shape the CLI expects.
 
 | Field | Type | Required | Format | Example |
 | --- | --- | --- | --- | --- |
-| `id` | INTEGER | Automatic | SQLite autoincrement primary key. Do not set manually. | `42` |
-| `created_at` | TEXT | Automatic | SQLite `datetime('now')`. Do not set manually. | `2026-05-27 09:24:37` |
+| `id` | TEXT | Automatic | Process-local timestamp id. Do not set manually. | `TRACES-…` |
+| `created_at` | TEXT | Automatic | RFC3339 timestamp. Do not set manually. | `2026-05-27T09:24:37Z` |
 | `task_summary` | TEXT | Yes | One sentence, at least 10 characters, naming the outcome or attempted outcome. | `Completed Phase 2 docs-only observability and taxonomy specification` |
 | `intake_id` | INTEGER | Standard+ when an intake was recorded | Integer id from the related `intake` row. | `36` |
 | `story_id` | TEXT | Standard+ when work maps to one story | Story id from the `story` table. Use the main story when one trace covers several; list the rest in `notes`. | `US-004` |

@@ -33,7 +33,9 @@ pub fn resolve_harness_home() -> PathBuf {
                 let home = env::var("HOME")
                     .or_else(|_| env::var("USERPROFILE"))
                     .unwrap_or_default();
-                let rest = trimmed.trim_start_matches('~').trim_start_matches(['/', '\\']);
+                let rest = trimmed
+                    .trim_start_matches('~')
+                    .trim_start_matches(['/', '\\']);
                 return PathBuf::from(home).join(rest);
             }
             return PathBuf::from(trimmed);
@@ -94,4 +96,37 @@ pub fn is_loopback_bind_host(host: &str) -> bool {
         host.trim().to_ascii_lowercase().as_str(),
         "127.0.0.1" | "localhost" | "::1" | "[::1]"
     )
+}
+
+/// Validate a public base URL used for non-loopback HTTP services.
+///
+/// A prefix check such as `starts_with("https://")` accepts malformed URLs,
+/// embedded credentials, and query/fragment values that can confuse clients.
+/// Parse the URL structurally and fail closed instead.
+pub fn is_valid_public_https_url(raw: &str) -> bool {
+    let Ok(url) = url::Url::parse(raw.trim()) else {
+        return false;
+    };
+    url.scheme().eq_ignore_ascii_case("https")
+        && url.host_str().is_some_and(|host| !host.trim().is_empty())
+        && url.username().is_empty()
+        && url.password().is_none()
+        && url.query().is_none()
+        && url.fragment().is_none()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_valid_public_https_url;
+
+    #[test]
+    fn public_url_validation_is_structural() {
+        assert!(is_valid_public_https_url("https://example.test/mcp"));
+        assert!(!is_valid_public_https_url("http://example.test"));
+        assert!(!is_valid_public_https_url("https://user:pass@example.test"));
+        assert!(!is_valid_public_https_url(
+            "https://example.test?token=secret"
+        ));
+        assert!(!is_valid_public_https_url("https://"));
+    }
 }

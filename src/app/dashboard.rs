@@ -1,14 +1,22 @@
+use std::collections::HashMap;
 use std::io::Cursor;
-use std::net::TcpListener;
+use std::net::{SocketAddr, TcpListener};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use argon2::{
+    password_hash::{PasswordHash, SaltString},
+    Argon2, PasswordHasher, PasswordVerifier,
+};
+use sha2::{Digest, Sha256};
 use tiny_http::{Header, Method, Response, Server, StatusCode};
 
-use crate::domain::paths::is_loopback_bind_host;
+use crate::domain::paths::{
+    is_loopback_bind_host, is_valid_public_https_url, resolve_harness_home,
+};
 use crate::error::{Error, Result};
 use crate::VERSION;
 
@@ -16,9 +24,87 @@ use super::catalog::{build_catalog, by_type};
 use super::link::list_projects;
 use super::query::{query_matrix, query_stats};
 
+const DASHBOARD_AUTH_FAILURE_LIMIT: u32 = 30;
+const DASHBOARD_AUTH_FAILURE_WINDOW: Duration = Duration::from_secs(60);
+const MAX_DASHBOARD_AUTH_FAILURE_BUCKETS: usize = 4_096;
+const MAX_DASHBOARD_HEADER_VALUE_BYTES: usize = 16 * 1024;
+const MAX_DASHBOARD_HEADERS: usize = 64;
+const MAX_DASHBOARD_HEADER_BYTES: usize = 64 * 1024;
+const MAX_DASHBOARD_PASSWORD_BYTES: usize = 4 * 1024;
+
+fn dashboard_password_input_allowed(password: &str) -> bool {
+    password.len() <= MAX_DASHBOARD_PASSWORD_BYTES
+}
+
+fn dashboard_headers_oversized(headers: &[Header]) -> bool {
+    headers
+        .iter()
+        .any(|header| header.value.as_bytes().len() > MAX_DASHBOARD_HEADER_VALUE_BYTES)
+        || headers.len() > MAX_DASHBOARD_HEADERS
+        || headers
+            .iter()
+            .map(|header| header.field.as_str().as_bytes().len() + header.value.as_bytes().len())
+            .sum::<usize>()
+            > MAX_DASHBOARD_HEADER_BYTES
+}
+
+struct AuthFailureLimiter {
+    buckets: HashMap<String, (Instant, u32)>,
+}
+
+impl AuthFailureLimiter {
+    fn new() -> Self {
+        Self {
+            buckets: HashMap::new(),
+        }
+    }
+
+    fn key(remote: Option<&SocketAddr>) -> String {
+        remote
+            .map(|address| address.ip().to_string())
+            .unwrap_or_else(|| "<unknown>".into())
+    }
+
+    fn cleanup(&mut self) {
+        let now = Instant::now();
+        self.buckets
+            .retain(|_, (started, _)| now.duration_since(*started) < DASHBOARD_AUTH_FAILURE_WINDOW);
+    }
+
+    fn can_attempt(&mut self, remote: Option<&SocketAddr>) -> bool {
+        self.cleanup();
+        let key = Self::key(remote);
+        match self.buckets.get(&key) {
+            Some((_, count)) => *count < DASHBOARD_AUTH_FAILURE_LIMIT,
+            None => self.buckets.len() < MAX_DASHBOARD_AUTH_FAILURE_BUCKETS,
+        }
+    }
+
+    fn record_failure(&mut self, remote: Option<&SocketAddr>) {
+        self.cleanup();
+        let key = Self::key(remote);
+        if !self.buckets.contains_key(&key)
+            && self.buckets.len() >= MAX_DASHBOARD_AUTH_FAILURE_BUCKETS
+        {
+            return;
+        }
+        let now = Instant::now();
+        let entry = self.buckets.entry(key).or_insert((now, 0));
+        if now.duration_since(entry.0) >= DASHBOARD_AUTH_FAILURE_WINDOW {
+            *entry = (now, 0);
+        }
+        entry.1 = entry.1.saturating_add(1);
+    }
+
+    fn clear(&mut self, remote: Option<&SocketAddr>) {
+        self.buckets.remove(&Self::key(remote));
+    }
+}
+
 pub struct RunningServer {
     pub url: String,
     pub port: u16,
+    pub auth_token: Option<String>,
     pub shutdown: Arc<AtomicBool>,
     pub handle: Option<thread::JoinHandle<()>>,
 }
@@ -34,23 +120,150 @@ impl RunningServer {
     }
 }
 
-pub fn start_dashboard(host: &str, port: u16, serve_forever: bool) -> Result<RunningServer> {
-    if !is_loopback_bind_host(host) {
-        eprintln!(
-            "warning: binding outside loopback requires --public-url and an HTTPS reverse proxy. See docs/SECURITY.md."
-        );
+pub fn set_dashboard_password(password: &str) -> Result<std::path::PathBuf> {
+    if password.trim().len() < 12 {
+        return Err(Error::new(
+            "dashboard password must be at least 12 characters",
+        ));
     }
-    let listener = TcpListener::bind((host, port)).map_err(|e| {
-        Error::new(format!("dashboard bind {host}:{port} failed: {e}"))
-    })?;
+    if !dashboard_password_input_allowed(password) {
+        return Err(Error::new("dashboard password must be at most 4096 bytes"));
+    }
+    let home = resolve_harness_home();
+    crate::infra::entities::ensure_directory_no_symlink(&home)?;
+    let path = dashboard_password_path();
+    let mut salt_bytes = [0u8; 16];
+    getrandom::getrandom(&mut salt_bytes)
+        .map_err(|err| Error::new(format!("generate dashboard password salt: {err}")))?;
+    let salt = SaltString::encode_b64(&salt_bytes)
+        .map_err(|err| Error::new(format!("encode dashboard password salt: {err}")))?;
+    let digest = Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|err| Error::new(format!("hash dashboard password: {err}")))?
+        .to_string();
+    crate::infra::entities::atomic_write(&path, &format!("{digest}\n"))?;
+    // A pre-0.27 SHA-256 record cannot be upgraded without the plaintext.  It
+    // is safe to remove it after writing the Argon2id record; authentication
+    // will use the memory-hard hash from now on.
+    let _ = std::fs::remove_file(legacy_dashboard_password_path());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+    }
+    Ok(path)
+}
+
+fn dashboard_password_path() -> std::path::PathBuf {
+    resolve_harness_home().join("dashboard-password.argon2")
+}
+
+fn legacy_dashboard_password_path() -> std::path::PathBuf {
+    resolve_harness_home().join("dashboard-password.sha256")
+}
+
+fn dashboard_password_hash() -> Option<String> {
+    fn read_record(path: std::path::PathBuf) -> Option<String> {
+        let metadata = std::fs::symlink_metadata(&path).ok()?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return None;
+        }
+        std::fs::read_to_string(path)
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+    }
+
+    read_record(dashboard_password_path()).or_else(|| read_record(legacy_dashboard_password_path()))
+}
+
+pub fn dashboard_password_configured() -> bool {
+    dashboard_password_hash().is_some_and(|hash| hash.starts_with("$argon2id$"))
+}
+
+fn dashboard_authorized(headers: &[Header]) -> bool {
+    let Some(expected) = dashboard_password_hash() else {
+        return true;
+    };
+    let supplied = headers
+        .iter()
+        .find(|h| h.field.equiv("X-Harness-Password"))
+        .map(|h| h.value.as_str())
+        .or_else(|| {
+            headers
+                .iter()
+                .find(|h| h.field.equiv("Authorization"))
+                .and_then(|h| h.value.as_str().strip_prefix("Bearer "))
+        });
+    let Some(supplied) = supplied else {
+        return false;
+    };
+    if !dashboard_password_input_allowed(supplied) {
+        return false;
+    }
+    if expected.starts_with("$argon2") {
+        let Ok(parsed) = PasswordHash::new(&expected) else {
+            return false;
+        };
+        return Argon2::default()
+            .verify_password(supplied.as_bytes(), &parsed)
+            .is_ok();
+    }
+
+    // Legacy SHA-256 records are accepted only long enough for an operator to
+    // replace them with `set-password`; compare the complete digest without an
+    // early-return equality check.
+    let mut hasher = Sha256::new();
+    hasher.update(supplied.as_bytes());
+    let actual = hex::encode(hasher.finalize());
+    constant_time_equal(actual.as_bytes(), expected.as_bytes())
+}
+
+fn constant_time_equal(left: &[u8], right: &[u8]) -> bool {
+    let mut diff = left.len() ^ right.len();
+    let max = left.len().max(right.len());
+    for index in 0..max {
+        let a = left.get(index).copied().unwrap_or(0);
+        let b = right.get(index).copied().unwrap_or(0);
+        diff |= usize::from(a ^ b);
+    }
+    diff == 0
+}
+
+pub fn start_dashboard(
+    host: &str,
+    port: u16,
+    serve_forever: bool,
+    public_url: Option<&str>,
+) -> Result<RunningServer> {
+    if !is_loopback_bind_host(host) {
+        let url = public_url.ok_or_else(|| {
+            Error::new("refusing non-loopback dashboard bind without --public-url https://...")
+        })?;
+        if !is_valid_public_https_url(url) {
+            return Err(Error::new(
+                "--public-url must be a valid https URL without credentials, query, or fragment for non-loopback dashboard",
+            ));
+        }
+        if !dashboard_password_configured() {
+            return Err(Error::new(
+                "refusing non-loopback dashboard bind without a configured password; run `harness dashboard set-password` first",
+            ));
+        }
+    }
+    let listener = TcpListener::bind((host, port))
+        .map_err(|e| Error::new(format!("dashboard bind {host}:{port} failed: {e}")))?;
     let actual = listener.local_addr()?.port();
-    let server = Server::from_listener(listener, None).map_err(|e| {
-        Error::new(format!("dashboard server: {e}"))
-    })?;
-    let url = format!("http://{host}:{actual}/");
+    let server = Server::from_listener(listener, None)
+        .map_err(|e| Error::new(format!("dashboard server: {e}")))?;
+    let local_url = format!("http://{host}:{actual}/");
+    let url = public_url
+        .map(|value| format!("{}/", value.trim_end_matches('/')))
+        .unwrap_or(local_url);
     let shutdown = Arc::new(AtomicBool::new(false));
     let flag = shutdown.clone();
-    let handle = thread::spawn(move || dashboard_loop(server, flag));
+    let public_bind = !is_loopback_bind_host(host);
+    let handle = thread::spawn(move || dashboard_loop(server, flag, public_bind));
     if serve_forever {
         loop {
             thread::sleep(Duration::from_secs(60));
@@ -59,12 +272,14 @@ pub fn start_dashboard(host: &str, port: u16, serve_forever: bool) -> Result<Run
     Ok(RunningServer {
         url,
         port: actual,
+        auth_token: None,
         shutdown,
         handle: Some(handle),
     })
 }
 
-fn dashboard_loop(server: Server, shutdown: Arc<AtomicBool>) {
+fn dashboard_loop(server: Server, shutdown: Arc<AtomicBool>, public_bind: bool) {
+    let mut auth_failures = AuthFailureLimiter::new();
     loop {
         if shutdown.load(Ordering::SeqCst) {
             break;
@@ -73,11 +288,57 @@ fn dashboard_loop(server: Server, shutdown: Arc<AtomicBool>) {
             Ok(Some(request)) => {
                 let url = request.url().to_string();
                 let method = request.method().clone();
-                let (status, content_type, body) = route(&method, &url);
+                let path = url.split('?').next().unwrap_or("/");
+                let remote = request.remote_addr();
+                let public_endpoint =
+                    path == "/api/health" || (path == "/mcp" && method == Method::Get);
+                let oversized_headers = dashboard_headers_oversized(request.headers());
+                let throttled = public_bind
+                    && !public_endpoint
+                    && !oversized_headers
+                    && !auth_failures.can_attempt(remote);
+                let authorized = public_endpoint
+                    || (!oversized_headers
+                        && !throttled
+                        && (!public_bind || dashboard_password_configured())
+                        && dashboard_authorized(request.headers()));
+                if public_bind && !public_endpoint {
+                    if authorized {
+                        auth_failures.clear(remote);
+                    } else if !throttled {
+                        auth_failures.record_failure(remote);
+                    }
+                }
+                let (status, content_type, body) = if oversized_headers {
+                    (
+                        431,
+                        "application/json; charset=utf-8".into(),
+                        r#"{"error":"request header exceeds 16 KiB limit"}"#.into(),
+                    )
+                } else if throttled {
+                    (
+                        429,
+                        "application/json; charset=utf-8".into(),
+                        r#"{"error":"too many dashboard authentication failures"}"#.into(),
+                    )
+                } else if authorized {
+                    route(&method, &url)
+                } else {
+                    (
+                        401,
+                        "application/json; charset=utf-8".into(),
+                        r#"{"error":"dashboard password required"}"#.into(),
+                    )
+                };
                 let mut response = Response::new(
                     StatusCode(status),
-                    vec![Header::from_bytes(&b"Content-Type"[..], content_type.as_bytes())
-                        .unwrap_or_else(|_| Header::from_bytes(&b"Content-Type"[..], &b"text/plain"[..]).unwrap())],
+                    vec![
+                        Header::from_bytes(&b"Content-Type"[..], content_type.as_bytes())
+                            .unwrap_or_else(|_| {
+                                Header::from_bytes(&b"Content-Type"[..], &b"text/plain"[..])
+                                    .unwrap()
+                            }),
+                    ],
                     Cursor::new(body.into_bytes()),
                     None,
                     None,
@@ -85,6 +346,27 @@ fn dashboard_loop(server: Server, shutdown: Arc<AtomicBool>) {
                 response.add_header(
                     Header::from_bytes(&b"Cache-Control"[..], &b"no-store"[..]).unwrap(),
                 );
+                for (name, value) in [
+                    (
+                        "Content-Security-Policy",
+                        "default-src 'self'; base-uri 'none'; frame-ancestors 'none'",
+                    ),
+                    ("X-Content-Type-Options", "nosniff"),
+                    ("Referrer-Policy", "no-referrer"),
+                    ("X-Frame-Options", "DENY"),
+                ] {
+                    response
+                        .add_header(Header::from_bytes(name.as_bytes(), value.as_bytes()).unwrap());
+                }
+                if status == 401 {
+                    response.add_header(
+                        Header::from_bytes(&b"WWW-Authenticate"[..], &b"Bearer"[..]).unwrap(),
+                    );
+                }
+                if status == 429 {
+                    response
+                        .add_header(Header::from_bytes(&b"Retry-After"[..], &b"60"[..]).unwrap());
+                }
                 let _ = request.respond(response);
             }
             Ok(None) => continue,
@@ -112,6 +394,23 @@ fn route(method: &Method, url: &str) -> (u16, String, String) {
             200,
             "application/json; charset=utf-8".into(),
             format!(r#"{{"ok":true,"product":"5harness","version":"{VERSION}"}}"#),
+        ),
+        (Method::Get, "/mcp") => (
+            200,
+            "application/json; charset=utf-8".into(),
+            serde_json::to_string_pretty(&serde_json::json!({
+                "name": "5harness",
+                "version": VERSION,
+                "protocolVersion": "2024-11-05",
+                "transport": "streamable-http",
+                "tools": super::mcp::mcp_tools(),
+                "message": "Use `harness mcp` for authenticated project-bound MCP calls."
+            })).unwrap_or_else(|_| "{}".into()),
+        ),
+        (Method::Post, "/mcp") => (
+            501,
+            "application/json; charset=utf-8".into(),
+            r#"{"error":"dashboard MCP transport is discovery-only; start `harness mcp` for authenticated calls"}"#.into(),
         ),
         _ => (
             404,
@@ -234,4 +533,39 @@ fn html_escape(s: &str) -> String {
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        dashboard_headers_oversized, dashboard_password_input_allowed, AuthFailureLimiter,
+        DASHBOARD_AUTH_FAILURE_LIMIT, MAX_DASHBOARD_HEADER_VALUE_BYTES,
+    };
+    use std::net::SocketAddr;
+    use tiny_http::Header;
+
+    #[test]
+    fn public_auth_failures_are_bounded_per_source() {
+        let mut limiter = AuthFailureLimiter::new();
+        let remote: SocketAddr = "127.0.0.1:3927".parse().unwrap();
+        for _ in 0..DASHBOARD_AUTH_FAILURE_LIMIT {
+            assert!(limiter.can_attempt(Some(&remote)));
+            limiter.record_failure(Some(&remote));
+        }
+        assert!(!limiter.can_attempt(Some(&remote)));
+        limiter.clear(Some(&remote));
+        assert!(limiter.can_attempt(Some(&remote)));
+    }
+
+    #[test]
+    fn dashboard_auth_inputs_have_bounded_sizes() {
+        assert!(dashboard_password_input_allowed(&"x".repeat(4 * 1024)));
+        assert!(!dashboard_password_input_allowed(&"x".repeat(4 * 1024 + 1)));
+        let header = Header::from_bytes(
+            &b"X-Harness-Password"[..],
+            vec![b'x'; MAX_DASHBOARD_HEADER_VALUE_BYTES + 1],
+        )
+        .expect("header");
+        assert!(dashboard_headers_oversized(&[header]));
+    }
 }

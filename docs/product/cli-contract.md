@@ -61,9 +61,9 @@ They auto-migrate an existing DB; if the DB is missing, run `harness init` first
 
 | Command | Behavior |
 | --- | --- |
-| `harness story verify <id>` | Run story `verify_command`; record pass/fail |
-| `harness story verify-all` | Verify all stories with a command |
-| `harness decision verify <id>` | Run decision verify command |
+| `harness story verify <id> --allow-project-command` | Run one project-authored story `verify_command` after explicit operator approval; record pass/fail |
+| `harness story verify-all --allow-project-command` | Preflight and run all configured story commands after explicit approval |
+| `harness decision verify <id> --allow-project-command` | Run one project-authored decision verify command after explicit approval |
 | `harness trace` | Record execution trace (`--summary`, `--outcome`, …); scores by default |
 | `harness score-trace [--id]` | Score latest or specific trace tiers |
 | `harness query traces` | List recent traces |
@@ -110,7 +110,7 @@ hand-edit operational markdown.
 | `harness next [--limit <n>] [--json]` | Recommend next work item; open reports after in-progress, then blocked, then planned (any role) |
 | `harness context <id> [--depth 0\|1] [--max-chars N] [--json]` | Budgeted entity context pack |
 | `harness tool register [--name] [--command] ...` | Register external project tool |
-| `harness tool check [--name] [--json]` | Scan registered tools |
+| `harness tool check [--name] [--allow-project-command] [--json]` | Scan registered tools; command-backed probes require explicit project-command approval |
 | `harness tool remove [--name] [--json]` | Remove a registered tool |
 
 ### E13 — Agent Loop Tier 2
@@ -131,7 +131,7 @@ hand-edit operational markdown.
 | Command | Behavior |
 | --- | --- |
 | `harness project id [--ensure] [--json]` | Print the cwd/`--dir` project's durable random id. `--ensure` creates the managed `AGENTS.md` marker if missing; `--json` returns id, path, and name. Init/link/upgrade ensure identity automatically. |
-| `harness mcp` | Start an **unbound** OAuth 2.1 + PKCE protected MCP server. Cwd and `--dir` do not authorize project tools; calls fail closed until OAuth consent grants one project or all healthy linked projects. Single grants force the selected project. All grants require `X-Harness-Project: <id>` (preferred) or `?project=<id>` on every request; invalid or missing selectors fail closed. RFC 9728/RFC 8414 discovery, dynamic public-client registration, resource-bound Bearer tokens. **Read tools:** get, search, links, context, status, query matrix/stats, handoff, doctor, reindex, project role/peers. **Mutation tools:** intake, story_add/update, decision_add, backlog_add. Project Link peer/report tools are added dynamically when the OAuth-bound calling project has peers. Non-loopback requires `--public-url https://...`. |
+| `harness mcp` | Start an authenticated streamable HTTP MCP server. Discovery is public; every `tools/call` requires `Authorization: Bearer <startup-token>` and `X-Harness-Project: <id>` (or `?project=<id>`). The token is supplied with `--token`/`HARNESS_MCP_TOKEN` or generated per process (24-hour default TTL). Requests and serialized responses are bounded to 1 MiB bodies/responses, 16 KiB individual headers (64 headers / 64 KiB total), 64 KiB strings, 32 nesting levels, and 1,000 collection entries; non-loopback binds are rate-limited to 120 requests/minute per source by default. Project Link peer/report tools are added dynamically when peers exist. Non-loopback requires `--public-url https://...`. |
 | `harness export changelog [--since <tag\|date>] [--json]` | Derive changelog notes from implemented stories/decisions (assist only) |
 | `harness watch` | Watch entity directories and auto-reindex on markdown changes (debounced 500ms) |
 | `harness handoff [--story <id>] [--json]` | Emit concise session summary: recent traces, worklog, status, next steps |
@@ -158,7 +158,7 @@ same-machine registry. Registry `harness link` keeps its existing meaning.
 | `harness report get <id> [--from <role\|id>]` | Get one local report, or read it from a configured peer |
 | `harness report update --id <id> --status <status> [--resolution <text>] [--related <csv>]` | Update a report owned by the local project and reindex locally; `fixed` requires a resolution |
 
-Peer selectors are capability selectors, not arbitrary paths or OAuth routing.
+Peer selectors are capability selectors, not arbitrary paths or MCP project routing.
 `--role` must identify exactly one configured peer; `--peer`, `--to`, and
 `--from` must name a configured peer id/role. There is no peer-of-peer traversal.
 Cross-project mutation is limited to `report add`; report lifecycle updates are
@@ -169,9 +169,9 @@ MCP exposes `harness_project_role` and `harness_project_peers` for the calling
 project. When that project has peers it additionally exposes
 `harness_peer_search`, `harness_peer_get`, `harness_peer_context`,
 `harness_peer_links`, `harness_report_add`, `harness_report_list`,
-`harness_report_get`, and `harness_report_update`. With an all-projects grant,
-`X-Harness-Project`/`?project=` selects the calling project; MCP `peer_id`,
-`role`, `to`, and `from` never replace that OAuth selection.
+`harness_report_get`, and `harness_report_update`. `X-Harness-Project`/`?project=`
+selects the calling project; MCP `peer_id`, `role`, `to`, and `from` never
+replace that selection.
 
 ## Commands deferred (later)
 
@@ -233,7 +233,7 @@ Logs never intentionally write secrets (tokens, API keys, passwords are redacted
 | Mechanism | Behavior |
 | --- | --- |
 | Atomic write | `index.json` written via temp file + rename |
-| Mutation lock | `.5harness/mutation.lock` held during index write; stale locks reclaimed after ~30s |
+| Mutation lock | `.5harness/mutation.lock` held across ID allocation, entity write, and index write; contention fails after a bounded wait and is never silently reclaimed |
 | Checksum | SHA-256 over stable index payload; stored as `checksum` on the index |
 | Recovery | `harness reindex` rebuilds a valid index; never hand-edit `index.json` |
 

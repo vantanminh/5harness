@@ -33,16 +33,31 @@ Automatic native install (no compile from source):
 **Windows (PowerShell):**
 
 ```powershell
-irm https://raw.githubusercontent.com/vantanminh/5harness/main/install/windows.ps1 | iex
+$version = "0.27.1"
+Invoke-WebRequest "https://raw.githubusercontent.com/vantanminh/5harness/v$version/install/windows.ps1" -OutFile install-5harness.ps1
+Get-Content .\install-5harness.ps1
+powershell -ExecutionPolicy Bypass -File .\install-5harness.ps1
 ```
 
 **macOS:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh | bash
+VERSION=0.27.1
+curl --proto '=https' --tlsv1.2 -fsSL "https://raw.githubusercontent.com/vantanminh/5harness/v${VERSION}/install/macos.sh" -o install-5harness.sh
+less install-5harness.sh
+bash install-5harness.sh
 ```
 
-Point either script at a local build with `HARNESS_INSTALL_FROM` (directory or binary path). npm install remains available.
+**Linux:**
+
+```bash
+VERSION=0.27.1
+curl --proto '=https' --tlsv1.2 -fsSL "https://raw.githubusercontent.com/vantanminh/5harness/v${VERSION}/install/linux.sh" -o install-5harness.sh
+less install-5harness.sh
+bash install-5harness.sh
+```
+
+Point any native installer at a local build with `HARNESS_INSTALL_FROM` (directory or binary path). Pin a release with `HARNESS_INSTALL_VERSION=<version>` and use `HARNESS_INSTALL_SKIP_PATH=1` in automation. npm install remains available.
 
 Project-local (optional):
 

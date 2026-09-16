@@ -15,7 +15,7 @@ secrets, or a sync passphrase. Review the project's cloud sync runbook before
 enabling it.
 
 <!-- HARNESS:BEGIN -->
-<!-- harness-version: 0.25.3 -->
+<!-- harness-version: 0.27.1 -->
 ## Harness
 
 **5harness** (bin `harness`) is this repo's operating system for **coding

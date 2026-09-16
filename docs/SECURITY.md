@@ -12,13 +12,14 @@ and CI. Implementation references point into `src/` where useful.
 | --- | --- | --- |
 | Durable markdown (stories, decisions, …) | Project Git authors | Repo contents |
 | `harness` CLI mutations | Local operator / agent with shell | Local filesystem |
-| `verify` frontmatter commands | Project-authored shell | Local cwd = project |
+| `verify` frontmatter commands | Project-authored shell, explicit operator opt-in | Local cwd = project |
 | Machine registry (`~/.5harness`) | Local user | Paths on this machine |
 | Project Link peer reads | Explicit peer markers + local registry | Configured same-machine projects only |
 | Project Link reports | Project Git authors + configured reporter peer | Target project's durable markdown |
 | Dashboard | Loopback HTTP | `127.0.0.1` by default |
 | MCP server | OAuth 2.1 protected resource | Loopback HTTP by default |
 | Harness Cloud | Optional Firebase/Cloudflare service | User-scoped ciphertext + browser auth |
+| MCP server | OAuth 2.1 protected resource with bearer token + durable project-id binding | Loopback HTTP by default |
 | npm update check | Public registry read | Advisory stderr only |
 | npm publish / Releases | Maintainer CI (OIDC) | Provenance when configured |
 
@@ -43,17 +44,23 @@ is an adoption signal and cannot be resolved by changing launcher code.
 
 ---
 
-## Verify commands (`harness story verify` / `decision verify`)
+## Project-authored commands (`verify` and `tool check`)
 
 Stories and decisions may set a `verify` frontmatter field: a **single-line shell
-command** that the CLI runs with the project directory as `cwd`.
+command** that the CLI runs with the project directory as `cwd`. The inbound
+tool registry also stores project-authored commands for `tool check`. Because
+both are project-authored code execution, every execution requires the explicit
+`--allow-project-command` flag. `verify-all` preflights all configured commands
+and refuses before running any of them when the flag is absent. MCP does not
+expose a verify or tool-check execution tool and never supplies this approval
+implicitly.
 
 | Aspect | Detail |
 | --- | --- |
 | Source of the command | Local Git-backed markdown (project authors / collaborators) |
-| Who triggers execution | Operator running `harness story verify …` (or verify-all) |
+| Who triggers execution | Operator running `harness story verify … --allow-project-command`, `verify-all`, or `tool check --allow-project-command` |
 | Shell | Yes — so common proof scripts work (`npm test`, `node -e "…"`, `&&`) |
-| Hardening | Non-empty, max length, no null bytes / newlines; cwd must be a real directory; timeout + maxBuffer |
+| Hardening | Non-empty, single-line, max 8 KiB, no NUL bytes; command output is capped at 64 KiB while captured, redacted, then capped before persistence; verify/tool checks time out after 60 seconds and terminate their process tree where the host supports it |
 
 This is the same trust class as:
 
@@ -64,7 +71,11 @@ This is the same trust class as:
 attacker can change committed story files, they can already change app source
 and CI scripts.
 
-Implementation: `src/infrastructure/verify.ts`.
+Implementation: `src/cli.rs` (approval gate, timeout, bounded capture, and
+output redaction) and `src/app/durable.rs` (command field validation). For
+stronger isolation, run the command in an external
+sandbox/container with network and host credentials disabled; the CLI does not
+claim to be a sandbox today.
 
 ---
 
@@ -72,55 +83,60 @@ Implementation: `src/infrastructure/verify.ts`.
 
 | Aspect | Detail |
 | --- | --- |
-| Auth model | OAuth 2.1 Authorization Code with mandatory PKCE S256 |
+| Auth model | Per-process bearer token (`--token` or `HARNESS_MCP_TOKEN`) plus project id |
 | Default bind | `127.0.0.1` (see `harness mcp` / dashboard `--host`) |
-| Discovery | RFC 9728 protected-resource metadata + RFC 8414 authorization-server metadata |
-| Client model | Dynamic registration of public clients; no client secret |
-| Tokens | Opaque, one-hour, in-memory, Bearer header only, bound to the canonical `/mcp` resource |
-| Project grant | Consent selects one healthy linked project or all healthy linked projects |
-| Project routing | Single grants force their selected project; all grants require `X-Harness-Project` or `?project=` on every call |
+| Discovery | Protected-resource metadata and MCP tool metadata |
+| Client model | Explicit operator-supplied or per-process generated bearer token |
+| Tokens | Bearer header only, held in process memory and revoked at shutdown |
+| Project grant | `X-Harness-Project` or `?project=` must match the bound project's durable id |
+| Project routing | Missing or conflicting selectors fail closed |
 | Mutation surface | Reads and controlled durable mutations; agents still follow AGENTS hard-fail rules |
+| Request limits | 1 MiB body, 16 KiB individual headers, 64 headers / 64 KiB total header bytes, 64 KiB strings, 32 nesting levels, 1,000 collection entries |
+| Public rate limit | Non-loopback binds allow 120 requests/minute per source by default; configure `HARNESS_MCP_RATE_LIMIT_PER_MINUTE`; excess requests return `429` |
+| Token lifetime | 24 hours by default; override with positive `HARNESS_MCP_TOKEN_TTL_SECS`; restart rotates generated tokens |
+| Comparison | Bearer tokens use a length-independent byte comparison |
+| Response limits | Serialized responses are capped at 1 MiB; oversized JSON-RPC responses become a bounded error |
+| Response hardening | `Cache-Control: no-store`, CSP, `nosniff`, `Referrer-Policy`, and `X-Frame-Options: DENY` |
 | Call log | `.5harness/local/mcp-calls.jsonl` under the project (machine-local) |
-| Notification POSTs | `202 Accepted` with no body (Streamable HTTP; required by Codex CLI / rmcp) |
-| JSON-RPC request POSTs | `200` + `application/json` response body |
-| Human approval | Shared `/login` session only; `/authorize` never collects credentials |
+| JSON-RPC POSTs | `200` + `application/json` response body; malformed or over-limit requests fail before tool execution |
+| Human approval | Native Rust runtime has no browser OAuth/session route; dashboard requests use the password header/Bearer, while dashboard `/mcp` GET is discovery-only |
 
-Authorization codes are valid for five minutes and redeemable once. Redirect
-URIs must match registration exactly and use HTTPS or a localhost loopback URI.
-PKCE `plain`, implicit flow, password flow, query-string access tokens, and
-cross-audience tokens are rejected. Dashboard cookies never authorize MCP calls;
-they only prove the human operator may click Approve/Deny on `/authorize`.
-Unauthenticated GET `/authorize` redirects to `/login?redirect=…` (path + query
-preserved; open redirects rejected). The approval page's CSP permits form
-navigation only to the server itself and the origin of that already validated,
-registered callback; it never uses a wildcard callback destination.
+Public dashboard authentication failures are limited to 30 attempts per source
+per minute and return `429` with `Retry-After: 60`; loopback dashboards are not
+rate-limited. If the credential record disappears while a public dashboard is
+running, protected requests fail closed rather than becoming anonymous. Dashboard
+requests reject more than 64 headers, 16 KiB per header value, or 64 KiB of
+header bytes with `431`; supplied passwords are capped at 4 KiB before Argon2id.
 
-MCP processes start without a project authorization derived from cwd, `--dir`,
-or registry order. For a single-project grant, the server resolves only the id
-selected at consent and rejects a conflicting request selector. For an
-all-projects grant, every tool request must provide `X-Harness-Project: <id>` or
-the compatibility query parameter `?project=<id>`. Missing or conflicting
-selectors, unknown or unlinked ids, and projects missing on disk are rejected;
-there is no cwd or first-linked fallback. Project ids are random durable routing
-identifiers, not secrets or authentication credentials. Operators can inspect a
-repo's id with `harness project id` or its `harness-project-id` marker in
-`AGENTS.md`.
+The bearer token is never accepted in a query string. Dashboard cookies never
+authorize MCP calls. The native dashboard does not issue browser session
+cookies or implement `/login`/`/authorize`; use the standalone MCP process for
+authenticated tool calls. Treat the startup token as a secret and rotate it by
+restarting the process.
 
-The administrator signs in once on the shared login page, then approves a client
-in the browser. Set a non-default password with
-`harness dashboard set-password` before authorizing clients. Client
-registrations, pending codes, and access tokens are process-local; restarting the
-server revokes them.
+MCP calls are bound to the project supplied to `harness mcp --dir`. Every tool
+request must provide `X-Harness-Project: <id>` or `?project=<id>` matching that
+project. Missing or conflicting selectors are rejected; there is no first-linked
+fallback. Project ids are durable routing identifiers, not authentication
+credentials. Operators can inspect a repo's id with `harness project id` or its
+`harness-project-id` marker in `AGENTS.md`.
+
+Set a dashboard password with
+`harness dashboard set-password --password '<12+ character password>'`. The
+password is stored as a salted Argon2id PHC record under
+`$HARNESS_HOME/dashboard-password.argon2` with owner-only permissions on Unix.
+The dashboard accepts that password through its local `X-Harness-Password`
+header or a bearer header; health and discovery remain readable. A
+non-loopback dashboard refuses to start unless a modern Argon2id password is
+configured and a valid `https://` public URL is supplied.
 
 Plain HTTP is supported only for loopback native-client interoperability. A
 non-loopback bind hard-fails unless `--public-url https://...` is supplied; that
 mode assumes a correctly configured TLS reverse proxy and remains a single-user
 operator boundary, not multi-tenant authorization.
 
-Implementation: `src/application/mcp-oauth.ts`,
-`src/application/mcp-oauth-http.ts`, `src/application/mcp-server.ts`, and
-`src/application/dashboard.ts`. The complete request-routing contract is in
-[`docs/product/mcp-project-binding.md`](product/mcp-project-binding.md).
+Implementation: `src/app/mcp.rs` and `src/app/dashboard.rs`. The dashboard MCP
+route is discovery-only; authenticated mutations use the standalone MCP server.
 
 ---
 
@@ -151,11 +167,11 @@ expected/actual values, and resolutions must be sanitized: never include
 credentials, tokens, secrets, passwords, or unnecessary personal data.
 Field-length validation is not secret detection or automatic redaction.
 
-For MCP, OAuth continues to authorize the **calling** project. A single grant is
-forced to its consent-selected project; an all-projects grant uses
-`X-Harness-Project` or `?project=` to select the calling project on every
-request. Tool arguments `peer_id`, `role`, `to`, and `from` only select a
-configured capability from that root and never replace OAuth project routing.
+For MCP, the bearer token authenticates the process and `X-Harness-Project`
+authorizes the **calling** project bound at startup. The compatibility query
+parameter `?project=` is also accepted. Tool arguments `peer_id`, `role`, `to`,
+and `from` only select a configured capability from that root and never replace
+project routing.
 `harness_project_role` and `harness_project_peers` remain visible after binding;
 peer-read/report tools are not advertised when the calling project has no
 configured peers. Dynamic hiding reduces tool noise; it is not the authorization
@@ -165,9 +181,8 @@ monitoring remains under the calling project.
 `harness doctor` warnings about unresolved peers or unreadable peer indexes are
 operational guidance, not authorization and not evidence that a peer is safe.
 
-Implementation: `src/domain/project-link.ts`,
-`src/application/project-link.ts`, `src/application/report.ts`, and
-`src/application/mcp-server.ts`. Full behavior:
+Implementation: `src/app/project_link.rs`, `src/app/durable.rs`, and
+`src/app/mcp.rs`. Full behavior:
 [`docs/product/project-link.md`](product/project-link.md).
 
 ---
@@ -186,7 +201,7 @@ Implementation: `src/domain/project-link.ts`,
 - Override home with `HARNESS_HOME` only when you understand isolation between
   environments.
 
-Implementation: `src/domain/paths.ts`, `src/application/registry.ts`.
+Implementation: `src/domain/paths.rs`, `src/infra/registry.rs`.
 
 ---
 
@@ -247,16 +262,16 @@ Deployment and local-emulator instructions are in
 
 | Concern | Practice |
 | --- | --- |
-| Logging | `redactSecrets` strips common token shapes (`npm_…`, `ghp_…`, `sk-…`, key=value) before file/console debug paths |
-| Env | Prefer short-lived CI OIDC over long-lived `NPM_TOKEN` for publish |
+| Logging | `redact_sensitive` strips common token shapes (`npm_…`, `ghp_…`, `sk-…`, bearer and key=value forms) before CLI/MCP diagnostics |
+| Env | Prefer short-lived CI OIDC over long-lived publish tokens; never echo `Authorization`, `NPM_TOKEN`, `GITHUB_TOKEN`, or passwords |
 | Commits | Never commit `.npmrc` with auth tokens, private keys, or production secrets |
 | Agent traces | Treat worklogs/traces as potentially sensitive; they are machine-local by default |
 
 Debug logging: `HARNESS_DEBUG`, optional `HARNESS_LOG_FILE`. Assume debug logs
-may still contain paths and command text — redaction is best-effort, not a
+may still contain paths and command text — redaction is defense in depth, not a
 guarantee against all secret formats.
 
-Implementation: `src/infrastructure/logger.ts`.
+Implementation: `src/error.rs`, `src/main.rs`, and `src/app/mcp.rs`.
 
 ---
 
@@ -266,9 +281,10 @@ Implementation: `src/infrastructure/logger.ts`.
 | --- | --- |
 | Runtime deps | Keep **minimal** (prefer zero or few production dependencies) |
 | Dev deps | Test/build only; not required for end users of the global CLI |
-| Updates | Dependabot (`.github/dependabot.yml`) for npm and GitHub Actions |
-| Audit | Maintainers run `npm audit` before releases; CI should stay green on `release:check` |
-| Pins | Lockfile (`package-lock.json`) is authoritative for CI installs (`npm ci`) |
+| Updates | Dependabot (`.github/dependabot.yml`) for npm, Cargo, and GitHub Actions |
+| Audit | CI runs `cargo audit` and `cargo deny check`; `npm audit` remains a maintainer gate |
+| Static analysis | Pinned CodeQL workflow scans JavaScript/TypeScript and Rust on pushes, pull requests, and weekly schedule |
+| Pins | `Cargo.lock`, `package-lock.json`, pinned Rust toolchain, and full-SHA Actions refs are authoritative |
 
 New production dependencies require a clear need (size, maintenance, license).
 Prefer Node built-ins for filesystem, HTTP, and crypto.
@@ -303,8 +319,11 @@ Production releases (US-036 / decision 0018):
 2. **Publish** prefers **npm trusted publishing (OIDC)** with
    `npm publish --provenance` (green provenance on the package page when
    configured).
-3. **GitHub Release** notes come from CHANGELOG; optional **SPDX SBOM** asset.
-4. Long-lived **`NPM_TOKEN`** is optional fallback only.
+3. **GitHub Release** includes an exact `SHA256SUMS` manifest, optional detached
+   `SHA256SUMS.sig`, SPDX SBOM, and GitHub artifact attestations for binaries +
+   the manifest.
+4. Long-lived **`NPM_TOKEN`** is not used by the release workflows; configure
+   npm Trusted Publishing for the repository/workflow instead.
 
 ### Consumer guidance
 
@@ -313,6 +332,10 @@ Production releases (US-036 / decision 0018):
 npm i -g 5harness@<version>
 
 # Prefer inspecting provenance on the npm package page for that version.
+# For a standalone release asset, download SHA256SUMS and verify the matching
+# binary before executing it. If SHA256SUMS.sig is present, verify that
+# signature with the maintainer's published key; GitHub attestations can be
+# checked with `gh attestation verify`.
 # After install, optional:
 npm audit signatures
 ```
@@ -321,7 +344,8 @@ npm audit signatures
   successor name after any rename story).
 - Prefer versions that show **provenance** attestations built from
   `github.com/vantanminh/5harness`.
-- GitHub Release assets may include `sbom.spdx.json` for the release tag.
+- GitHub Release assets include `SHA256SUMS` and may include
+  `SHA256SUMS.sig` and `sbom.spdx.json` for the release tag.
 
 Full release procedure: [docs/product/distribution.md](product/distribution.md).
 

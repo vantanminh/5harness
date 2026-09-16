@@ -1,12 +1,12 @@
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
-use crate::domain::frontmatter::as_string;
 use crate::domain::paths::project_index_dir;
 use crate::domain::wikilinks::{extract_wikilinks, match_link_target, normalize_link_target};
 use crate::error::Result;
-use crate::infra::entities::{atomic_write, read_entity_file};
+use crate::infra::entities::{atomic_write, read_entity_file, safe_relative_path};
 
 use super::catalog::{build_catalog, links_of};
 
@@ -41,6 +41,8 @@ pub struct ProjectIndex {
     pub catalog: Vec<IndexCatalogRow>,
     pub edges: Vec<IndexEdge>,
     pub texts: serde_json::Map<String, serde_json::Value>,
+    #[serde(default)]
+    pub checksum: Option<String>,
 }
 
 pub fn index_json_path(project_root: &Path) -> PathBuf {
@@ -72,16 +74,12 @@ pub fn build_project_index(project_root: &Path) -> Result<ProjectIndex> {
         let body = read_entity_file(project_root, &e.path)?
             .map(|f| f.body)
             .unwrap_or_default();
-        let fm_blob = [
-            e.id.as_str(),
-            e.ty.as_str(),
-            e.title.as_str(),
-            e.status.as_str(),
-            as_string(&e.data, "notes").unwrap_or_default().as_str(),
-            as_string(&e.data, "summary").unwrap_or_default().as_str(),
-            as_string(&e.data, "evidence").unwrap_or_default().as_str(),
-        ]
-        .join(" ");
+        let fm_blob = e
+            .data
+            .iter()
+            .map(|(key, value)| format!("{key}={value:?}"))
+            .collect::<Vec<_>>()
+            .join(" ");
         texts.insert(
             e.id.clone(),
             serde_json::Value::String(format!("{fm_blob}\n{body}")),
@@ -89,20 +87,22 @@ pub fn build_project_index(project_root: &Path) -> Result<ProjectIndex> {
         for link in links_of(&e.data) {
             let target = normalize_link_target(&link);
             let matched = match_link_target(&target, &lite);
+            let resolved = matched.is_some() || project_file_exists(project_root, &target);
             edges.push(IndexEdge {
                 from: e.id.clone(),
                 to: matched.map(|m| m.0.clone()).unwrap_or(target),
                 kind: "frontmatter".into(),
-                resolved: matched.is_some(),
+                resolved,
             });
         }
         for wl in extract_wikilinks(&body) {
             let matched = match_link_target(&wl, &lite);
+            let resolved = matched.is_some() || project_file_exists(project_root, &wl);
             edges.push(IndexEdge {
                 from: e.id.clone(),
                 to: matched.map(|m| m.0.clone()).unwrap_or(wl),
                 kind: "wikilink".into(),
-                resolved: matched.is_some(),
+                resolved,
             });
         }
     }
@@ -113,11 +113,33 @@ pub fn build_project_index(project_root: &Path) -> Result<ProjectIndex> {
         catalog: rows,
         edges,
         texts,
+        checksum: None,
+    })
+}
+
+fn project_file_exists(project_root: &Path, target: &str) -> bool {
+    let Ok(relative) = safe_relative_path(target) else {
+        return false;
+    };
+    let Ok(root) = std::fs::canonicalize(project_root) else {
+        return false;
+    };
+    let candidate = root.join(&relative);
+    let candidates = if candidate.extension().is_some() {
+        vec![candidate]
+    } else {
+        vec![candidate.clone(), candidate.with_extension("md")]
+    };
+    candidates.into_iter().any(|path| {
+        std::fs::canonicalize(path)
+            .map(|canonical| canonical.starts_with(&root) && canonical.is_file())
+            .unwrap_or(false)
     })
 }
 
 pub fn write_project_index(project_root: &Path) -> Result<(PathBuf, usize, usize)> {
-    let index = build_project_index(project_root)?;
+    let mut index = build_project_index(project_root)?;
+    index.checksum = Some(checksum_for(&index)?);
     let path = index_json_path(project_root);
     let payload = format!("{}\n", serde_json::to_string_pretty(&index)?);
     atomic_write(&path, &payload)?;
@@ -129,13 +151,47 @@ pub fn ensure_index(project_root: &Path) -> Result<ProjectIndex> {
     if path.exists() {
         if let Ok(raw) = std::fs::read_to_string(&path) {
             if let Ok(idx) = serde_json::from_str::<ProjectIndex>(&raw) {
-                return Ok(idx);
+                let current = build_project_index(project_root)?;
+                let checksum_valid = idx.checksum.as_deref() == Some(checksum_for(&idx)?.as_str());
+                let fresh = checksum_valid
+                    && idx.version == INDEX_SCHEMA_VERSION
+                    && idx.project_root == project_root.to_string_lossy()
+                    && idx.catalog.len() == current.catalog.len()
+                    && idx.catalog.iter().all(|row| {
+                        current.catalog.iter().any(|candidate| {
+                            row.id == candidate.id
+                                && row.path == candidate.path
+                                && row.ty == candidate.ty
+                                && row.mtime_ms == candidate.mtime_ms
+                        })
+                    });
+                if fresh {
+                    return Ok(idx);
+                }
             }
         }
     }
-    let built = build_project_index(project_root)?;
-    let _ = write_project_index(project_root);
+    let mut built = build_project_index(project_root)?;
+    built.checksum = Some(checksum_for(&built)?);
+    write_project_index(project_root)?;
     Ok(built)
+}
+
+pub fn checksum_valid(index: &ProjectIndex) -> bool {
+    index
+        .checksum
+        .as_deref()
+        .and_then(|stored| checksum_for(index).ok().map(|computed| stored == computed))
+        .unwrap_or(false)
+}
+
+fn checksum_for(index: &ProjectIndex) -> Result<String> {
+    let mut copy = index.clone();
+    copy.checksum = None;
+    let raw = serde_json::to_vec(&copy)?;
+    let mut hasher = Sha256::new();
+    hasher.update(raw);
+    Ok(hex::encode(hasher.finalize()))
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -145,6 +201,7 @@ pub struct SearchHit {
     pub path: String,
     pub title: String,
     pub snippet: String,
+    pub score: usize,
 }
 
 pub fn search_index(
@@ -171,23 +228,34 @@ pub fn search_index(
             continue;
         }
         let snippet = snippet_of(text, &q);
+        let title_score = row.title.to_ascii_lowercase().matches(&q).count() * 10;
+        let id_score = row.id.to_ascii_lowercase().matches(&q).count() * 8;
+        let text_score = text.to_ascii_lowercase().matches(&q).count();
         hits.push(SearchHit {
             id: row.id.clone(),
             ty: row.ty.clone(),
             path: row.path.clone(),
             title: row.title.clone(),
             snippet,
+            score: title_score + id_score + text_score,
         });
     }
-    hits.truncate(limit.max(1));
+    hits.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.id.cmp(&b.id)));
+    hits.truncate(limit);
     hits
 }
 
 fn snippet_of(text: &str, q: &str) -> String {
     let lower = text.to_ascii_lowercase();
     if let Some(idx) = lower.find(q) {
-        let start = idx.saturating_sub(40);
-        let end = (idx + q.len() + 40).min(text.len());
+        let mut start = idx.saturating_sub(40);
+        while start > 0 && !text.is_char_boundary(start) {
+            start -= 1;
+        }
+        let mut end = (idx + q.len() + 40).min(text.len());
+        while end < text.len() && !text.is_char_boundary(end) {
+            end += 1;
+        }
         let mut s = text[start..end].replace('\n', " ");
         if start > 0 {
             s = format!("…{s}");
