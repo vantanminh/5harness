@@ -229,9 +229,12 @@ snapshots. It does not replace Git-backed Markdown as the source of truth.
 
 ### Authorization and isolation
 
-- `harness login` uses an exact loopback redirect, OAuth authorization code,
-  PKCE S256, one-time code storage, short-lived access tokens, and refresh-token
-  rotation. Replay revokes the refresh family.
+- `harness login` uses a short-lived, PKCE-bound device code and one-time
+  authorization code storage. The browser approves the user code at the
+  Worker `/device` page; the CLI polls without exposing a loopback callback.
+  Access tokens are short-lived and refresh-token rotation/replay revocation
+  remains enforced. The legacy exact loopback `/authorize` flow remains for
+  existing OAuth clients.
 - Browser API routes require a verified Firebase ID token. CLI data routes use
   the issued access token, which the Worker exchanges for a fresh Firebase ID
   token before calling Firestore REST. Every Firestore path is nested below the

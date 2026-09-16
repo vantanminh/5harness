@@ -75,6 +75,7 @@ function App() {
           <Route element={<SiteLayout />}>
             <Route path="/" element={<HomePage />} />
             <Route path="/authorize" element={<AuthorizePage />} />
+            <Route path="/device" element={<DevicePage />} />
             <Route path="/dashboard" element={<RequireAuth><DashboardPage /></RequireAuth>} />
             <Route path="/projects/:projectId" element={<RequireAuth><ProjectPage /></RequireAuth>} />
             <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
@@ -164,7 +165,7 @@ function HomePage() {
         <div className="card-kicker">How it works</div>
         <div className="flow-step"><span>01</span><div><strong>Sign in here</strong><small>Firebase Auth protects your account.</small></div></div>
         <div className="flow-line" />
-        <div className="flow-step"><span>02</span><div><strong>Authorize Harness</strong><small>PKCE sends a one-time code to your CLI.</small></div></div>
+        <div className="flow-step"><span>02</span><div><strong>Authorize Harness</strong><small>Enter the one-time device code shown in your terminal.</small></div></div>
         <div className="flow-line" />
         <div className="flow-step"><span>03</span><div><strong>Sync encrypted snapshots</strong><small>Firebase sees metadata and ciphertext only.</small></div></div>
         <div className="privacy-pill"><span className="dot green" /> No service account keys in the browser</div>
@@ -246,6 +247,116 @@ function AuthorizePage() {
         <button className="button primary" disabled={busy} onClick={() => void approve()}>{busy ? "Authorizing…" : "Authorize Harness"}</button>
         <button className="button quiet" disabled={busy} onClick={cancel}>Cancel</button>
       </div>
+    </section>
+  );
+}
+
+function DevicePage() {
+  const { user, loading, signIn } = useAuth();
+  const initialCode = useMemo(() => {
+    const value = new URLSearchParams(window.location.search).get("user_code") ?? "";
+    return normalizeDeviceCode(value);
+  }, []);
+  const [userCode, setUserCode] = useState(initialCode);
+  const [csrfToken, setCsrfToken] = useState("");
+  const [csrfError, setCsrfError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [approved, setApproved] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    void apiFetch<{ csrf_token: string }>("/oauth/device/csrf", { credentials: "include" })
+      .then((result) => {
+        if (active) setCsrfToken(result.csrf_token);
+      })
+      .catch((reason: unknown) => {
+        if (active) setCsrfError(errorMessage(reason));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const approve = async () => {
+    const normalized = normalizeDeviceCode(userCode);
+    if (!normalized) {
+      setError("Enter the eight-character code shown in your terminal.");
+      return;
+    }
+    if (!csrfToken) {
+      setError("This approval page has expired. Refresh and try again.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const refreshToken = await firebaseRefreshToken();
+      if (!refreshToken) throw new Error("Firebase session is unavailable. Sign in again.");
+      await apiFetch<{ ok: true }>("/oauth/device/approve", {
+        method: "POST",
+        credentials: "include",
+        body: jsonBody({
+          user_code: normalized,
+          csrf_token: csrfToken,
+          firebase_refresh_token: refreshToken,
+        }),
+      });
+      setApproved(true);
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (approved) {
+    return (
+      <section className="center-card narrow device-card">
+        <div className="consent-icon">✓</div>
+        <p className="eyebrow">Device authorized</p>
+        <h1>Return to your terminal.</h1>
+        <p className="muted">Harness will finish signing in automatically. You can close this tab.</p>
+      </section>
+    );
+  }
+  if (loading) return <LoadingState label="Checking your Firebase session…" />;
+  return (
+    <section className="center-card narrow device-card">
+      <div className="consent-icon">H</div>
+      <p className="eyebrow">Harness device login</p>
+      <h1>Connect your terminal.</h1>
+      <p className="muted">Enter the code printed by <code>harness login</code>. This authorizes only the local CLI session and never displays a token.</p>
+      <div className="device-form">
+        <label htmlFor="device-code">Device code</label>
+        <input
+          id="device-code"
+          className="device-code-input"
+          value={userCode}
+          onChange={(event) => setUserCode(normalizeDeviceCode(event.target.value))}
+          placeholder="ABCD-EFGH"
+          autoComplete="one-time-code"
+          autoCapitalize="characters"
+          spellCheck={false}
+          maxLength={9}
+          aria-describedby="device-code-help"
+        />
+        <small id="device-code-help">Codes expire after ten minutes.</small>
+      </div>
+      {!user ? (
+        <>
+          <p className="device-login-note">Sign in with the account that should own your Harness snapshots.</p>
+          <button className="button primary" disabled={!firebaseConfigured} onClick={() => void signIn().catch((reason) => setError(errorMessage(reason)))}>Sign in with Google ↗</button>
+        </>
+      ) : (
+        <>
+          <p className="device-login-note">Signed in as <strong>{user.email}</strong>.</p>
+          <button className="button primary" disabled={busy || !csrfToken} onClick={() => void approve()}>{busy ? "Authorizing…" : "Authorize terminal"}</button>
+        </>
+      )}
+      {csrfError && <Notice tone="error">{csrfError}</Notice>}
+      {error && <Notice tone="error">{error}</Notice>}
+      {!firebaseConfigured && <Notice tone="warning">Firebase web configuration is missing.</Notice>}
     </section>
   );
 }
@@ -476,6 +587,12 @@ function parseAuthorizationRequest(): { valid: true; params: Record<string, stri
     return { valid: false, error: "The redirect target is not valid." };
   }
   return { valid: true, params, csrfToken: outer.get("oauth_csrf") || "" };
+}
+
+function normalizeDeviceCode(value: string): string {
+  const compact = value.replace(/[\s-]/g, "").toUpperCase().slice(0, 8);
+  if (compact.length <= 4) return compact;
+  return compact.slice(0, 4) + "-" + compact.slice(4);
 }
 
 function errorMessage(reason: unknown): string {

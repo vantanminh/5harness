@@ -1,20 +1,17 @@
-//! Browser authorization for the hosted Harness service.
+//! Device authorization for the hosted Harness service.
 //!
-//! The CLI deliberately does not implement a Firebase login itself.  The
-//! browser owns the Firebase session, and the web application exchanges that
-//! session for a short-lived, one-time OAuth code.  This module only handles
-//! the public OAuth client side: PKCE, the loopback callback, token rotation,
-//! and machine-local credential storage.
+//! The CLI deliberately does not implement a Firebase login itself. The
+//! browser owns the Firebase session, and the web application approves a
+//! short-lived device code. The CLI keeps the PKCE verifier and polls the
+//! OAuth token endpoint, so no loopback listener or callback URL is required.
 
 use std::env;
 use std::fs;
-use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
@@ -29,7 +26,10 @@ use crate::infra::registry::get_harness_home;
 pub const CLIENT_ID: &str = "harness-cli";
 pub const AUTH_FILE_NAME: &str = "auth.json";
 pub const DEFAULT_SCOPE: &str = "sync:read sync:write";
-const CALLBACK_PATH: &str = "/callback";
+pub const DEVICE_GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:device_code";
+const DEVICE_CODE_PATH: &str = "/oauth/device/code";
+const TOKEN_PATH: &str = "/oauth/token";
+const DEVICE_PATH: &str = "/device";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AuthState {
@@ -57,6 +57,22 @@ struct TokenResponse {
 struct TokenUser {
     id: Option<String>,
     email: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DeviceCodeResponse {
+    device_code: String,
+    user_code: String,
+    verification_uri: String,
+    expires_in: u64,
+    interval: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OAuthErrorResponse {
+    error: Option<String>,
+    error_description: Option<String>,
+    message: Option<String>,
 }
 
 pub fn auth_file_path() -> PathBuf {
@@ -135,60 +151,70 @@ pub fn login(
     timeout_seconds: u64,
 ) -> Result<AuthState> {
     let server = resolve_server(server_input)?;
-    let listener = TcpListener::bind(("127.0.0.1", 0))
-        .map_err(|e| Error::new(format!("Unable to bind loopback OAuth callback: {e}")))?;
-    listener.set_nonblocking(true)?;
-    let port = listener.local_addr()?.port();
-    let redirect_uri = format!("http://127.0.0.1:{port}{CALLBACK_PATH}");
-    let state = random_string(32)?;
     let verifier = random_string(48)?;
     let challenge = pkce_challenge(&verifier);
-    let authorize_url =
-        authorization_url(&server, &redirect_uri, &state, &challenge, DEFAULT_SCOPE)?;
-
-    if no_browser {
-        println!("Open this URL in a browser to authorize Harness:\n{authorize_url}");
-    } else if let Err(error) = open_browser(&authorize_url) {
-        eprintln!("Could not open the browser automatically: {error}");
-        println!("Open this URL in a browser to authorize Harness:\n{authorize_url}");
-    } else {
-        println!("Waiting for browser authorization…");
-    }
-
-    let code = wait_for_callback(&listener, &state, Duration::from_secs(timeout_seconds))?;
     let client = Client::builder()
         .timeout(Duration::from_secs(30))
         .build()
         .map_err(|e| Error::new(format!("HTTP client initialization failed: {e}")))?;
     let response = client
-        .post(api_url(&server, "/oauth/token"))
-        .json(&json!({
-            "grant_type": "authorization_code",
-            "client_id": CLIENT_ID,
-            "redirect_uri": redirect_uri,
-            "code": code,
-            "code_verifier": verifier,
-        }))
+        .post(oauth_url(&server, DEVICE_CODE_PATH))
+        .form(&[
+            ("client_id", CLIENT_ID),
+            ("scope", DEFAULT_SCOPE),
+            ("code_challenge", challenge.as_str()),
+            ("code_challenge_method", "S256"),
+        ])
         .send()
-        .map_err(|e| Error::new(format!("Harness authorization exchange failed: {e}")))?;
+        .map_err(|e| Error::new(format!("Harness device authorization request failed: {e}")))?;
     let status = response.status();
     if !status.is_success() {
         return Err(Error::new(format!(
-            "Harness authorization exchange rejected (HTTP {}). Run `harness login` again.",
+            "Harness device authorization request rejected (HTTP {}). Run `harness login` again.",
             status.as_u16()
         )));
     }
-    let token: TokenResponse = response
-        .json()
-        .map_err(|e| Error::new(format!("Invalid token response from Harness cloud: {e}")))?;
+    let device: DeviceCodeResponse = response.json().map_err(|e| {
+        Error::new(format!(
+            "Invalid device authorization response from Harness cloud: {e}"
+        ))
+    })?;
+    if device.device_code.is_empty()
+        || device.device_code.len() > 512
+        || device.user_code.is_empty()
+        || device.user_code.len() > 64
+        || device.expires_in == 0
+    {
+        return Err(Error::new(
+            "Harness cloud returned an incomplete device authorization response.",
+        ));
+    }
+    let verification_url = device_verification_url(&server, &device)?;
+
+    println!("Harness device login");
+    println!("Enter this code in your browser: {}", device.user_code);
+    println!("Verification URL: {verification_url}");
+    if !no_browser {
+        if let Err(error) = open_browser(&verification_url) {
+            eprintln!("Could not open the browser automatically: {error}");
+        }
+    }
+    println!("Waiting for authorization…");
+
+    let token = poll_device_token(&client, &server, &device, &verifier, timeout_seconds)?;
+    let auth = auth_state_from_token(server, token)?;
+    write_auth(&auth)?;
+    Ok(auth)
+}
+
+fn auth_state_from_token(server: String, token: TokenResponse) -> Result<AuthState> {
     if token.access_token.is_empty() || token.refresh_token.is_empty() {
         return Err(Error::new(
             "Harness cloud returned an incomplete token response.",
         ));
     }
-
     let now = unix_now();
-    let auth = AuthState {
+    Ok(AuthState {
         server,
         access_token: token.access_token,
         access_expires_at: now + token.expires_in.unwrap_or(900).clamp(60, 3600),
@@ -200,9 +226,145 @@ pub fn login(
         user_email: token.user.as_ref().and_then(|user| user.email.clone()),
         created_at: now,
         updated_at: now,
-    };
-    write_auth(&auth)?;
-    Ok(auth)
+    })
+}
+
+fn poll_device_token(
+    client: &Client,
+    server: &str,
+    device: &DeviceCodeResponse,
+    verifier: &str,
+    timeout_seconds: u64,
+) -> Result<TokenResponse> {
+    let deadline =
+        Instant::now() + Duration::from_secs(timeout_seconds.clamp(1, 900).min(device.expires_in));
+    let mut interval = Duration::from_secs(device.interval.unwrap_or(5).clamp(1, 30));
+    let mut first_poll = true;
+    loop {
+        if !first_poll {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err(Error::new(
+                    "Timed out waiting for device authorization. Run `harness login` again.",
+                ));
+            }
+            thread::sleep(interval.min(remaining));
+        }
+        first_poll = false;
+
+        let response = match client
+            .post(oauth_url(server, TOKEN_PATH))
+            .form(&[
+                ("grant_type", DEVICE_GRANT_TYPE),
+                ("client_id", CLIENT_ID),
+                ("device_code", device.device_code.as_str()),
+                ("code_verifier", verifier),
+            ])
+            .send()
+        {
+            Ok(response) => response,
+            Err(error) if Instant::now() < deadline => {
+                eprintln!("Device authorization is temporarily unavailable; retrying… ({error})");
+                continue;
+            }
+            Err(error) => {
+                return Err(Error::new(format!(
+                    "Harness device token request failed: {error}"
+                )))
+            }
+        };
+        let status = response.status();
+        let body = response.text().map_err(|e| {
+            Error::new(format!(
+                "Invalid device token response from Harness cloud: {e}"
+            ))
+        })?;
+        if status.is_success() {
+            return serde_json::from_str(&body).map_err(|e| {
+                Error::new(format!("Invalid token response from Harness cloud: {e}"))
+            });
+        }
+
+        let error_response = serde_json::from_str::<OAuthErrorResponse>(&body).ok();
+        match error_response
+            .as_ref()
+            .and_then(|error| error.error.as_deref())
+        {
+            Some("authorization_pending") => continue,
+            Some("slow_down") => {
+                interval = (interval + Duration::from_secs(5)).min(Duration::from_secs(30));
+                continue;
+            }
+            Some("access_denied") => {
+                return Err(Error::new("Harness device authorization was denied."));
+            }
+            Some("expired_token") => {
+                return Err(Error::new(
+                    "Harness device code expired. Run `harness login` again.",
+                ));
+            }
+            Some(error_code) => {
+                let description = error_response
+                    .as_ref()
+                    .and_then(|error| {
+                        error
+                            .error_description
+                            .as_deref()
+                            .or(error.message.as_deref())
+                    })
+                    .unwrap_or("Device token request was rejected.");
+                return Err(Error::new(format!(
+                    "Harness device token request rejected ({error_code}): {description}"
+                )));
+            }
+            None if status.as_u16() >= 500 && Instant::now() < deadline => continue,
+            None => {
+                return Err(Error::new(format!(
+                    "Harness device token request rejected (HTTP {}). Run `harness login` again.",
+                    status.as_u16()
+                )));
+            }
+        }
+    }
+}
+
+fn oauth_url(server: &str, path: &str) -> String {
+    format!(
+        "{}/{}",
+        server.trim_end_matches('/'),
+        path.trim_start_matches('/')
+    )
+}
+
+fn device_verification_url(server: &str, device: &DeviceCodeResponse) -> Result<String> {
+    let base = Url::parse(&device.verification_uri)
+        .map_err(|_| Error::new("Harness cloud returned an invalid device verification URL."))?;
+    let expected =
+        Url::parse(server).map_err(|_| Error::new("Invalid Harness cloud authorization URL"))?;
+    if base.origin() != expected.origin()
+        || base.path() != DEVICE_PATH
+        || base.username() != ""
+        || base.password().is_some()
+        || base.fragment().is_some()
+    {
+        return Err(Error::new(
+            "Harness cloud returned an unsafe device verification URL.",
+        ));
+    }
+    let mut complete = base;
+    complete
+        .query_pairs_mut()
+        .append_pair("user_code", &device.user_code);
+    Ok(complete.to_string())
+}
+
+/*
+ * The callback-based flow is intentionally no longer used by the CLI. The
+ * hosted Worker keeps its OAuth callback endpoint for existing clients while
+ * new CLI logins use the device grant above.
+ */
+fn _legacy_callback_note() {
+    // Keep this as a named anchor for release notes and source searches.
 }
 
 pub fn access_token() -> Result<(String, AuthState)> {
@@ -317,26 +479,6 @@ pub fn api_url(server: &str, path: &str) -> String {
     format!("{}/api{}", server.trim_end_matches('/'), suffix)
 }
 
-fn authorization_url(
-    server: &str,
-    redirect_uri: &str,
-    state: &str,
-    challenge: &str,
-    scope: &str,
-) -> Result<String> {
-    let mut url = Url::parse(&format!("{}/authorize", server.trim_end_matches('/')))
-        .map_err(|_| Error::new("Invalid Harness cloud authorization URL"))?;
-    url.query_pairs_mut()
-        .append_pair("client_id", CLIENT_ID)
-        .append_pair("redirect_uri", redirect_uri)
-        .append_pair("response_type", "code")
-        .append_pair("code_challenge", challenge)
-        .append_pair("code_challenge_method", "S256")
-        .append_pair("scope", scope)
-        .append_pair("state", state);
-    Ok(url.to_string())
-}
-
 fn pkce_challenge(verifier: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(verifier.as_bytes());
@@ -377,118 +519,11 @@ fn open_browser(url: &str) -> Result<()> {
     }
 }
 
-fn wait_for_callback(
-    listener: &TcpListener,
-    expected_state: &str,
-    timeout: Duration,
-) -> Result<String> {
-    let deadline = Instant::now() + timeout;
-    loop {
-        if Instant::now() >= deadline {
-            return Err(Error::new(
-                "Timed out waiting for browser authorization. Run `harness login` again.",
-            ));
-        }
-        match listener.accept() {
-            Ok((mut stream, _)) => {
-                let _ = stream.set_read_timeout(Some(Duration::from_secs(3)));
-                let request = read_http_head(&mut stream)?;
-                let result = callback_result(&request, expected_state);
-                let (status, body) = match &result {
-                    Ok(_) => (
-                        "200 OK",
-                        "Harness authorization complete. You can close this tab.",
-                    ),
-                    Err(_) => (
-                        "400 Bad Request",
-                        "Authorization was not accepted. You can close this tab.",
-                    ),
-                };
-                write_http_response(&mut stream, status, body);
-                if let Ok(code) = result {
-                    return Ok(code);
-                }
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                thread::sleep(Duration::from_millis(100));
-            }
-            Err(error) => return Err(Error::new(format!("OAuth callback failed: {error}"))),
-        }
-    }
-}
-
-fn read_http_head(stream: &mut TcpStream) -> Result<String> {
-    let mut bytes = Vec::with_capacity(1024);
-    let mut buf = [0u8; 1024];
-    while bytes.len() < 64 * 1024 {
-        let count = stream.read(&mut buf)?;
-        if count == 0 {
-            break;
-        }
-        bytes.extend_from_slice(&buf[..count]);
-        if bytes.windows(4).any(|window| window == b"\r\n\r\n") {
-            break;
-        }
-    }
-    String::from_utf8(bytes).map_err(|_| Error::new("OAuth callback contained invalid HTTP data"))
-}
-
-fn callback_result(request: &str, expected_state: &str) -> Result<String> {
-    let line = request
-        .lines()
-        .next()
-        .ok_or_else(|| Error::new("OAuth callback was empty"))?;
-    let mut parts = line.split_whitespace();
-    if parts.next() != Some("GET") {
-        return Err(Error::new("OAuth callback must use GET"));
-    }
-    let target = parts
-        .next()
-        .ok_or_else(|| Error::new("OAuth callback target missing"))?;
-    let parsed = Url::parse(&format!("http://localhost{target}"))
-        .map_err(|_| Error::new("OAuth callback target invalid"))?;
-    if parsed.path() != CALLBACK_PATH {
-        return Err(Error::new("OAuth callback path mismatch"));
-    }
-    let mut code = None;
-    let mut state = None;
-    let mut error = None;
-    for (key, value) in parsed.query_pairs() {
-        match key.as_ref() {
-            "code" => code = Some(value.into_owned()),
-            "state" => state = Some(value.into_owned()),
-            "error" => error = Some(value.into_owned()),
-            _ => {}
-        }
-    }
-    if let Some(error) = error {
-        return Err(Error::new(format!("Browser authorization failed: {error}")));
-    }
-    if state.as_deref() != Some(expected_state) {
-        return Err(Error::new("OAuth state mismatch"));
-    }
-    code.filter(|value| !value.is_empty())
-        .ok_or_else(|| Error::new("OAuth authorization code missing"))
-}
-
-fn write_http_response(stream: &mut TcpStream, status: &str, body: &str) {
-    let response = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n{body}",
-        body.len()
-    );
-    let _ = stream.write_all(response.as_bytes());
-}
-
 fn unix_now() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs() as i64)
         .unwrap_or(0)
-}
-
-#[allow(dead_code)]
-fn _standard_base64_is_available(value: &[u8]) -> String {
-    STANDARD.encode(value)
 }
 
 #[cfg(test)]
@@ -508,32 +543,26 @@ mod tests {
     }
 
     #[test]
-    fn builds_pkce_authorization_url_without_the_verifier() {
+    fn builds_pkce_challenge_without_the_verifier() {
         let verifier = "a-secure-verifier-value";
         let challenge = pkce_challenge(verifier);
-        let url = authorization_url(
-            "https://cloud.example.com",
-            "http://127.0.0.1:43123/callback",
-            "state-value",
-            &challenge,
-            DEFAULT_SCOPE,
-        )
-        .unwrap();
-        assert!(url.contains("code_challenge_method=S256"), "{url}");
-        assert!(
-            url.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A43123%2Fcallback"),
-            "{url}"
-        );
-        assert!(url.contains("state=state-value"), "{url}");
-        assert!(!url.contains(verifier), "verifier leaked in URL: {url}");
+        assert!(!challenge.is_empty());
+        assert!(!challenge.contains(verifier));
     }
 
     #[test]
-    fn callback_requires_exact_path_and_state() {
-        let request = "GET /callback?code=abc&state=ok HTTP/1.1\r\nHost: localhost\r\n\r\n";
-        assert_eq!(callback_result(request, "ok").unwrap(), "abc");
-        assert!(callback_result(request, "wrong").is_err());
-        assert!(callback_result("GET /callback?code=abc&state=ok HTTP/1.1\r\n\r\n", "ok").is_ok());
-        assert!(callback_result("GET /other?code=abc&state=ok HTTP/1.1\r\n\r\n", "ok").is_err());
+    fn device_verification_url_is_same_origin_and_contains_user_code() {
+        let device = DeviceCodeResponse {
+            device_code: "opaque-device-code".to_string(),
+            user_code: "ABCD-EFGH".to_string(),
+            verification_uri: "https://cloud.example.com/device".to_string(),
+            expires_in: 600,
+            interval: Some(5),
+        };
+        let url = device_verification_url("https://cloud.example.com", &device).unwrap();
+        assert_eq!(url, "https://cloud.example.com/device?user_code=ABCD-EFGH");
+        let mut unsafe_device = device;
+        unsafe_device.verification_uri = "https://evil.example.com/device".to_string();
+        assert!(device_verification_url("https://cloud.example.com", &unsafe_device).is_err());
     }
 }

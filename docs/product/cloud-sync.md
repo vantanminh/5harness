@@ -8,9 +8,9 @@ the repository remains the source of truth.
 
 ```text
 harness login
-    -> Cloudflare Worker /authorize
-    -> Firebase Auth in the browser
-    -> one-time PKCE code to the loopback CLI callback
+    -> Cloudflare Worker /oauth/device/code
+    -> Firebase Auth at the device verification page
+    -> PKCE-bound device approval and token polling (no loopback callback)
     -> rotated opaque CLI credentials in ~/.5harness/auth.json
 
 harness sync push
@@ -68,8 +68,11 @@ to remove local durable Markdown that is absent from the snapshot.
 - Payload size, file count, project count, request rate, daily operations, daily
   bytes, and retention are bounded in the Worker. IP rate-limit keys are salted
   hashes, not raw addresses.
-- OAuth redirects use exact loopback callbacks with PKCE S256 and one-time
-  authorization codes. No service-account key belongs in the browser or repo.
+- CLI login uses a short-lived RFC 8628-style device code, a PKCE S256
+  verifier, and one-time authorization codes held by the Worker. The browser
+  only approves the displayed user code; no loopback listener or callback URL
+  is required. Existing `/authorize` callback clients remain compatible.
+- No service-account key belongs in the browser or repo.
 
 ## Deployment guides
 

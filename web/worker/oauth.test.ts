@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getOAuthHelpers, handleCompatRevoke, handleCompatToken, harnessClientId } from "./oauth";
+import {
+  DEVICE_GRANT_TYPE,
+  handleCompatRevoke,
+  handleCompatToken,
+  handleDeviceCode,
+  handleDeviceToken,
+  handleOAuthRequest,
+  getOAuthHelpers,
+  harnessClientId,
+} from "./oauth";
 import { SUPPORTED_SCOPE } from "./protocol";
 
 class MemoryKV {
@@ -61,6 +70,71 @@ afterEach(() => {
 });
 
 describe("StudyOS-style OAuth/KV adapter", () => {
+  it("creates a PKCE-bound device code and returns pending/slow-down responses", async () => {
+    const env = testEnv();
+    const verifier = "device-verifier-abcdefghijklmnopqrstuvwxyz-0123456789";
+    const codeChallenge = await challenge(verifier);
+    const response = await handleDeviceCode(
+      new Request("https://worker.example/oauth/device/code", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: "harness-cli",
+          scope: SUPPORTED_SCOPE,
+          code_challenge: codeChallenge,
+          code_challenge_method: "S256",
+        }),
+      }),
+      env,
+    );
+    expect(response.status).toBe(200);
+    const device = (await response.json()) as {
+      device_code: string;
+      user_code: string;
+      verification_uri: string;
+      interval: number;
+    };
+    expect(device.device_code).toBeTruthy();
+    expect(device.user_code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+    expect(device.verification_uri).toBe("https://worker.example/device");
+    expect(device.interval).toBe(5);
+
+    const tokenRequest = () =>
+      new Request("https://worker.example/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: DEVICE_GRANT_TYPE,
+          client_id: "harness-cli",
+          device_code: device.device_code,
+          code_verifier: verifier,
+        }),
+      });
+    const pending = await handleDeviceToken(tokenRequest(), env, context());
+    expect(pending.status).toBe(400);
+    expect((await pending.json() as { error?: string }).error).toBe("authorization_pending");
+    const tooSoon = await handleDeviceToken(tokenRequest(), env, context());
+    expect(tooSoon.status).toBe(400);
+    expect((await tooSoon.json() as { error?: string }).error).toBe("slow_down");
+  });
+
+  it("advertises the device authorization endpoint in OAuth metadata", async () => {
+    const env = testEnv();
+    const response = await handleOAuthRequest(
+      new Request("https://worker.example/.well-known/oauth-authorization-server"),
+      env,
+      context(),
+    );
+    expect(response.status).toBe(200);
+    const metadata = (await response.json()) as Record<string, unknown>;
+    expect(metadata.device_authorization_endpoint).toBe(
+      "https://worker.example/oauth/device/code",
+    );
+    expect(metadata.grant_types_supported).toEqual(
+      expect.arrayContaining([DEVICE_GRANT_TYPE]),
+    );
+  });
+
   it("keeps the CLI alias stable and exchanges JSON compatibility requests through the provider", async () => {
     const env = testEnv();
     const clientId = await harnessClientId(env);

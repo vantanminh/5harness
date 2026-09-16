@@ -19,11 +19,15 @@ import {
   usageFor,
 } from "./limits";
 import {
+  DEVICE_APPROVE_ROUTE,
+  DEVICE_CSRF_ROUTE,
   getOAuthHelpers,
   handleCompatAuthorize,
   handleCompatRevoke,
   handleCompatRevokeAll,
   handleCompatToken,
+  handleDeviceApprove,
+  handleDeviceCsrf,
 } from "./oauth";
 import {
   isValidProjectId,
@@ -226,6 +230,12 @@ export async function handleApi(
     }
     if (url.pathname === "/api/oauth/revoke-all" && request.method === "POST") {
       return handleCompatRevokeAll(request, env);
+    }
+    if (url.pathname === DEVICE_CSRF_ROUTE && request.method === "GET") {
+      return handleDeviceCsrf(request, env);
+    }
+    if (url.pathname === DEVICE_APPROVE_ROUTE && request.method === "POST") {
+      return handleDeviceApprove(request, env);
     }
     if (url.pathname === "/api/sync/usage" && request.method === "GET") {
       await consumeRateLimit(request, env, "sync-usage", 30);

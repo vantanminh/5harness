@@ -74,8 +74,8 @@ replace the single-project consent selection or the all-projects
 
 ```text
 trusted device
-  -> harness login (loopback callback + PKCE)
-  -> browser Firebase Auth + App Check
+  -> harness login (device code + PKCE polling)
+  -> browser Firebase Auth + App Check at /device
   -> Cloudflare Worker (OAuth/KV, quotas, CAS revisions)
   -> Firebase Auth + Firestore REST (Spark plan)
   -> user-scoped Firestore encrypted envelope

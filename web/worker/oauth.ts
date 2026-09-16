@@ -18,6 +18,7 @@ import {
   isValidCodeChallenge,
   isValidRedirectUri,
   isValidState,
+  randomOpaque,
   SYNC_READ_SCOPE,
   SYNC_WRITE_SCOPE,
 } from "./protocol";
@@ -25,14 +26,41 @@ import type { Env, HarnessOAuthProps } from "./types";
 
 const AUTHORIZE_ROUTE = "/authorize";
 const TOKEN_ROUTE = "/oauth/token";
+export const DEVICE_CODE_ROUTE = "/oauth/device/code";
+export const DEVICE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code";
+export const DEVICE_VERIFY_ROUTE = "/device";
+export const DEVICE_CSRF_ROUTE = "/api/oauth/device/csrf";
+export const DEVICE_APPROVE_ROUTE = "/api/oauth/device/approve";
 const REGISTER_ROUTE = "/oauth/register";
 const AUTHORIZATION_SERVER_METADATA_ROUTE = "/.well-known/oauth-authorization-server";
 const PROTECTED_RESOURCE_METADATA_ROUTE = "/.well-known/oauth-protected-resource";
 const CLIENT_ALIAS_KEY = "config:harness-cli-client";
 const CSRF_COOKIE = "__Host-harness-oauth-csrf";
+const DEVICE_CSRF_COOKIE = "__Host-harness-device-csrf";
+const DEVICE_KEY_PREFIX = "oauth:device:";
+const DEVICE_USER_KEY_PREFIX = "oauth:device-user:";
+const DEVICE_TTL_SECONDS = 10 * 60;
+const DEVICE_POLL_INTERVAL_SECONDS = 5;
+const DEVICE_INTERNAL_REDIRECT_URI = "http://127.0.0.1/callback";
+const DEVICE_USER_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const CSRF_TTL_SECONDS = 600;
 const ACCESS_TOKEN_TTL = 15 * 60;
 const REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60;
+
+type DeviceCodeRecord = {
+  deviceCodeHash: string;
+  userCodeHash: string;
+  clientId: string;
+  scope: string[];
+  codeChallenge: string;
+  codeChallengeMethod: "S256";
+  status: "pending" | "approved";
+  authCode?: string;
+  createdAt: number;
+  expiresAt: number;
+  interval: number;
+  lastPollAt?: number;
+};
 
 function clientDisplayName(name?: string): string {
   const value = name?.trim();
@@ -59,6 +87,16 @@ function csrfCookie(token: string, maxAge: number): string {
   );
 }
 
+function deviceCsrfCookie(token: string, maxAge: number): string {
+  return (
+    DEVICE_CSRF_COOKIE +
+    "=" +
+    token +
+    "; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=" +
+    maxAge
+  );
+}
+
 function withSetCookie(response: Response, value: string): Response {
   const headers = new Headers(response.headers);
   headers.append("Set-Cookie", value);
@@ -71,6 +109,10 @@ function withSetCookie(response: Response, value: string): Response {
 
 function clearCsrfCookie(response: Response): Response {
   return withSetCookie(response, csrfCookie("", 0));
+}
+
+function clearDeviceCsrfCookie(response: Response): Response {
+  return withSetCookie(response, deviceCsrfCookie("", 0));
 }
 
 function oauthErrorRedirect(
@@ -127,6 +169,103 @@ function formText(form: FormData, name: string, maxLength: number): string | nul
   return typeof value === "string" && value.length > 0 && value.length <= maxLength
     ? value
     : null;
+}
+
+function unixNow(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+async function pkceChallenge(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  let binary = "";
+  for (const byte of new Uint8Array(digest)) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function deviceKey(deviceCodeHash: string): string {
+  return DEVICE_KEY_PREFIX + deviceCodeHash;
+}
+
+function deviceUserKey(userCodeHash: string): string {
+  return DEVICE_USER_KEY_PREFIX + userCodeHash;
+}
+
+function normalizeUserCode(value: unknown): string | null {
+  if (typeof value !== "string" || value.length === 0 || value.length > 32) return null;
+  const normalized = value.replace(/[\s-]/g, "").toUpperCase();
+  if (
+    normalized.length !== 8 ||
+    !new RegExp("^[" + DEVICE_USER_CODE_ALPHABET + "]{8}$").test(normalized)
+  ) {
+    return null;
+  }
+  return normalized;
+}
+
+function displayUserCode(value: string): string {
+  return value.slice(0, 4) + "-" + value.slice(4);
+}
+
+function validCodeVerifier(value: unknown): value is string {
+  return typeof value === "string" && /^[A-Za-z0-9._~-]{43,128}$/.test(value);
+}
+
+function requestedScopes(value: unknown): string[] | null {
+  if (typeof value !== "string" || value.length === 0 || value.length > 512) return null;
+  const scopes = value.trim().split(/\s+/).filter(Boolean);
+  if (
+    scopes.length === 0 ||
+    !scopes.includes(SYNC_READ_SCOPE) ||
+    scopes.some(
+      (scope) =>
+        scope !== SYNC_READ_SCOPE &&
+        scope !== SYNC_WRITE_SCOPE &&
+        scope !== "offline_access",
+    )
+  ) {
+    return null;
+  }
+  return [...new Set(scopes)];
+}
+
+function randomUserCode(): string {
+  const bytes = new Uint8Array(16);
+  const limit = 256 - (256 % DEVICE_USER_CODE_ALPHABET.length);
+  let raw = "";
+  while (raw.length < 8) {
+    crypto.getRandomValues(bytes);
+    for (const byte of bytes) {
+      if (byte >= limit) continue;
+      raw += DEVICE_USER_CODE_ALPHABET[byte % DEVICE_USER_CODE_ALPHABET.length];
+      if (raw.length === 8) break;
+    }
+  }
+  return displayUserCode(raw);
+}
+
+function retryResponse(
+  request: Request,
+  env: Env,
+  error: string,
+  message: string,
+  retryAfter?: number,
+): Response {
+  const response = errorJson(request, env, error, message, 400);
+  if (retryAfter === undefined) return response;
+  const headers = new Headers(response.headers);
+  headers.set("Retry-After", String(Math.max(1, Math.floor(retryAfter))));
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
 function unsupportedScopes(request: AuthRequest): boolean {
@@ -263,6 +402,203 @@ async function canonicalClientId(env: Env, requested: unknown): Promise<string> 
   return requested;
 }
 
+async function loadDeviceRecord(
+  env: Env,
+  deviceCodeHash: string,
+): Promise<DeviceCodeRecord | null> {
+  const value = await env.OAUTH_KV.get(deviceKey(deviceCodeHash), { type: "json" });
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as DeviceCodeRecord;
+}
+
+async function deleteDeviceRecord(env: Env, record: DeviceCodeRecord): Promise<void> {
+  await Promise.all([
+    env.OAUTH_KV.delete(deviceKey(record.deviceCodeHash)),
+    env.OAUTH_KV.delete(deviceUserKey(record.userCodeHash)),
+  ]);
+}
+
+/** Starts an RFC 8628-style device authorization transaction for the CLI. */
+export async function handleDeviceCode(request: Request, env: Env): Promise<Response> {
+  if (request.method !== "POST") {
+    return withCors(
+      request,
+      env,
+      new Response("Method Not Allowed", {
+        status: 405,
+        headers: { Allow: "POST", "Cache-Control": "no-store" },
+      }),
+    );
+  }
+  await consumeRateLimit(request, env, "oauth-device-code", 20);
+  const contentLength = Number(request.headers.get("Content-Length") ?? "0");
+  if (contentLength > 16_384) {
+    throw new ApiError(413, "payload_too_large", "Request body is too large.");
+  }
+  const contentType = request.headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase();
+  if (contentType !== "application/x-www-form-urlencoded") {
+    throw new ApiError(
+      400,
+      "invalid_request",
+      "Content-Type must be application/x-www-form-urlencoded.",
+    );
+  }
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    throw new ApiError(400, "invalid_request", "Request body must be valid form data.");
+  }
+  const codeChallenge = formText(form, "code_challenge", 128);
+  const scope = requestedScopes(formText(form, "scope", 512));
+  if (
+    !codeChallenge ||
+    !isValidCodeChallenge(codeChallenge) ||
+    form.get("code_challenge_method") !== "S256" ||
+    !scope
+  ) {
+    throw new ApiError(400, "invalid_request", "Device authorization request is invalid.");
+  }
+  const clientId = await canonicalClientId(env, formText(form, "client_id", 512));
+  const now = unixNow();
+  let deviceCode = "";
+  let userCode = "";
+  let deviceCodeHash = "";
+  let userCodeHash = "";
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    deviceCode = randomOpaque(32);
+    userCode = randomUserCode();
+    deviceCodeHash = await sha256Hex(deviceCode);
+    userCodeHash = await sha256Hex(userCode.replace("-", ""));
+    const existing = await env.OAUTH_KV.get(deviceUserKey(userCodeHash));
+    if (!existing) break;
+    if (attempt === 2) {
+      throw new ApiError(503, "oauth_unavailable", "Could not allocate a device code. Try again.");
+    }
+  }
+  const record: DeviceCodeRecord = {
+    deviceCodeHash,
+    userCodeHash,
+    clientId,
+    scope,
+    codeChallenge,
+    codeChallengeMethod: "S256",
+    status: "pending",
+    createdAt: now,
+    expiresAt: now + DEVICE_TTL_SECONDS,
+    interval: DEVICE_POLL_INTERVAL_SECONDS,
+  };
+  await env.OAUTH_KV.put(deviceKey(deviceCodeHash), JSON.stringify(record), {
+    expirationTtl: DEVICE_TTL_SECONDS,
+  });
+  await env.OAUTH_KV.put(deviceUserKey(userCodeHash), deviceCodeHash, {
+    expirationTtl: DEVICE_TTL_SECONDS,
+  });
+  const verificationUri = new URL(DEVICE_VERIFY_ROUTE, request.url);
+  const complete = new URL(verificationUri);
+  complete.searchParams.set("user_code", userCode);
+  return json(request, env, {
+    device_code: deviceCode,
+    user_code: userCode,
+    verification_uri: verificationUri.toString(),
+    verification_uri_complete: complete.toString(),
+    expires_in: DEVICE_TTL_SECONDS,
+    interval: DEVICE_POLL_INTERVAL_SECONDS,
+  });
+}
+
+export async function handleDeviceToken(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> {
+  await consumeRateLimit(request, env, "oauth-device-token", 120);
+  const contentLength = Number(request.headers.get("Content-Length") ?? "0");
+  if (contentLength > 16_384) {
+    throw new ApiError(413, "payload_too_large", "Request body is too large.");
+  }
+  const contentType = request.headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase();
+  if (contentType !== "application/x-www-form-urlencoded") {
+    throw new ApiError(
+      400,
+      "invalid_request",
+      "Content-Type must be application/x-www-form-urlencoded.",
+    );
+  }
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    throw new ApiError(400, "invalid_request", "Request body must be valid form data.");
+  }
+  const deviceCode = formText(form, "device_code", 512);
+  const verifier = formText(form, "code_verifier", 128);
+  if (!deviceCode || !validCodeVerifier(verifier)) {
+    throw new ApiError(400, "invalid_request", "Device token request is invalid.");
+  }
+  const clientId = await canonicalClientId(env, formText(form, "client_id", 512));
+  const deviceCodeHash = await sha256Hex(deviceCode);
+  const record = await loadDeviceRecord(env, deviceCodeHash);
+  if (!record || record.clientId !== clientId) {
+    return retryResponse(request, env, "invalid_grant", "Device code is invalid or expired.");
+  }
+  const now = unixNow();
+  if (record.expiresAt <= now) {
+    await deleteDeviceRecord(env, record);
+    return retryResponse(request, env, "expired_token", "Device code has expired.");
+  }
+  if (record.codeChallenge !== (await pkceChallenge(verifier))) {
+    return retryResponse(request, env, "invalid_grant", "Device code verifier is invalid.");
+  }
+  const elapsed = record.lastPollAt === undefined ? record.interval : now - record.lastPollAt;
+  if (record.lastPollAt !== undefined && elapsed < record.interval) {
+    record.interval = Math.min(30, record.interval + 5);
+    record.lastPollAt = now;
+    await env.OAUTH_KV.put(deviceKey(record.deviceCodeHash), JSON.stringify(record), {
+      expirationTtl: Math.max(1, record.expiresAt - now),
+    });
+    return retryResponse(
+      request,
+      env,
+      "slow_down",
+      "Poll interval is too short. Try again later.",
+      record.interval,
+    );
+  }
+  record.lastPollAt = now;
+  await env.OAUTH_KV.put(deviceKey(record.deviceCodeHash), JSON.stringify(record), {
+    expirationTtl: Math.max(1, record.expiresAt - now),
+  });
+  if (record.status !== "approved" || !record.authCode) {
+    return retryResponse(
+      request,
+      env,
+      "authorization_pending",
+      "Device authorization is still pending.",
+      record.interval,
+    );
+  }
+
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    client_id: record.clientId,
+    redirect_uri: DEVICE_INTERNAL_REDIRECT_URI,
+    code: record.authCode,
+    code_verifier: verifier,
+  });
+  const headers = new Headers({ "Content-Type": "application/x-www-form-urlencoded" });
+  const origin = request.headers.get("Origin");
+  if (origin) headers.set("Origin", origin);
+  const forwarded = new Request(new URL(TOKEN_ROUTE, request.url), {
+    method: "POST",
+    headers,
+    body,
+  });
+  const response = await oauthProvider.fetch(forwarded, env, ctx);
+  if (response.ok) await deleteDeviceRecord(env, record);
+  return withCors(request, env, response);
+}
+
 function requestWithClientId(request: Request, clientId: string): Request {
   const url = new URL(request.url);
   if (url.searchParams.get("client_id") === CLIENT_ID) {
@@ -314,6 +650,103 @@ async function completeFirebaseAuthorization(
     scope,
     props,
   });
+}
+
+/** Issues a short-lived HttpOnly CSRF cookie for the device approval form. */
+export async function handleDeviceCsrf(request: Request, env: Env): Promise<Response> {
+  if (request.method !== "GET") {
+    return withCors(
+      request,
+      env,
+      new Response("Method Not Allowed", {
+        status: 405,
+        headers: { Allow: "GET", "Cache-Control": "no-store" },
+      }),
+    );
+  }
+  await consumeRateLimit(request, env, "oauth-device-csrf", 30);
+  const token = randomOpaque(24);
+  return withSetCookie(
+    json(request, env, { csrf_token: token }),
+    deviceCsrfCookie(token, CSRF_TTL_SECONDS),
+  );
+}
+
+/** Approves a pending device code using the currently signed-in Firebase user. */
+export async function handleDeviceApprove(request: Request, env: Env): Promise<Response> {
+  if (request.method !== "POST") {
+    return withCors(
+      request,
+      env,
+      new Response("Method Not Allowed", {
+        status: 405,
+        headers: { Allow: "POST", "Cache-Control": "no-store" },
+      }),
+    );
+  }
+  await consumeRateLimit(request, env, "oauth-device-approve", 30);
+  const body = await readJsonObject(request);
+  const csrf = typeof body.csrf_token === "string" ? body.csrf_token : "";
+  if (!csrf || csrf !== cookieValue(request, DEVICE_CSRF_COOKIE)) {
+    throw new ApiError(403, "csrf_invalid", "Device authorization request expired or invalid.");
+  }
+  const normalizedUserCode = normalizeUserCode(body.user_code);
+  if (!normalizedUserCode) {
+    throw new ApiError(400, "invalid_request", "Enter the eight-character device code.");
+  }
+  const firebaseRefreshToken = body.firebase_refresh_token;
+  if (typeof firebaseRefreshToken !== "string" || firebaseRefreshToken.length > 8192) {
+    throw new ApiError(401, "unauthenticated", "Firebase refresh credential is required.");
+  }
+  const firebaseIdToken = getBearerToken(request);
+  const userCodeHash = await sha256Hex(normalizedUserCode);
+  const rawDeviceCodeHash = await env.OAUTH_KV.get(deviceUserKey(userCodeHash));
+  if (typeof rawDeviceCodeHash !== "string" || !/^[a-f0-9]{64}$/.test(rawDeviceCodeHash)) {
+    throw new ApiError(400, "invalid_grant", "Device code is invalid or expired.");
+  }
+  const record = await loadDeviceRecord(env, rawDeviceCodeHash);
+  if (!record || record.userCodeHash !== userCodeHash) {
+    throw new ApiError(400, "invalid_grant", "Device code is invalid or expired.");
+  }
+  if (record.expiresAt <= unixNow()) {
+    await deleteDeviceRecord(env, record);
+    throw new ApiError(400, "expired_token", "Device code has expired.");
+  }
+  if (record.status === "approved" && record.authCode) {
+    return clearDeviceCsrfCookie(json(request, env, { ok: true }));
+  }
+
+  const helpers = getOAuthHelpers(env);
+  const result = await completeFirebaseAuthorization(
+    {
+      responseType: "code",
+      clientId: record.clientId,
+      redirectUri: DEVICE_INTERNAL_REDIRECT_URI,
+      scope: record.scope,
+      state: randomOpaque(24),
+      codeChallenge: record.codeChallenge,
+      codeChallengeMethod: record.codeChallengeMethod,
+    },
+    firebaseIdToken,
+    firebaseRefreshToken,
+    env,
+    helpers,
+  );
+  const callback = new URL(result.redirectTo);
+  const internalRedirect = new URL(DEVICE_INTERNAL_REDIRECT_URI);
+  if (callback.origin !== internalRedirect.origin || callback.pathname !== internalRedirect.pathname) {
+    throw new ApiError(500, "oauth_failed", "OAuth authorization code was not created.");
+  }
+  const authCode = callback.searchParams.get("code");
+  if (!authCode || authCode.length > 2048) {
+    throw new ApiError(500, "oauth_failed", "OAuth authorization code was not created.");
+  }
+  record.status = "approved";
+  record.authCode = authCode;
+  await env.OAUTH_KV.put(deviceKey(record.deviceCodeHash), JSON.stringify(record), {
+    expirationTtl: Math.max(1, record.expiresAt - unixNow()),
+  });
+  return clearDeviceCsrfCookie(json(request, env, { ok: true }));
 }
 
 async function readJsonObject(request: Request): Promise<Record<string, unknown>> {
@@ -493,6 +926,7 @@ export function isOAuthRoute(pathname: string): boolean {
   return (
     pathname === AUTHORIZE_ROUTE ||
     pathname === TOKEN_ROUTE ||
+    pathname === DEVICE_CODE_ROUTE ||
     pathname === REGISTER_ROUTE ||
     pathname === MCP_ROUTE ||
     pathname === AUTHORIZATION_SERVER_METADATA_ROUTE ||
@@ -501,13 +935,64 @@ export function isOAuthRoute(pathname: string): boolean {
   );
 }
 
+async function isDeviceTokenRequest(request: Request): Promise<boolean> {
+  if (request.method !== "POST") return false;
+  try {
+    const form = await request.clone().formData();
+    return form.get("grant_type") === DEVICE_GRANT_TYPE;
+  } catch {
+    return false;
+  }
+}
+
+async function metadataResponse(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> {
+  const response = await oauthProvider.fetch(request, env, ctx);
+  if (!response.ok) return withCors(request, env, response);
+  let metadata: Record<string, unknown>;
+  try {
+    const value: unknown = await response.clone().json();
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return withCors(request, env, response);
+    }
+    metadata = value as Record<string, unknown>;
+  } catch {
+    return withCors(request, env, response);
+  }
+  const grants = Array.isArray(metadata.grant_types_supported)
+    ? metadata.grant_types_supported.filter((value): value is string => typeof value === "string")
+    : [];
+  if (!grants.includes(DEVICE_GRANT_TYPE)) grants.push(DEVICE_GRANT_TYPE);
+  metadata.grant_types_supported = grants;
+  metadata.device_authorization_endpoint = new URL(DEVICE_CODE_ROUTE, request.url).toString();
+  return withCors(
+    request,
+    env,
+    new Response(JSON.stringify(metadata), {
+      status: response.status,
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+    }),
+  );
+}
+
 export async function handleOAuthRequest(
   request: Request,
   env: Env,
   ctx: ExecutionContext,
 ): Promise<Response> {
+  const pathname = new URL(request.url).pathname;
+  if (pathname === DEVICE_CODE_ROUTE) return handleDeviceCode(request, env);
+  if (pathname === TOKEN_ROUTE && (await isDeviceTokenRequest(request))) {
+    return handleDeviceToken(request, env, ctx);
+  }
+  if (pathname === AUTHORIZATION_SERVER_METADATA_ROUTE) {
+    return metadataResponse(request, env, ctx);
+  }
   const rewritten =
-    new URL(request.url).pathname === AUTHORIZE_ROUTE
+    pathname === AUTHORIZE_ROUTE
       ? requestWithClientId(request, await harnessClientId(env))
       : request;
   try {

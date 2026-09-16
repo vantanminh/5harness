@@ -178,7 +178,7 @@ enum Commands {
         #[command(subcommand)]
         cmd: Option<DashboardCmd>,
     },
-    /// Authorize this CLI with the hosted Harness cloud through a browser
+    /// Authorize this CLI with the hosted Harness cloud using a device code
     Login {
         #[arg(long = "server")]
         server: Option<String>,

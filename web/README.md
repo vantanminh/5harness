@@ -40,7 +40,8 @@ project-shaped `/api` URL and set `VITE_WORKER_DEV=false` if you need it.
 ## Routes
 
 - `/` — product landing page and Google sign-in
-- `/authorize` — OAuth consent screen used by `harness login` and MCP clients
+- `/authorize` — legacy OAuth consent screen for callback-based clients and MCP
+- `/device` — device-code approval screen opened by `harness login`
 - `/dashboard` — account-scoped encrypted snapshot metadata
 - `/projects/:projectId` — local-in-browser unlock and manifest inspection
 - `/settings` — setup, privacy boundary, and CLI session revocation
@@ -71,13 +72,19 @@ npm run deploy:worker
 
 `deploy:worker` builds the SPA, typechecks the Worker, removes the Pages-only
 `_redirects` file from the Worker asset bundle, and deploys
-`wrangler.worker.jsonc`. The Worker serves `/api/*`, `/authorize`,
+`wrangler.worker.jsonc`. The Worker serves `/api/*`, `/authorize`, `/device`,
 `/oauth/*`, `/.well-known/*`, `/mcp`, and the SPA assets from one origin. Use
 the resulting `https://<worker>.<account>.workers.dev` URL as the CLI server:
 
 ```bash
 harness login --server https://<worker>.<account>.workers.dev
 ```
+
+The CLI prints an eight-character device code and opens (or displays) the
+Worker's `/device` page. Sign in there and enter the code; the CLI polls the
+PKCE-bound `/oauth/token` endpoint until the rotating credential is issued.
+This avoids a loopback callback listener. The legacy `/authorize` route stays
+available for existing OAuth clients.
 
 The Worker configuration intentionally contains only public Firebase web
 configuration. OAuth grant properties are encrypted by

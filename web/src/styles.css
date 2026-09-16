@@ -78,6 +78,15 @@ h2 { letter-spacing: -0.045em; }
 .callback-note { color: var(--muted); font-size: 0.75rem; line-height: 1.7; }
 .callback-note code { font-size: 0.68rem; word-break: break-all; }
 .consent-card .button-row { justify-content: center; }
+.device-card { text-align: center; }
+.device-card h1 { margin-left: auto; margin-right: auto; }
+.device-card .muted { max-width: 500px; margin-left: auto; margin-right: auto; line-height: 1.7; }
+.device-form { display: flex; flex-direction: column; gap: 8px; max-width: 330px; margin: 30px auto 12px; text-align: left; }
+.device-form label { color: var(--muted); font-size: 0.73rem; font-weight: 700; }
+.device-form small, .device-login-note { color: var(--muted); font-size: 0.75rem; }
+.device-code-input { width: 100%; padding: 15px 17px; border: 1px solid var(--line); border-radius: 12px; outline: none; background: #faf8f2; font-family: "DM Mono", ui-monospace, monospace; font-size: 1.15rem; letter-spacing: 0.12em; text-align: center; }
+.device-code-input:focus { border-color: var(--sage-deep); box-shadow: 0 0 0 3px rgba(167, 192, 171, 0.26); }
+.device-login-note { margin: 18px 0; }
 .section-heading { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 38px; }
 .section-heading h1 { margin-bottom: 12px; font-size: clamp(2.7rem, 6vw, 4.7rem); }
 .section-heading .muted { margin-bottom: 0; }

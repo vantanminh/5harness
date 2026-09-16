@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `harness login` now uses a PKCE-bound device code that can be approved in a
+  browser without requiring a loopback callback URL.
+
 ## [0.28.0] - 2026-09-16
 
 ### Changed
