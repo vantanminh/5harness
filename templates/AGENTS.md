@@ -18,7 +18,7 @@ service-account keys, Pages secrets, or a sync passphrase. Review the project's
 cloud sync runbook before enabling it.
 
 <!-- HARNESS:BEGIN -->
-<!-- harness-version: 0.30.0 -->
+<!-- harness-version: 0.30.1 -->
 ## Harness
 
 **5harness** (bin `harness`) is this repo's operating system for **coding

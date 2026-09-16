@@ -87,7 +87,7 @@ must include only the supported durable roots, encrypt before upload, and keep
   `firebase/README.md`, and `web/README.md`.
 
 <!-- HARNESS:BEGIN -->
-<!-- harness-version: 0.30.0 -->
+<!-- harness-version: 0.30.1 -->
 <!-- harness-project-id: 2155089a1e379d9ebae4b4ac654e7360 -->
 ## Harness
 
