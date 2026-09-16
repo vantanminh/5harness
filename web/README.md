@@ -23,10 +23,12 @@ are safe to embed in a browser bundle; they are not service credentials. The
 App Check site key is optional for the Worker backend and may be left blank in
 local development.
 
-For a local Worker, build the SPA, copy `.dev.vars.example` to `.dev.vars`,
-then run:
+For a local Worker, build the SPA, prepare the Worker-only asset directory,
+copy `.dev.vars.example` to `.dev.vars`, then run:
 
 ```bash
+npm run build
+npm run worker:assets
 npx wrangler dev --config wrangler.worker.jsonc
 ```
 
@@ -67,7 +69,8 @@ npx wrangler secret put RATE_LIMIT_SALT --config wrangler.worker.jsonc
 npm run deploy:worker
 ```
 
-`deploy:worker` builds the SPA, typechecks the Worker, and deploys
+`deploy:worker` builds the SPA, typechecks the Worker, removes the Pages-only
+`_redirects` file from the Worker asset bundle, and deploys
 `wrangler.worker.jsonc`. The Worker serves `/api/*`, `/authorize`,
 `/oauth/*`, `/.well-known/*`, `/mcp`, and the SPA assets from one origin. Use
 the resulting `https://<worker>.<account>.workers.dev` URL as the CLI server:

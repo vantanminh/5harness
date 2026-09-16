@@ -23,6 +23,7 @@ bin/harness.exe
 bin/harness-*
 *.tsbuildinfo
 web/worker-configuration.d.ts
+web/dist-worker/
 coverage/
 *.tgz
 .5harness-backup/

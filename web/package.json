@@ -10,12 +10,13 @@
     "worker:check": "tsc -p worker/tsconfig.json --noEmit",
     "check": "tsc -b --pretty false && npm run worker:check",
     "preview": "vite preview",
+    "worker:assets": "node scripts/prepare-worker-assets.mjs",
     "test": "vitest run --config vitest.config.ts",
     "test:worker": "vitest run --config vitest.worker.config.ts",
     "deploy": "npm run build && wrangler pages deploy dist --project-name=5harness-cloud",
     "deploy:preview": "npm run build && wrangler pages deploy dist --project-name=5harness-cloud --branch=preview",
-    "deploy:worker": "npm run build && npm run worker:check && wrangler deploy --config wrangler.worker.jsonc",
-    "deploy:worker:dry": "npm run build && npm run worker:check && wrangler deploy --config wrangler.worker.jsonc --dry-run"
+    "deploy:worker": "npm run build && npm run worker:check && npm run worker:assets && wrangler deploy --config wrangler.worker.jsonc",
+    "deploy:worker:dry": "npm run build && npm run worker:check && npm run worker:assets && wrangler deploy --config wrangler.worker.jsonc --dry-run"
   },
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "^0.10.3",
