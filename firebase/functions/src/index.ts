@@ -113,10 +113,6 @@ function projectRef(uid: string, projectId: string): DocumentReference {
   return firestore.collection("users").doc(uid).collection("projects").doc(projectId);
 }
 
-function accountRef(uid: string): DocumentReference {
-  return firestore.collection("users").doc(uid);
-}
-
 function refreshRef(tokenHash: string): DocumentReference {
   return firestore.collection("refreshTokens").doc(tokenHash);
 }
@@ -678,11 +674,7 @@ app.post("/sync/snapshots", asyncRoute(async (request, response) => {
   let createdAt = currentTime;
   await firestore.runTransaction(async (transaction) => {
     const existing = await transaction.get(reference);
-    const account = existing.exists ? null : await transaction.get(accountRef(principal.uid));
     const data = existing.data() ?? {};
-    const currentProjectCount = typeof account?.data()?.projectCount === "number"
-      ? account.data()?.projectCount
-      : 0;
     if (existing.exists) {
       if (!baseRevision || data.revision !== baseRevision) {
         throw new ApiError(409, "revision_conflict", "Cloud snapshot changed; pull it before pushing.");
@@ -690,15 +682,28 @@ app.post("/sync/snapshots", asyncRoute(async (request, response) => {
       if (data.createdAt) createdAt = data.createdAt as Timestamp;
     } else if (baseRevision) {
       throw new ApiError(409, "revision_conflict", "Cloud snapshot changed; pull it before pushing.");
-    } else if (currentProjectCount >= MAX_PROJECTS) {
-      throw new ApiError(429, "project_quota_exceeded", "This account has reached its project limit.");
-    }
-    if (!existing.exists) {
-      transaction.set(
-        accountRef(principal.uid),
-        { projectCount: currentProjectCount + 1, updatedAt: currentTime },
-        { merge: true },
+    } else {
+      // Do not maintain a separate counter: Firestore TTL removes expired
+      // snapshots without updating a parent document. Count live documents
+      // inside this transaction so the cap remains correct after TTL cleanup.
+      const projects = await transaction.get(
+        firestore.collection("users")
+          .doc(principal.uid)
+          .collection("projects")
+          .limit(MAX_PROJECTS + 1),
       );
+      const now = Date.now();
+      let liveProjects = 0;
+      for (const project of projects.docs) {
+        if (timestampMillis(project.data()?.expiresAt) > now) {
+          liveProjects += 1;
+        } else {
+          transaction.delete(project.ref);
+        }
+      }
+      if (liveProjects >= MAX_PROJECTS) {
+        throw new ApiError(429, "project_quota_exceeded", "This account has reached its project limit.");
+      }
     }
     transaction.set(reference, {
       projectId,
@@ -730,16 +735,7 @@ app.delete("/sync/snapshots/:projectId", asyncRoute(async (request, response) =>
   await firestore.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(reference);
     if (!snapshot.exists) return;
-    const account = await transaction.get(accountRef(principal.uid));
-    const currentCount = typeof account.data()?.projectCount === "number"
-      ? account.data()?.projectCount
-      : 1;
     transaction.delete(reference);
-    transaction.set(
-      accountRef(principal.uid),
-      { projectCount: Math.max(0, currentCount - 1), updatedAt: nowTimestamp() },
-      { merge: true },
-    );
   });
   response.status(204).end();
 }));
