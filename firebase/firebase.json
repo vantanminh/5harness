@@ -7,6 +7,14 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "auth": {
+    "providers": {
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Harness Cloud",
+        "supportEmail": "vantanminh61@gmail.com"
+      }
+    }
+  },
   "emulators": {
     "functions": {
       "port": 5001

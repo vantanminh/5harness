@@ -4,6 +4,6 @@
   "description": "Firebase deployment commands for Harness Cloud",
   "scripts": {
     "emulators": "firebase emulators:start --config firebase.json",
-    "deploy": "firebase deploy --config firebase.json --only functions,firestore:rules,firestore:indexes"
+    "deploy": "firebase deploy --config firebase.json --only auth,functions,firestore:rules,firestore:indexes"
   }
 }

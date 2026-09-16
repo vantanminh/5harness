@@ -12,7 +12,7 @@ import {
 import {
   getToken,
   initializeAppCheck,
-  ReCaptchaV3Provider,
+  ReCaptchaEnterpriseProvider,
   type AppCheck,
 } from "firebase/app-check";
 
@@ -39,7 +39,7 @@ let appCheck: AppCheck | undefined;
 const appCheckSiteKey = import.meta.env.VITE_FIREBASE_APPCHECK_SITE_KEY ?? "";
 if (appCheckSiteKey && firebaseApp && typeof window !== "undefined") {
   appCheck = initializeAppCheck(firebaseApp, {
-    provider: new ReCaptchaV3Provider(appCheckSiteKey),
+    provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
     isTokenAutoRefreshEnabled: true,
   });
 }

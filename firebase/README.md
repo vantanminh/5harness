@@ -57,8 +57,9 @@ firebase functions:secrets:set CLOUD_PROXY_TOKEN
 
 ## App Check
 
-Register the web application in Firebase App Check, choose reCAPTCHA v3, and
-put its site key in `web/.env.local` as
+Register the web application in Firebase App Check with a reCAPTCHA Enterprise
+score key restricted to the deployed Pages hostname, and put its site key in
+`web/.env.local` as
 `VITE_FIREBASE_APPCHECK_SITE_KEY`. Keep `ENFORCE_APP_CHECK=true` for deployed
 Functions. The emulator bypasses App Check only when Firebase sets
 `FUNCTIONS_EMULATOR=true`.

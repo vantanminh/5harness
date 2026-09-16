@@ -16,8 +16,8 @@ npm run build
 
 Fill the public `VITE_FIREBASE_*` values from Firebase Console. These values
 are safe to embed in a browser bundle; they are not service credentials. Set
-`VITE_FIREBASE_APPCHECK_SITE_KEY` to the reCAPTCHA v3 site key used by Firebase
-App Check.
+`VITE_FIREBASE_APPCHECK_SITE_KEY` to the reCAPTCHA Enterprise score key used by
+Firebase App Check.
 
 For a local Firebase emulator, set `VITE_FIREBASE_API_URL` to the full
 project-shaped Functions URL described in `firebase/README.md`. In production,
