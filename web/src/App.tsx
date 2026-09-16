@@ -252,16 +252,34 @@ type CloudProject = {
   ciphertext_bytes: number | null;
 };
 
+type CloudUsage = {
+  used: {
+    sync_writes: number;
+    sync_reads: number;
+    sync_bytes: number;
+  };
+  limits: {
+    sync_writes: number;
+    sync_reads: number;
+    sync_bytes: number;
+  };
+};
+
 function DashboardPage() {
   const [projects, setProjects] = useState<CloudProject[]>([]);
+  const [usage, setUsage] = useState<CloudUsage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const result = await apiFetch<{ projects: CloudProject[] }>("/sync/projects");
-      setProjects(result.projects);
+      const [projectsResult, usageResult] = await Promise.all([
+        apiFetch<{ projects: CloudProject[] }>("/sync/projects"),
+        apiFetch<CloudUsage>("/sync/usage"),
+      ]);
+      setProjects(projectsResult.projects);
+      setUsage(usageResult);
     } catch (reason) {
       setError(errorMessage(reason));
     } finally {
@@ -279,6 +297,7 @@ function DashboardPage() {
       <div className="stats-grid">
         <StatCard label="Projects" value={String(projects.length)} note="owned by this account" />
         <StatCard label="Latest sync" value={latestSync(projects)} note="based on cloud metadata" />
+        <StatCard label="Daily writes" value={usage ? `${usage.used.sync_writes}/${usage.limits.sync_writes}` : "—"} note="account quota used" />
         <StatCard label="Storage model" value="Encrypted" note="ciphertext at rest" />
       </div>
       {loading ? <LoadingState label="Loading encrypted project metadata…" /> : projects.length === 0 ? (
