@@ -104,7 +104,11 @@ functionality.
 1. Merge / push to `main` (do **not** hand-bump the version).
 2. CI runs `release:check` on **ubuntu / windows / macos × Node 22.19.0 + 24.19.0**
    and runs native installer smoke tests on all three OSes.
-3. On success, **Auto-release** (ubuntu + Node 24 only):
+3. On success, CI opens a protected `automation/release/vX.Y.Z` PR with the
+   version files and promoted changelog. Review and merge that PR; generated
+   release commits never bypass the protected `main` ruleset.
+4. After the release PR lands, CI creates the immutable tag and runs
+   **Auto-release** (ubuntu + Node 24 only):
    - Detects bump kind from commits since last `v*` tag
      (`feat:` → minor, `BREAKING CHANGE` / `type!:` → major, else patch).
    - Override with commit markers: `[release: major]`, `[release: minor]`,
@@ -115,8 +119,10 @@ functionality.
      **tag-only** (no second bump); else bump as usual. Prevents duplicate
      `chore(release)` commits that diverge developer clones.
    - Serialized with concurrency group `harness-auto-release-main`.
-   - **Push** via `scripts/git-push-release.mjs`: `fetch` + `pull --rebase` +
-     retry so concurrent main updates do not leave a bare non-fast-forward.
+   - Release preparation uses `scripts/create-release-pr.mjs`; the merged
+     release commit is tagged via `scripts/git-push-release.mjs --tag-only`.
+     Tag-only mode verifies `HEAD == origin/main` and never writes protected
+     `main`.
    - Runs `npm run bump` when needed; keeps version files + CHANGELOG promote
      (US-038) in sync.
    - Commits `chore(release): X.Y.Z` when files change, tags `vX.Y.Z`.
@@ -168,8 +174,9 @@ provenance on CI; after the package exists from a first publish):
 | Workflow filename | **`ci.yml`** (primary auto-release) |
 | Environment name | leave empty unless you use GitHub Environments |
 
-Day-to-day: push to `main` (or `npm run push`) — do **not** `npm publish`
-from a laptop for production releases. CI uses `npm publish --provenance`.
+Day-to-day: push to `main` (or `npm run push`), then merge the automated release
+PR — do **not** `npm publish` from a laptop for production releases. CI uses
+`npm publish --provenance`.
 
 Notes:
 
@@ -232,9 +239,9 @@ node scripts/release-notes.mjs 1.2.3 --with-export -o release-notes.md
 
 | Workflow | Trigger | What it does |
 | --- | --- | --- |
-| [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) | push/PR → `main` | `release:check` + npm tarball smoke on **ubuntu + windows + macos × Node 22.19.0 + 24.19.0**, native installer smoke on all three OSes, and six-target native artifact build; release prep tags the commit before build, then publishes the same artifacts with **OIDC npm provenance**, checksums, attestations, Release, and SBOM |
+| [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) | push/PR → `main` | `release:check` + npm tarball smoke on **ubuntu + windows + macos × Node 22.19.0 + 24.19.0**, native installer smoke on all three OSes, and six-target native artifact build; release prep opens a protected PR, then tags the merged commit and publishes the same artifacts with **OIDC npm provenance**, checksums, attestations, Release, and SBOM |
 | [`.github/workflows/codeql.yml`](../../.github/workflows/codeql.yml) | push/PR + weekly | Pinned CodeQL scans JavaScript/TypeScript and Rust with `security-events: write` limited to the analysis job |
-| [`.github/workflows/release.yml`](../../.github/workflows/release.yml) | tag `v*` **or** workflow_dispatch | Resolves/creates the version tag first, builds six targets once, then publishes the same binaries to npm and GitHub Release with checksums, attestations, and SBOM |
+| [`.github/workflows/release.yml`](../../.github/workflows/release.yml) | tag `v*` **or** workflow_dispatch | Validates an immutable tag (or opens a protected release PR for a requested bump), builds six targets once, then publishes the same binaries to npm and GitHub Release with checksums, attestations, and SBOM |
 
 Actions are pinned to Node-24-ready major versions (`actions/checkout@v6`,
 `actions/setup-node@v6`) and set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` per

@@ -5,7 +5,7 @@
 #      — runs when the tag is pushed by a user/PAT. GITHUB_TOKEN tag pushes
 #      from CI do not re-trigger a second workflow; the originating workflow
 #      publishes inline after the immutable build.
-#   2. workflow_dispatch — bump version (patch|minor|major), commit, tag, publish
+#   2. workflow_dispatch — prepare a protected release PR (patch|minor|major)
 #
 # Authentication (US-036 / decision 0018):
 #   Preferred: npm Trusted Publishing (OIDC) + automatic provenance.
@@ -59,7 +59,8 @@ env:
 
 jobs:
   # Resolve the immutable release ref before building any native binary. A
-  # workflow_dispatch bump creates the tag here; a tag push is validated and
+  # workflow_dispatch bump creates a protected release PR; after it is merged,
+  # ci.yml creates the tag. A tag push or recovery dispatch is validated and
   # reused as-is. Every downstream consumer checks out this same ref.
   prepare:
     name: Prepare release ref
@@ -67,10 +68,12 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: write
+      pull-requests: write
     outputs:
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
       ref: ${{ steps.release.outputs.ref }}
+      mode: ${{ steps.release.outputs.mode }}
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.1
@@ -118,6 +121,7 @@ jobs:
           BUMP_KIND: ${{ inputs.bump }}
           EXISTING_TAG: ${{ inputs.existing_tag }}
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
@@ -144,9 +148,10 @@ jobs:
                 git config tag.gpgSign true
                 SIGN_FLAG="--sign"
               fi
-              node scripts/git-push-release.mjs $SIGN_FLAG \
+              node scripts/create-release-pr.mjs $SIGN_FLAG \
                 --tag "$TAG" \
                 --message "chore(release): ${VERSION}"
+              echo "mode=pr" >> "$GITHUB_OUTPUT"
             fi
           else
             VERSION="$(node -p "require('./package.json').version")"
@@ -156,6 +161,10 @@ jobs:
               echo "Tag ${TAG} does not match package.json ${VERSION}"
               exit 1
             fi
+            echo "mode=tag" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -n "${EXISTING_TAG:-}" ]; then
+            echo "mode=tag-only" >> "$GITHUB_OUTPUT"
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
@@ -166,6 +175,7 @@ jobs:
   native-binaries:
     name: native ${{ matrix.target }}
     needs: prepare
+    if: needs.prepare.outputs.mode != 'pr'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -220,6 +230,7 @@ jobs:
   publish:
     name: Publish release
     needs: [prepare, native-binaries]
+    if: needs.prepare.outputs.mode != 'pr'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:

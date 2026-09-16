@@ -114,8 +114,11 @@ fn ci_still_publishes_to_npmjs_with_provenance() {
     assert!(ci.contains("install/macos.sh"));
     assert!(ci.contains("install/windows.ps1"));
     assert!(ci.contains("npm run install:smoke"));
+    assert!(ci.contains("Create protected release PR"));
+    assert!(ci.contains("--tag-only"));
     assert!(ci.contains("test ! -L sbom.spdx.json"));
     assert!(rel.contains("test ! -L sbom.spdx.json"));
+    assert!(rel.contains("create-release-pr.mjs"));
     assert!(rel.contains("stage-native.mjs"));
     for target in [
         "x86_64-unknown-linux-gnu",
@@ -214,6 +217,10 @@ fn security_docs_track_runtime_boundaries_and_versioned_installers() {
     let push = fs::read_to_string(root().join("scripts/git-push-release.mjs")).unwrap();
     assert!(push.find("pull",).unwrap() < push.find("Created tag").unwrap());
     assert!(push.contains("already points at"));
+    assert!(push.contains("--tag-only"));
+    let release_pr = fs::read_to_string(root().join("scripts/create-release-pr.mjs")).unwrap();
+    assert!(release_pr.contains("automation/release/"));
+    assert!(release_pr.contains("gh"));
 }
 
 #[cfg(target_os = "linux")]

@@ -74,11 +74,15 @@ reconciliation:
 npm run push
 ```
 
-## release-plan / git-push-release (CI)
+## release-plan / protected release PR (CI)
 
 - `release-plan.mjs` — skip / tag-only / bump decision for auto-release.
-- `git-push-release.mjs` — commit + tag + push with rebase retries (avoids
-  non-fast-forward races on `main`).
+- `create-release-pr.mjs` — commit the prepared version files to an
+  `automation/release/vX.Y.Z` branch and open (or reuse) a release PR. This is
+  the normal path because `main` is protected by a pull-request ruleset.
+- `git-push-release.mjs` — legacy commit + tag push with rebase retries, plus
+  `--tag-only` for the post-merge path. Tag-only mode verifies that the checked
+  out commit is already `origin/main` and never writes protected `main`.
 
 ## release-notes
 

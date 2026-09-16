@@ -5,10 +5,11 @@
 # target Node 24 and set FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 for clarity.
 # See: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
 #
-# Auto-release flow (push to main only):
+# Auto-release flow (push to main, with protected-branch release PR):
 #   1. build-test matrix: ubuntu/windows/macos × Node 22.19.0/24.19.0 (US-035)
-#   2. native-binaries matrix: Linux/macOS/Windows × x64/ARM64
-#   3. auto-release (ubuntu + Node 24 only): bump → commit + tag → npm publish
+#   2. prepare a release PR with the version bump after all gates pass
+#   3. after that PR is merged, tag the immutable main commit and run the
+#      native-binaries matrix + auto-release (ubuntu + Node 24 only)
 #      with OIDC trusted publishing + provenance (US-036 / decision 0018)
 #
 # npm Trusted Publisher (npmjs.com → package 5harness → Settings → Trusted Publisher):
@@ -25,7 +26,8 @@
 # retries — fix or quarantine flakes with a tracked story (decision 0018).
 #
 # Note: GITHUB_TOKEN pushes do not re-trigger workflows, so publish runs in this
-# job (not via a separate tag-triggered workflow).
+# job (not via a separate tag-triggered workflow). The workflow only pushes a
+# tag after the release commit has landed through the protected-main PR.
 #
 # Skip auto-release by including [skip release] in the commit message.
 # Manual control: Actions → Release → Run workflow (patch|minor|major).
@@ -127,7 +129,6 @@ jobs:
       (
         github.ref == 'refs/heads/main' &&
         github.event_name == 'push' &&
-        !contains(github.event.head_commit.message, 'chore(release):') &&
         !contains(github.event.head_commit.message, '[skip release]')
       ) ||
       (
@@ -138,11 +139,13 @@ jobs:
     timeout-minutes: 25
     permissions:
       contents: write
+      pull-requests: write
     outputs:
       skip: ${{ steps.plan.outputs.skip }}
       tag: ${{ steps.version.outputs.tag }}
       version: ${{ steps.version.outputs.version }}
       ref: ${{ steps.version.outputs.ref }}
+      mode: ${{ steps.release_mode.outputs.mode }}
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.1
@@ -285,14 +288,53 @@ jobs:
           fi
 
       - name: Commit, tag, and push release ref
-        if: steps.plan.outputs.skip != 'true' && inputs.existing_tag == ''
+        if: >
+          steps.plan.outputs.skip != 'true' &&
+          steps.plan.outputs.mode == 'tag-only' &&
+          inputs.existing_tag == ''
         run: |
           set -euo pipefail
           SIGN_FLAG=""
           if [ "${{ steps.gpg.outputs.signed }}" = "true" ]; then SIGN_FLAG="--sign"; fi
           node scripts/git-push-release.mjs $SIGN_FLAG \
             --tag "${{ steps.version.outputs.tag }}" \
+            --tag-only \
             --message "chore(release): ${{ steps.version.outputs.version }}"
+
+      - name: Create protected release PR
+        if: >
+          steps.plan.outputs.skip != 'true' &&
+          steps.plan.outputs.mode == 'bump' &&
+          inputs.existing_tag == '' &&
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SIGN_FLAG=""
+          if [ "${{ steps.gpg.outputs.signed }}" = "true" ]; then SIGN_FLAG="--sign"; fi
+          node scripts/create-release-pr.mjs $SIGN_FLAG \
+            --tag "${{ steps.version.outputs.tag }}" \
+            --message "chore(release): ${{ steps.version.outputs.version }}"
+
+      - name: Set release mode
+        id: release_mode
+        if: always()
+        env:
+          PLAN_MODE: ${{ steps.plan.outputs.mode }}
+          PLAN_SKIP: ${{ steps.plan.outputs.skip }}
+          EVENT_NAME: ${{ github.event_name }}
+          EXISTING_TAG: ${{ inputs.existing_tag }}
+        run: |
+          set -euo pipefail
+          if [ "$PLAN_SKIP" = "true" ]; then
+            echo "mode=skip" >> "$GITHUB_OUTPUT"
+          elif [ "$PLAN_MODE" = "bump" ] && [ "$EVENT_NAME" = "push" ] && [ -z "$EXISTING_TAG" ]; then
+            echo "mode=pr" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=$PLAN_MODE" >> "$GITHUB_OUTPUT"
+          fi
 
   native-binaries:
     name: native ${{ matrix.target }}
@@ -301,7 +343,7 @@ jobs:
       always() &&
       needs.build-test.result == 'success' &&
       needs.rust-security.result == 'success' &&
-      (needs.release-prep.result == 'success' || needs.release-prep.result == 'skipped')
+      (needs.release-prep.result == 'skipped' || needs.release-prep.outputs.mode != 'pr')
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -436,6 +478,7 @@ jobs:
       always() &&
       needs.release-prep.result == 'success' &&
       needs.release-prep.outputs.skip != 'true' &&
+      needs.release-prep.outputs.mode != 'pr' &&
       needs.native-binaries.result == 'success' &&
       needs.linux-auto-install.result == 'success' &&
       needs.windows-auto-install.result == 'success' &&

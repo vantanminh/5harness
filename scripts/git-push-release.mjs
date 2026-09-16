@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
  * Push a release commit (+ optional tag) to origin/main with rebase retries.
+ * Tag-only mode publishes a tag for an already-merged release commit without
+ * attempting to write protected main.
  *
  * Permanently reduces non-fast-forward races when auto-release commits land
  * while other work is also pushing to main:
@@ -11,6 +13,7 @@
  *
  * Usage:
  *   node scripts/git-push-release.mjs [--tag vX.Y.Z] [--message "chore(release): X"]
+ *     [--tag-only]
  *
  * Expects version files already staged or modified; creates commit if there is
  * a staged/unstaged change in the release paths. If the working tree is clean
@@ -61,15 +64,21 @@ function parseArgs(argv) {
   let tag = null;
   let message = null;
   let sign = false;
+  let tagOnly = false;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--tag") tag = argv[++i];
     else if (argv[i] === "--message" || argv[i] === "-m") message = argv[++i];
     else if (argv[i] === "--sign") sign = true;
+    else if (argv[i] === "--tag-only") tagOnly = true;
   }
-  return { tag, message, sign };
+  if (tagOnly && !tag) {
+    console.error("git-push-release: --tag-only requires --tag vX.Y.Z");
+    process.exit(1);
+  }
+  return { tag, message, sign, tagOnly };
 }
 
-const { tag, message, sign } = parseArgs(process.argv.slice(2));
+const { tag, message, sign, tagOnly } = parseArgs(process.argv.slice(2));
 
 // Ensure identity (CI sets these; local may already have them)
 run("git", ["config", "user.name", "github-actions[bot]"]);
@@ -105,17 +114,32 @@ for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
   console.log(`Push attempt ${attempt}/${MAX_ATTEMPTS}…`);
   must("git", ["fetch", "origin", "main"], "git fetch");
 
-  const rebase = run("git", ["pull", "--rebase", "origin", "main"]);
-  if (rebase.status !== 0) {
-    console.error(`rebase failed:\n${rebase.stdout}\n${rebase.stderr}`);
-    run("git", ["rebase", "--abort"]);
-    lastErr = rebase.stderr || rebase.stdout;
-    // conflict — cannot auto-resolve; fail hard
-    console.error(
-      "git-push-release: rebase conflict with origin/main. " +
-        "Resolve manually; do not force-push main.",
-    );
-    process.exit(1);
+  if (tagOnly) {
+    const head = must("git", ["rev-parse", "HEAD"], "resolve release HEAD").stdout.trim();
+    const remoteHead = must(
+      "git",
+      ["rev-parse", "refs/remotes/origin/main"],
+      "resolve origin/main",
+    ).stdout.trim();
+    if (head !== remoteHead) {
+      console.error(
+        `tag-only release must run on origin/main (${remoteHead}), not ${head}`,
+      );
+      process.exit(1);
+    }
+  } else {
+    const rebase = run("git", ["pull", "--rebase", "origin", "main"]);
+    if (rebase.status !== 0) {
+      console.error(`rebase failed:\n${rebase.stdout}\n${rebase.stderr}`);
+      run("git", ["rebase", "--abort"]);
+      lastErr = rebase.stderr || rebase.stdout;
+      // conflict — cannot auto-resolve; fail hard
+      console.error(
+        "git-push-release: rebase conflict with origin/main. " +
+          "Resolve manually; do not force-push main.",
+      );
+      process.exit(1);
+    }
   }
 
   if (tag) {
@@ -135,6 +159,28 @@ for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       must("git", tagArgs, "git tag");
       console.log(`Created tag ${tag}${sign ? " (GPG-signed)" : ""}`);
     }
+  }
+
+  if (tagOnly) {
+    const pushTag = run("git", ["push", "origin", tag]);
+    if (pushTag.status === 0) {
+      console.log(`Pushed tag ${tag}`);
+      process.exit(0);
+    }
+    lastErr = pushTag.stderr || pushTag.stdout;
+    console.error(`tag push rejected (attempt ${attempt}):\n${lastErr}`);
+    const remote = run("git", ["ls-remote", "--tags", "origin", tag]);
+    const head = run("git", ["rev-parse", "HEAD"]).stdout.trim();
+    const remotePointsAtHead = remote.status === 0
+      && remote.stdout
+        .split("\n")
+        .map((line) => line.split("\t", 1)[0])
+        .some((hash) => hash === head);
+    if (remotePointsAtHead) {
+      console.log(`Tag ${tag} already on remote — continuing.`);
+      process.exit(0);
+    }
+    continue;
   }
 
   const push = run("git", ["push", "origin", "HEAD:main"]);
