@@ -123,6 +123,18 @@ if (!fs.existsSync(native)) {
   fail(`native binary missing after build: bin/harness${ext}`);
 }
 
+const nativeHelp = run(native, ["--help"]);
+for (const command of ["login", "sync"]) {
+  if (!new RegExp(`^\\s+${command}\\s+`, "m").test(nativeHelp)) {
+    fail(`published native binary is missing the cloud command: ${command}`);
+  }
+}
+
+const shimHelp = run(process.execPath, [cliPath, "sync", "--help"]);
+if (!shimHelp.includes("push") || !shimHelp.includes("pull") || !shimHelp.includes("status")) {
+  fail("published npm shim does not expose the complete sync command");
+}
+
 const requiredOnDisk = [
   "templates/manifest.json",
   "migrations/001-init.sql",
