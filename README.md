@@ -202,6 +202,10 @@ harness sync status
 harness sync pull --passphrase-stdin < passphrase.txt
 ```
 
+`harness login` prints a short-lived device code and verification URL. Approve
+the code in the browser; the CLI polls the Worker with PKCE and does not need a
+loopback callback listener.
+
 The CLI encrypts the supported Markdown roots locally with PBKDF2 + AES-256-GCM
 before uploading to Firebase. The web dashboard uses Firebase Auth and a
 Cloudflare Worker; an optional Cloudflare Pages proxy can keep an existing
