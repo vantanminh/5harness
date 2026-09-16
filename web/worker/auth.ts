@@ -169,7 +169,9 @@ export class AuthError extends Error {
 
 export function getBearerToken(request: Request): string {
   const value = request.headers.get("Authorization") ?? "";
-  const match = /^Bearer\s+([A-Za-z0-9._~+/=-]{20,8192})$/i.exec(value);
+  // The OAuth provider issues opaque CLI tokens as userId:grantId:secret.
+  // Keep the colon while the provider performs the structural validation.
+  const match = /^Bearer\s+([A-Za-z0-9._~+/=:-]{20,8192})$/i.exec(value);
   if (!match?.[1]) throw new AuthError("Firebase authentication is required.", 401);
   return match[1];
 }

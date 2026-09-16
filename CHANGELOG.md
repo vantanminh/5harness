@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Cloud sync now accepts opaque CLI OAuth bearer tokens and refreshes them
+  through the stable `harness-cli` client alias.
+
 ## [0.30.1] - 2026-09-16
 
 ### Fixed

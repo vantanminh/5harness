@@ -364,4 +364,72 @@ describe("StudyOS-style OAuth/KV adapter", () => {
     expect(revokeResponse.status).toBe(200);
     await expect(helper.unwrapToken(tokens.access_token)).resolves.toBeNull();
   });
+
+  it("rewrites the stable CLI alias for root token refresh requests", async () => {
+    const env = testEnv();
+    const clientId = await harnessClientId(env);
+    const verifier = "refresh-verifier-abcdefghijklmnopqrstuvwxyz-0123456789";
+    const redirectUri = "http://127.0.0.1:43124/callback";
+    const helper = getOAuthHelpers(env);
+    const parsed = await helper.parseAuthRequest(
+      new Request(
+        "https://worker.example/authorize?" +
+          new URLSearchParams({
+            client_id: clientId,
+            redirect_uri: redirectUri,
+            response_type: "code",
+            code_challenge: await challenge(verifier),
+            code_challenge_method: "S256",
+            scope: SUPPORTED_SCOPE,
+            state: "refresh-state-1234567890",
+          }).toString(),
+      ),
+    );
+    const completed = await helper.completeAuthorization({
+      request: parsed,
+      userId: "firebase-user-refresh",
+      metadata: { clientName: "test" },
+      scope: ["sync:read", "sync:write"],
+      props: {
+        uid: "firebase-user-refresh",
+        projectId: "harness5",
+        firebaseApiKey: "api-key",
+        firebaseRefreshToken: "refresh-token",
+      },
+    });
+    const code = new URL(completed.redirectTo).searchParams.get("code") ?? "";
+    const initial = await handleCompatToken(
+      new Request("https://worker.example/api/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          grant_type: "authorization_code",
+          client_id: "harness-cli",
+          redirect_uri: redirectUri,
+          code,
+          code_verifier: verifier,
+        }),
+      }),
+      env,
+      context(),
+    );
+    expect(initial.status).toBe(200);
+    const initialTokens = (await initial.json()) as { refresh_token: string };
+
+    const refreshed = await handleOAuthRequest(
+      new Request("https://worker.example/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          client_id: "harness-cli",
+          refresh_token: initialTokens.refresh_token,
+        }),
+      }),
+      env,
+      context(),
+    );
+    expect(refreshed.status).toBe(200);
+    expect((await refreshed.json() as { access_token?: string }).access_token).toBeTruthy();
+  });
 });

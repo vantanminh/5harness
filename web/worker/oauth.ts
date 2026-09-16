@@ -701,6 +701,34 @@ function requestWithClientId(request: Request, clientId: string): Request {
   return new Request(url.toString(), request);
 }
 
+async function requestWithCanonicalClientId(
+  request: Request,
+  env: Env,
+): Promise<Request> {
+  if (request.method !== "POST") return request;
+  let form: FormData;
+  try {
+    form = await request.clone().formData();
+  } catch {
+    return request;
+  }
+  if (form.get("client_id") !== CLIENT_ID) return request;
+
+  const body = new URLSearchParams();
+  for (const [key, value] of form.entries()) {
+    if (typeof value === "string") body.append(key, value);
+  }
+  body.set("client_id", await harnessClientId(env));
+  const headers = new Headers(request.headers);
+  headers.set("Content-Type", "application/x-www-form-urlencoded");
+  headers.delete("Content-Length");
+  return new Request(request.url, {
+    method: request.method,
+    headers,
+    body,
+  });
+}
+
 async function completeFirebaseAuthorization(
   oauthRequest: AuthRequest,
   firebaseIdToken: string,
@@ -1086,10 +1114,12 @@ export async function handleOAuthRequest(
   if (pathname === AUTHORIZATION_SERVER_METADATA_ROUTE) {
     return metadataResponse(request, env, ctx);
   }
-  const rewritten =
-    pathname === AUTHORIZE_ROUTE
-      ? requestWithClientId(request, await harnessClientId(env))
-      : request;
+  let rewritten = request;
+  if (pathname === AUTHORIZE_ROUTE) {
+    rewritten = requestWithClientId(request, await harnessClientId(env));
+  } else if (pathname === TOKEN_ROUTE) {
+    rewritten = await requestWithCanonicalClientId(request, env);
+  }
   try {
     return await oauthProvider.fetch(rewritten, env, ctx);
   } catch (error) {
