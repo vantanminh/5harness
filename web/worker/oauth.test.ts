@@ -29,6 +29,10 @@ class MemoryKV {
     this.values.delete(key);
   }
 
+  raw(key: string): string | undefined {
+    return this.values.get(key);
+  }
+
   async list(options?: { prefix?: string }): Promise<{
     keys: Array<{ name: string }>;
     list_complete: boolean;
@@ -63,6 +67,11 @@ async function challenge(verifier: string): Promise<string> {
   let binary = "";
   for (const byte of new Uint8Array(digest)) binary += String.fromCharCode(byte);
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 afterEach(() => {
@@ -133,6 +142,74 @@ describe("StudyOS-style OAuth/KV adapter", () => {
     expect(metadata.grant_types_supported).toEqual(
       expect.arrayContaining([DEVICE_GRANT_TYPE]),
     );
+  });
+
+  it("exchanges an approved device code through the provider token machinery", async () => {
+    const env = testEnv();
+    const verifier = "approved-device-verifier-abcdefghijklmnopqrstuvwxyz-0123456789";
+    const codeChallenge = await challenge(verifier);
+    const response = await handleDeviceCode(
+      new Request("https://worker.example/oauth/device/code", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: "harness-cli",
+          scope: SUPPORTED_SCOPE,
+          code_challenge: codeChallenge,
+          code_challenge_method: "S256",
+        }),
+      }),
+      env,
+    );
+    const device = (await response.json()) as { device_code: string; user_code: string };
+    const clientId = await harnessClientId(env);
+    const helper = getOAuthHelpers(env);
+    const completed = await helper.completeAuthorization({
+      request: {
+        responseType: "code",
+        clientId,
+        redirectUri: "http://127.0.0.1/callback",
+        scope: ["sync:read", "sync:write"],
+        state: "approved-state-1234567890",
+        codeChallenge,
+        codeChallengeMethod: "S256",
+      },
+      userId: "firebase-user-approved",
+      metadata: { clientName: "test" },
+      scope: ["sync:read", "sync:write"],
+      props: {
+        uid: "firebase-user-approved",
+        projectId: "harness5",
+        firebaseApiKey: "api-key",
+        firebaseRefreshToken: "refresh-token",
+      },
+    });
+    const authCode = new URL(completed.redirectTo).searchParams.get("code") ?? "";
+    const kv = env.OAUTH_KV as unknown as MemoryKV;
+    const userCodeHash = await sha256Hex(device.user_code.replace("-", ""));
+    const deviceCodeHash = kv.raw("oauth:device-user:" + userCodeHash) ?? "";
+    const record = JSON.parse(kv.raw("oauth:device:" + deviceCodeHash) ?? "{}");
+    record.status = "approved";
+    record.authCode = authCode;
+    await env.OAUTH_KV.put("oauth:device:" + deviceCodeHash, JSON.stringify(record));
+
+    const tokenResponse = await handleDeviceToken(
+      new Request("https://worker.example/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: DEVICE_GRANT_TYPE,
+          client_id: "harness-cli",
+          device_code: device.device_code,
+          code_verifier: verifier,
+        }),
+      }),
+      env,
+      context(),
+    );
+    expect(tokenResponse.status).toBe(200);
+    expect((await tokenResponse.json() as { access_token?: string }).access_token).toBeTruthy();
+    expect(kv.raw("oauth:device-user:" + userCodeHash)).toBeUndefined();
   });
 
   it("keeps the CLI alias stable and exchanges JSON compatibility requests through the provider", async () => {
