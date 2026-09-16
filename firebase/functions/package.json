@@ -1,0 +1,29 @@
+{
+  "name": "@5harness/cloud-functions",
+  "private": true,
+  "type": "module",
+  "description": "Firebase Functions API for encrypted 5harness cloud sync",
+  "engines": {
+    "node": "22"
+  },
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "firebase-admin": "^14.4.0",
+    "firebase-functions": "^7.4.0"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2",
+    "vitest": "^5.0.1"
+  }
+}
