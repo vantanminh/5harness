@@ -80,6 +80,8 @@ struct SyncState {
     project_id: String,
     last_revision: String,
     last_plaintext_sha256: String,
+    #[serde(default)]
+    last_files_sha256: String,
     last_synced_at: String,
 }
 
@@ -160,6 +162,7 @@ pub fn run_push(
         project_id: project_id.clone(),
         last_revision: pushed.revision.clone(),
         last_plaintext_sha256: pushed.plaintext_sha256.clone(),
+        last_files_sha256: manifest_files_sha256(&manifest)?,
         last_synced_at: pushed.created_at.clone(),
     };
     write_sync_state(project_root, &state)?;
@@ -221,11 +224,11 @@ pub fn run_pull(
 
     let local_state = read_sync_state(project_root)?;
     let local_manifest = build_manifest(project_root, &project_id)?;
-    let local_digest = manifest_sha256(&local_manifest)?;
+    let local_files_digest = manifest_files_sha256(&local_manifest)?;
     let local_changed = local_state.as_ref().is_some_and(|state| {
         state.server == auth_state.server
             && state.project_id == project_id
-            && state.last_plaintext_sha256 != local_digest
+            && state.last_files_sha256 != local_files_digest
     });
     if local_changed && !force {
         return Err(Error::new(
@@ -239,6 +242,7 @@ pub fn run_pull(
         project_id: project_id.clone(),
         last_revision: remote.revision.clone(),
         last_plaintext_sha256: plaintext_sha256.clone(),
+        last_files_sha256: manifest_files_sha256(&manifest)?,
         last_synced_at: remote.updated_at,
     };
     write_sync_state(project_root, &state)?;
@@ -405,6 +409,7 @@ pub fn decrypt_envelope(envelope: &EncryptedEnvelope, passphrase: &str) -> Resul
 }
 
 pub fn build_manifest(project_root: &Path, project_id: &str) -> Result<SyncManifest> {
+    ensure_safe_durable_roots(project_root)?;
     let mut files = Vec::new();
     for durable_root in DURABLE_ROOTS {
         let root = project_root.join(durable_root);
@@ -426,6 +431,16 @@ fn collect_markdown_files(
     directory: &Path,
     out: &mut Vec<SyncFile>,
 ) -> Result<()> {
+    let directory_metadata = fs::symlink_metadata(directory)?;
+    if directory_metadata.file_type().is_symlink() {
+        return Err(Error::new(format!(
+            "Harness sync refused a symlinked durable directory: {}",
+            directory.display()
+        )));
+    }
+    if !directory_metadata.is_dir() {
+        return Ok(());
+    }
     let mut entries: Vec<_> = fs::read_dir(directory)?
         .filter_map(|entry| entry.ok())
         .collect();
@@ -521,6 +536,7 @@ pub fn validate_manifest(manifest: &SyncManifest, project_id: &str) -> Result<()
 }
 
 fn apply_manifest(project_root: &Path, manifest: &SyncManifest, prune: bool) -> Result<()> {
+    ensure_safe_durable_roots(project_root)?;
     let mut remote_paths = std::collections::HashSet::new();
     for file in &manifest.files {
         remote_paths.insert(file.path.clone());
@@ -529,6 +545,7 @@ fn apply_manifest(project_root: &Path, manifest: &SyncManifest, prune: bool) -> 
             .map_err(|_| Error::new(format!("Invalid base64 for sync file {}", file.path)))?;
         let content = std::str::from_utf8(&bytes)
             .map_err(|_| Error::new(format!("Sync file is not UTF-8 markdown: {}", file.path)))?;
+        ensure_safe_parent_path(project_root, &file.path)?;
         atomic_write(&project_root.join(&file.path), content)?;
     }
     if prune {
@@ -591,7 +608,7 @@ fn is_safe_durable_path(path: &str) -> bool {
             .split('/')
             .any(|part| part.is_empty() || part == "." || part == "..")
         || !path.to_ascii_lowercase().ends_with(".md")
-        || path.ends_with("/README.md")
+        || path.to_ascii_lowercase().ends_with("/readme.md")
     {
         return false;
     }
@@ -600,8 +617,71 @@ fn is_safe_durable_path(path: &str) -> bool {
         .any(|root| path == *root || path.starts_with(&format!("{root}/")))
 }
 
+fn ensure_safe_durable_roots(project_root: &Path) -> Result<()> {
+    for durable_root in DURABLE_ROOTS {
+        let mut current = project_root.to_path_buf();
+        for component in Path::new(durable_root).components() {
+            current.push(component.as_os_str());
+            match fs::symlink_metadata(&current) {
+                Ok(metadata) if metadata.file_type().is_symlink() => {
+                    return Err(Error::new(format!(
+                        "Harness sync refused a symlinked durable path: {}",
+                        current.display()
+                    )));
+                }
+                Ok(metadata) if !metadata.is_dir() => {
+                    return Err(Error::new(format!(
+                        "Harness sync expected a durable directory: {}",
+                        current.display()
+                    )));
+                }
+                Ok(_) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+                Err(error) => return Err(error.into()),
+            }
+        }
+    }
+    Ok(())
+}
+
+fn ensure_safe_parent_path(project_root: &Path, relative_path: &str) -> Result<()> {
+    let mut current = project_root.to_path_buf();
+    let Some(parent) = Path::new(relative_path).parent() else {
+        return Ok(());
+    };
+    for component in parent.components() {
+        current.push(component.as_os_str());
+        match fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(Error::new(format!(
+                    "Harness sync refused a symlinked destination directory: {}",
+                    current.display()
+                )));
+            }
+            Ok(metadata) if !metadata.is_dir() => {
+                return Err(Error::new(format!(
+                    "Harness sync expected a destination directory: {}",
+                    current.display()
+                )));
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Ok(())
+}
+
 fn manifest_sha256(manifest: &SyncManifest) -> Result<String> {
     Ok(sha256_hex(&serde_json::to_vec(manifest)?))
+}
+
+fn manifest_files_sha256(manifest: &SyncManifest) -> Result<String> {
+    Ok(sha256_hex(&serde_json::to_vec(&(
+        manifest.schema_version,
+        &manifest.project_id,
+        &manifest.files,
+    ))?))
 }
 
 fn sha256_hex(value: &[u8]) -> String {
@@ -767,6 +847,34 @@ mod tests {
         assert!(!is_safe_durable_path("AGENTS.md"));
         assert!(!is_safe_durable_path("docs/stories/../AGENTS.md"));
         assert!(!is_safe_durable_path("docs/stories/README.md"));
+        assert!(!is_safe_durable_path("docs/stories/README.MD"));
         assert!(!is_safe_durable_path("docs/stories/x.txt"));
+    }
+
+    #[test]
+    fn local_change_digest_ignores_manifest_generation_time() {
+        let files = vec![SyncFile {
+            path: "docs/stories/US-001.md".into(),
+            sha256: sha256_hex(b"story"),
+            content_base64: STANDARD.encode(b"story"),
+        }];
+        let first = SyncManifest {
+            schema_version: SYNC_SCHEMA_VERSION,
+            project_id: "project-1234567890".into(),
+            generated_at: "2026-01-01T00:00:00Z".into(),
+            files: files.clone(),
+        };
+        let second = SyncManifest {
+            generated_at: "2026-01-02T00:00:00Z".into(),
+            ..first.clone()
+        };
+        assert_ne!(
+            manifest_sha256(&first).unwrap(),
+            manifest_sha256(&second).unwrap()
+        );
+        assert_eq!(
+            manifest_files_sha256(&first).unwrap(),
+            manifest_files_sha256(&second).unwrap()
+        );
     }
 }
