@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CLIENT_ID,
   isValidProjectId,
+  isValidProxyToken,
   isValidRedirectUri,
   validateAuthorizeRequest,
   validateEnvelope,
@@ -56,5 +57,12 @@ describe("cloud sync protocol validation", () => {
     expect(
       validateEnvelope({ ...envelope, ciphertext_base64: "not-base64" }, envelope.project_id),
     ).toBe(false);
+  });
+
+  it("requires the private Pages proxy token", () => {
+    const configured = "proxy-secret-that-is-at-least-32-chars";
+    expect(isValidProxyToken(configured, configured)).toBe(true);
+    expect(isValidProxyToken("attacker", configured)).toBe(false);
+    expect(isValidProxyToken(configured, "short")).toBe(false);
   });
 });

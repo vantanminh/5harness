@@ -46,6 +46,15 @@ Use at least 32 random bytes. The function declares this secret explicitly and
 fails closed with `service_misconfigured` if it is absent. Do not use a service
 account JSON key in the web app or commit one to this repository.
 
+Create a separate random `CLOUD_PROXY_TOKEN` as well. The Pages Function sends
+it in a private header and Firebase rejects direct API calls without the
+matching value. Use the local value in `functions/.env` for emulator work; in
+production store it as a second Firebase secret:
+
+```bash
+firebase functions:secrets:set CLOUD_PROXY_TOKEN
+```
+
 ## App Check
 
 Register the web application in Firebase App Check, choose reCAPTCHA v3, and

@@ -22,6 +22,7 @@ import {
   dayKey,
   hashSecret,
   isAllowedOrigin,
+  isValidProxyToken,
   isValidProjectId,
   isValidRedirectUri,
   randomOpaque,
@@ -42,6 +43,7 @@ const firebaseApp = getApps().length > 0 ? getApps()[0] : initializeApp();
 const firebaseAuth = getAuth(firebaseApp);
 const firestore = getFirestore(firebaseApp);
 const rateLimitSaltSecret = defineSecret("RATE_LIMIT_SALT");
+const proxyTokenSecret = defineSecret("CLOUD_PROXY_TOKEN");
 
 const ACCESS_TTL_MS = 15 * 60 * 1000;
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -143,6 +145,14 @@ async function requireAppCheck(request: Request): Promise<void> {
     await getAppCheck(firebaseApp).verifyToken(appCheckToken);
   } catch {
     throw new ApiError(401, "app_check_invalid", "A verified browser session is required.");
+  }
+}
+
+function requirePagesProxy(request: Request): void {
+  const configured = proxyTokenSecret.value() || process.env.CLOUD_PROXY_TOKEN || "";
+  const presented = request.get("x-harness-proxy") || "";
+  if (!isValidProxyToken(presented, configured)) {
+    throw new ApiError(503, "proxy_not_configured", "Cloud proxy authorization is not configured.");
   }
 }
 
@@ -508,6 +518,10 @@ app.use((request, response, next) => {
   }
   next();
 });
+app.use((request, _response, next) => {
+  if (request.path !== "/health") requirePagesProxy(request);
+  next();
+});
 app.use(express.json({ limit: MAX_BODY_BYTES, strict: true }));
 
 app.get("/health", (_request, response) => {
@@ -788,7 +802,7 @@ export const api = onRequest(
     memory: "256MiB",
     timeoutSeconds: 30,
     invoker: "public",
-    secrets: [rateLimitSaltSecret],
+    secrets: [rateLimitSaltSecret, proxyTokenSecret],
   },
   app,
 );

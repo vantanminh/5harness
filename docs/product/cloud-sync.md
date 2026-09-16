@@ -24,6 +24,9 @@ The browser dashboard uses Firebase Auth and a Pages Function proxy at `/api/*`.
 The proxy keeps the Firebase Functions origin out of browser CORS setup and
 keeps the backend URL out of the static application bundle. The Firebase Admin
 SDK is used only inside Functions.
+The proxy also injects a high-entropy `FIREBASE_PROXY_TOKEN`; Functions require
+the matching `CLOUD_PROXY_TOKEN` secret, so the public Firebase URL is not a
+usable unauthenticated write surface.
 
 ## What is synchronized
 
@@ -60,6 +63,9 @@ remove local durable Markdown that is absent from the snapshot.
 - Payload size, file count, project count, request rate, daily operations, daily
   bytes, and retention are bounded in the backend. IP rate-limit keys are
   salted hashes, not raw addresses.
+- The Pages-to-Firebase proxy token is stored only as a Cloudflare Pages secret
+  and Firebase Secret Manager value; the proxy overwrites client-supplied
+  copies before forwarding.
 - OAuth redirects are exact loopback callbacks with PKCE S256 and one-time
   authorization codes. No service-account key belongs in the browser or repo.
 

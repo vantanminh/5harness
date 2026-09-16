@@ -1,0 +1,4 @@
+# Runtime values for `wrangler pages dev`. Keep this file as a template and
+# copy it to `.dev.vars`; never commit the copied file.
+FIREBASE_API_URL=http://127.0.0.1:5001/demo-harness/us-central1/api
+FIREBASE_PROXY_TOKEN=replace-with-the-local-proxy-secret

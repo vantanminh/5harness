@@ -51,6 +51,15 @@ export function safeEqual(left: string, right: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+export function isValidProxyToken(presented: unknown, configured: unknown): boolean {
+  return (
+    typeof presented === "string" &&
+    typeof configured === "string" &&
+    configured.length >= 32 &&
+    safeEqual(presented, configured)
+  );
+}
+
 export function isValidProjectId(value: unknown): value is string {
   return (
     typeof value === "string" &&

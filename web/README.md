@@ -54,6 +54,14 @@ npx wrangler pages secret put FIREBASE_API_URL --project-name=5harness-cloud
 ```
 
 When prompted, enter the deployed Firebase URL ending in `/api`. Configure the
+matching `FIREBASE_PROXY_TOKEN` Pages secret too; it must equal the
+`CLOUD_PROXY_TOKEN` Firebase secret and is never bundled into the SPA:
+
+```bash
+npx wrangler pages secret put FIREBASE_PROXY_TOKEN --project-name=5harness-cloud
+```
+
+Configure the
 public `VITE_FIREBASE_*` values in the Pages project build environment (or in a
 local, ignored `.env.production.local` for direct uploads). Then deploy from
 this directory:
@@ -65,6 +73,9 @@ npm run deploy
 `wrangler.jsonc` sets the Pages output directory and compatibility date.
 `functions/api/[[path]].ts` is included from the project root, and
 `public/_redirects` keeps client-side React Router paths working on refresh.
+The proxy strips incoming private-header attempts and adds the configured
+runtime secret itself. For local Pages Functions development, copy
+`.dev.vars.example` to `.dev.vars`.
 Use `npm run deploy:preview` for a preview branch, and add that preview origin
 to Firebase `WEB_ORIGINS` before testing browser API calls.
 
@@ -74,6 +85,7 @@ to Firebase `WEB_ORIGINS` before testing browser API calls.
 2. Register the Pages hostname in Firebase Auth authorized domains.
 3. Register the Pages web app in Firebase App Check and set its site key.
 4. Set `WEB_ORIGINS` to exact production/preview origins; never use `*`.
-5. Set `FIREBASE_API_URL` in Pages and the public `VITE_FIREBASE_*` build vars.
+5. Set `FIREBASE_API_URL` and `FIREBASE_PROXY_TOKEN` in Pages, plus the public
+   `VITE_FIREBASE_*` build vars.
 6. Run `harness login --server https://<pages-domain>` and then
    `harness sync push` with a long passphrase.

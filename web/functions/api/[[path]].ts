@@ -1,5 +1,6 @@
 interface Env {
   FIREBASE_API_URL: string;
+  FIREBASE_PROXY_TOKEN?: string;
 }
 
 type PagesContext = {
@@ -39,6 +40,10 @@ export const onRequest = async ({ request, env, params }: PagesContext): Promise
   headers.delete("host");
   headers.delete("content-length");
   headers.delete("cookie");
+  headers.delete("x-harness-proxy");
+  if (env.FIREBASE_PROXY_TOKEN) {
+    headers.set("X-Harness-Proxy", env.FIREBASE_PROXY_TOKEN);
+  }
   const init: RequestInit = {
     method: request.method,
     headers,

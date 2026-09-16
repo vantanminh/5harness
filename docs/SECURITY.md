@@ -208,6 +208,9 @@ snapshots. It does not replace Git-backed Markdown as the source of truth.
 - Firebase web configuration values are public client identifiers. Firebase
   Admin credentials and service-account JSON keys must remain server-side and
   are not part of this repository.
+- The Pages proxy and Firebase Functions share a separate high-entropy proxy
+  token. Pages injects it at runtime and strips any client-supplied value;
+  Firebase rejects direct API calls without the matching secret.
 
 ### Authorization and isolation
 
@@ -226,8 +229,9 @@ snapshots. It does not replace Git-backed Markdown as the source of truth.
 - Functions have bounded instances, concurrency, body size, file count,
   project count, retention, per-IP salted-hash rate limits, and per-account
   daily operation/byte quotas.
-- Production requires `RATE_LIMIT_SALT` from Firebase Secret Manager and exact
-  `WEB_ORIGINS`; wildcard CORS is rejected. App Check must remain enforced.
+- Production requires `RATE_LIMIT_SALT` and `CLOUD_PROXY_TOKEN` from Firebase
+  Secret Manager plus exact `WEB_ORIGINS`; wildcard CORS is rejected. App Check
+  must remain enforced.
 - Firestore TTL fields clean up authorization codes, access/refresh credentials,
   rate buckets, usage counters, refresh families, and expired snapshots.
 - Operators should also configure Firebase budget alerts and Cloudflare WAF or
