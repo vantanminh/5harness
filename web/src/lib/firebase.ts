@@ -29,13 +29,22 @@ const hostedConfig = {
   appId: "1:775656604535:web:2453d99dd0e787f48bd772",
 };
 
+const fallback = import.meta.env.PROD ? hostedConfig : {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: "",
+};
+
 const config = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || hostedConfig.apiKey,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || hostedConfig.authDomain,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || hostedConfig.projectId,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || hostedConfig.storageBucket,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || hostedConfig.messagingSenderId,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || hostedConfig.appId,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || fallback.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || fallback.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || fallback.projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || fallback.storageBucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || fallback.messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || fallback.appId,
 };
 
 const hasPlaceholder = (value: string): boolean =>
