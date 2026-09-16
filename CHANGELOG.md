@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-09-16
+
 ### Added
 
 - `harness login --status` (and `--json`) reports whether this machine already
