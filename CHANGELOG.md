@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `harness login` now uses a PKCE-bound device code that can be approved in a
   browser without requiring a loopback callback URL.
 
+### Fixed
+
+- Hosted dashboard builds now include the public `harness5` Firebase web
+  configuration by default, so Google sign-in is not disabled when a deploy
+  runs without a local `.env` file.
+
 ## [0.28.0] - 2026-09-16
 
 ### Changed

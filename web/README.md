@@ -18,10 +18,12 @@ npm run test:worker
 npm run build
 ```
 
-Fill the public `VITE_FIREBASE_*` values from Firebase Console. These values
-are safe to embed in a browser bundle; they are not service credentials. The
-App Check site key is optional for the Worker backend and may be left blank in
-local development.
+The hosted `harness5` Firebase web configuration is included as a public
+fallback, so production builds do not depend on a local `.env` file. Set the
+`VITE_FIREBASE_*` values from Firebase Console when pointing the dashboard at
+another project or emulator. These values are safe to embed in a browser
+bundle; they are not service credentials. The App Check site key is optional
+for the Worker backend and may be left blank in local development.
 
 For a local Worker, build the SPA, prepare the Worker-only asset directory,
 copy `.dev.vars.example` to `.dev.vars`, then run:

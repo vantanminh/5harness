@@ -16,13 +16,26 @@ import {
   type AppCheck,
 } from "firebase/app-check";
 
+// Firebase web configuration is intentionally public and is safe to ship in a
+// browser bundle. Keep the hosted project usable when a deployment is built
+// without a local `.env` file; Vite variables still override these defaults
+// for another Firebase project or a local emulator.
+const hostedConfig = {
+  apiKey: "AIzaSyCvV_Hdl36iwuH3tolYwAJaj7xgthvrvL8",
+  authDomain: "harness5.firebaseapp.com",
+  projectId: "harness5",
+  storageBucket: "harness5.firebasestorage.app",
+  messagingSenderId: "775656604535",
+  appId: "1:775656604535:web:2453d99dd0e787f48bd772",
+};
+
 const config = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? "",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? "",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? "",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? "",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? "",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID ?? "",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || hostedConfig.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || hostedConfig.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || hostedConfig.projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || hostedConfig.storageBucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || hostedConfig.messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || hostedConfig.appId,
 };
 
 const hasPlaceholder = (value: string): boolean =>
