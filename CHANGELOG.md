@@ -7,12 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `harness login --status` (and `--json`) reports whether this machine already
+  has a Harness cloud login, including account, server, and token expiry.
+
 ### Changed
 
 - `harness login` now uses a PKCE-bound device code that can be approved in a
-  browser without requiring a loopback callback URL.
+  browser without requiring a loopback callback URL. The CLI flushes progress
+  while waiting and prints a completion line as soon as the Worker issues
+  credentials.
 
 ### Fixed
+
+- Device-code polling no longer overwrites an approved login record, so a
+  successful browser approval completes the terminal session instead of leaving
+  `harness login` waiting until timeout.
 
 - Hosted dashboard builds now include the public `harness5` Firebase web
   configuration by default, so Google sign-in is not disabled when a deploy

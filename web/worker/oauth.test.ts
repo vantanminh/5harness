@@ -125,6 +125,17 @@ describe("StudyOS-style OAuth/KV adapter", () => {
     const tooSoon = await handleDeviceToken(tokenRequest(), env, context());
     expect(tooSoon.status).toBe(400);
     expect((await tooSoon.json() as { error?: string }).error).toBe("slow_down");
+
+    const kv = env.OAUTH_KV as unknown as MemoryKV;
+    const userCodeHash = await sha256Hex(device.user_code.replace("-", ""));
+    const deviceCodeHash = kv.raw("oauth:device-user:" + userCodeHash) ?? "";
+    const record = JSON.parse(kv.raw("oauth:device:" + deviceCodeHash) ?? "{}") as {
+      lastPollAt?: number;
+      status?: string;
+    };
+    expect(record.lastPollAt).toBeUndefined();
+    expect(record.status).toBe("pending");
+    expect(kv.raw("oauth:device-poll:" + deviceCodeHash)).toBeTruthy();
   });
 
   it("advertises the device authorization endpoint in OAuth metadata", async () => {
@@ -210,6 +221,73 @@ describe("StudyOS-style OAuth/KV adapter", () => {
     expect(tokenResponse.status).toBe(200);
     expect((await tokenResponse.json() as { access_token?: string }).access_token).toBeTruthy();
     expect(kv.raw("oauth:device-user:" + userCodeHash)).toBeUndefined();
+  });
+
+  it("exchanges an approval even if a pending poll raced the browser", async () => {
+    const env = testEnv();
+    const verifier = "racy-device-verifier-abcdefghijklmnopqrstuvwxyz-0123456789";
+    const codeChallenge = await challenge(verifier);
+    const response = await handleDeviceCode(
+      new Request("https://worker.example/oauth/device/code", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: "harness-cli",
+          scope: SUPPORTED_SCOPE,
+          code_challenge: codeChallenge,
+          code_challenge_method: "S256",
+        }),
+      }),
+      env,
+    );
+    const device = (await response.json()) as { device_code: string; user_code: string };
+    const tokenRequest = () =>
+      new Request("https://worker.example/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: DEVICE_GRANT_TYPE,
+          client_id: "harness-cli",
+          device_code: device.device_code,
+          code_verifier: verifier,
+        }),
+      });
+    const pending = await handleDeviceToken(tokenRequest(), env, context());
+    expect((await pending.json() as { error?: string }).error).toBe("authorization_pending");
+
+    const clientId = await harnessClientId(env);
+    const completed = await getOAuthHelpers(env).completeAuthorization({
+      request: {
+        responseType: "code",
+        clientId,
+        redirectUri: "http://127.0.0.1/callback",
+        scope: ["sync:read", "sync:write"],
+        state: "approved-race-1234567890",
+        codeChallenge,
+        codeChallengeMethod: "S256",
+      },
+      userId: "firebase-user-race",
+      metadata: { clientName: "test" },
+      scope: ["sync:read", "sync:write"],
+      props: {
+        uid: "firebase-user-race",
+        projectId: "harness5",
+        firebaseApiKey: "api-key",
+        firebaseRefreshToken: "refresh-token",
+      },
+    });
+    const authCode = new URL(completed.redirectTo).searchParams.get("code") ?? "";
+    const kv = env.OAUTH_KV as unknown as MemoryKV;
+    const userCodeHash = await sha256Hex(device.user_code.replace("-", ""));
+    const deviceCodeHash = kv.raw("oauth:device-user:" + userCodeHash) ?? "";
+    const record = JSON.parse(kv.raw("oauth:device:" + deviceCodeHash) ?? "{}");
+    record.status = "approved";
+    record.authCode = authCode;
+    await env.OAUTH_KV.put("oauth:device:" + deviceCodeHash, JSON.stringify(record));
+
+    const tokenResponse = await handleDeviceToken(tokenRequest(), env, context());
+    expect(tokenResponse.status).toBe(200);
+    expect((await tokenResponse.json() as { access_token?: string }).access_token).toBeTruthy();
   });
 
   it("keeps the CLI alias stable and exchanges JSON compatibility requests through the provider", async () => {

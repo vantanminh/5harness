@@ -85,8 +85,10 @@ harness login --server https://<worker>.<account>.workers.dev
 The CLI prints an eight-character device code and opens (or displays) the
 Worker's `/device` page. Sign in there and enter the code; the CLI polls the
 PKCE-bound `/oauth/token` endpoint until the rotating credential is issued.
-This avoids a loopback callback listener. The legacy `/authorize` route stays
-available for existing OAuth clients.
+This avoids a loopback callback listener. After a successful approval the
+terminal should print `Harness cloud login complete` without waiting for the
+timeout. Check an existing session with `harness login --status`. The legacy
+`/authorize` route stays available for existing OAuth clients.
 
 The Worker configuration intentionally contains only public Firebase web
 configuration. OAuth grant properties are encrypted by

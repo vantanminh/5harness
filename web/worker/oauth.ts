@@ -39,6 +39,7 @@ const CSRF_COOKIE = "__Host-harness-oauth-csrf";
 const DEVICE_CSRF_COOKIE = "__Host-harness-device-csrf";
 const DEVICE_KEY_PREFIX = "oauth:device:";
 const DEVICE_USER_KEY_PREFIX = "oauth:device-user:";
+const DEVICE_POLL_KEY_PREFIX = "oauth:device-poll:";
 const DEVICE_TTL_SECONDS = 10 * 60;
 const DEVICE_POLL_INTERVAL_SECONDS = 5;
 const DEVICE_INTERNAL_REDIRECT_URI = "http://127.0.0.1/callback";
@@ -59,7 +60,11 @@ type DeviceCodeRecord = {
   createdAt: number;
   expiresAt: number;
   interval: number;
-  lastPollAt?: number;
+};
+
+type DevicePollState = {
+  lastPollAt: number;
+  interval: number;
 };
 
 function clientDisplayName(name?: string): string {
@@ -195,6 +200,19 @@ function deviceKey(deviceCodeHash: string): string {
 
 function deviceUserKey(userCodeHash: string): string {
   return DEVICE_USER_KEY_PREFIX + userCodeHash;
+}
+
+function devicePollKey(deviceCodeHash: string): string {
+  return DEVICE_POLL_KEY_PREFIX + deviceCodeHash;
+}
+
+function deviceHintRequest(deviceCodeHash: string): Request {
+  return new Request("https://harness.internal/oauth/device-hint/" + deviceCodeHash);
+}
+
+function edgeCache(): Cache | null {
+  const storage = caches as CacheStorage & { default?: Cache };
+  return storage.default ?? null;
 }
 
 function normalizeUserCode(value: unknown): string | null {
@@ -402,19 +420,96 @@ async function canonicalClientId(env: Env, requested: unknown): Promise<string> 
   return requested;
 }
 
+function isDeviceRecord(value: unknown): value is DeviceCodeRecord {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as DeviceCodeRecord;
+  return typeof record.deviceCodeHash === "string" && typeof record.userCodeHash === "string";
+}
+
 async function loadDeviceRecord(
   env: Env,
   deviceCodeHash: string,
 ): Promise<DeviceCodeRecord | null> {
   const value = await env.OAUTH_KV.get(deviceKey(deviceCodeHash), { type: "json" });
+  return isDeviceRecord(value) ? value : null;
+}
+
+async function rememberApprovedDevice(record: DeviceCodeRecord): Promise<void> {
+  if (record.status !== "approved" || !record.authCode) return;
+  const cache = edgeCache();
+  if (!cache) return;
+  try {
+    await cache.put(
+      deviceHintRequest(record.deviceCodeHash),
+      new Response(JSON.stringify(record), {
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "max-age=" + DEVICE_TTL_SECONDS,
+        },
+      }),
+    );
+  } catch {
+    // The Cache API is a same-colo accelerator; KV remains the source of truth.
+  }
+}
+
+async function forgetApprovedDevice(deviceCodeHash: string): Promise<void> {
+  const cache = edgeCache();
+  if (!cache) return;
+  try {
+    await cache.delete(deviceHintRequest(deviceCodeHash));
+  } catch {
+    // ignore
+  }
+}
+
+async function approvedDeviceHint(deviceCodeHash: string): Promise<DeviceCodeRecord | null> {
+  const cache = edgeCache();
+  if (!cache) return null;
+  try {
+    const cached = await cache.match(deviceHintRequest(deviceCodeHash));
+    if (!cached) return null;
+    const value: unknown = await cached.json();
+    if (!isDeviceRecord(value) || value.status !== "approved" || !value.authCode) return null;
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+async function loadDeviceRecordForPoll(
+  env: Env,
+  deviceCodeHash: string,
+): Promise<DeviceCodeRecord | null> {
+  const hinted = await approvedDeviceHint(deviceCodeHash);
+  if (hinted) return hinted;
+  return loadDeviceRecord(env, deviceCodeHash);
+}
+
+async function loadPollState(env: Env, deviceCodeHash: string): Promise<DevicePollState | null> {
+  const value = await env.OAUTH_KV.get(devicePollKey(deviceCodeHash), { type: "json" });
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as DeviceCodeRecord;
+  const state = value as DevicePollState;
+  if (!Number.isFinite(state.lastPollAt) || !Number.isFinite(state.interval)) return null;
+  return { lastPollAt: state.lastPollAt, interval: state.interval };
+}
+
+async function savePollState(
+  env: Env,
+  record: DeviceCodeRecord,
+  state: DevicePollState,
+): Promise<void> {
+  await env.OAUTH_KV.put(devicePollKey(record.deviceCodeHash), JSON.stringify(state), {
+    expirationTtl: Math.max(1, record.expiresAt - unixNow()),
+  });
 }
 
 async function deleteDeviceRecord(env: Env, record: DeviceCodeRecord): Promise<void> {
   await Promise.all([
     env.OAUTH_KV.delete(deviceKey(record.deviceCodeHash)),
     env.OAUTH_KV.delete(deviceUserKey(record.userCodeHash)),
+    env.OAUTH_KV.delete(devicePollKey(record.deviceCodeHash)),
+    forgetApprovedDevice(record.deviceCodeHash),
   ]);
 }
 
@@ -538,7 +633,7 @@ export async function handleDeviceToken(
   }
   const clientId = await canonicalClientId(env, formText(form, "client_id", 512));
   const deviceCodeHash = await sha256Hex(deviceCode);
-  const record = await loadDeviceRecord(env, deviceCodeHash);
+  const record = await loadDeviceRecordForPoll(env, deviceCodeHash);
   if (!record || record.clientId !== clientId) {
     return retryResponse(request, env, "invalid_grant", "Device code is invalid or expired.");
   }
@@ -550,53 +645,52 @@ export async function handleDeviceToken(
   if (record.codeChallenge !== (await pkceChallenge(verifier))) {
     return retryResponse(request, env, "invalid_grant", "Device code verifier is invalid.");
   }
-  const elapsed = record.lastPollAt === undefined ? record.interval : now - record.lastPollAt;
-  if (record.lastPollAt !== undefined && elapsed < record.interval) {
-    record.interval = Math.min(30, record.interval + 5);
-    record.lastPollAt = now;
-    await env.OAUTH_KV.put(deviceKey(record.deviceCodeHash), JSON.stringify(record), {
-      expirationTtl: Math.max(1, record.expiresAt - now),
+  if (record.status === "approved" && record.authCode) {
+    const body = new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: record.clientId,
+      redirect_uri: DEVICE_INTERNAL_REDIRECT_URI,
+      code: record.authCode,
+      code_verifier: verifier,
     });
+    const headers = new Headers({ "Content-Type": "application/x-www-form-urlencoded" });
+    const origin = request.headers.get("Origin");
+    if (origin) headers.set("Origin", origin);
+    const forwarded = new Request(new URL(TOKEN_ROUTE, request.url), {
+      method: "POST",
+      headers,
+      body,
+    });
+    const response = await oauthProvider.fetch(forwarded, env, ctx);
+    if (response.ok) await deleteDeviceRecord(env, record);
+    return withCors(request, env, response);
+  }
+
+  const poll = (await loadPollState(env, record.deviceCodeHash)) ?? {
+    lastPollAt: 0,
+    interval: record.interval || DEVICE_POLL_INTERVAL_SECONDS,
+  };
+  if (poll.lastPollAt > 0 && now - poll.lastPollAt < poll.interval) {
+    poll.interval = Math.min(30, poll.interval + 5);
+    poll.lastPollAt = now;
+    await savePollState(env, record, poll);
     return retryResponse(
       request,
       env,
       "slow_down",
       "Poll interval is too short. Try again later.",
-      record.interval,
+      poll.interval,
     );
   }
-  record.lastPollAt = now;
-  await env.OAUTH_KV.put(deviceKey(record.deviceCodeHash), JSON.stringify(record), {
-    expirationTtl: Math.max(1, record.expiresAt - now),
-  });
-  if (record.status !== "approved" || !record.authCode) {
-    return retryResponse(
-      request,
-      env,
-      "authorization_pending",
-      "Device authorization is still pending.",
-      record.interval,
-    );
-  }
-
-  const body = new URLSearchParams({
-    grant_type: "authorization_code",
-    client_id: record.clientId,
-    redirect_uri: DEVICE_INTERNAL_REDIRECT_URI,
-    code: record.authCode,
-    code_verifier: verifier,
-  });
-  const headers = new Headers({ "Content-Type": "application/x-www-form-urlencoded" });
-  const origin = request.headers.get("Origin");
-  if (origin) headers.set("Origin", origin);
-  const forwarded = new Request(new URL(TOKEN_ROUTE, request.url), {
-    method: "POST",
-    headers,
-    body,
-  });
-  const response = await oauthProvider.fetch(forwarded, env, ctx);
-  if (response.ok) await deleteDeviceRecord(env, record);
-  return withCors(request, env, response);
+  poll.lastPollAt = now;
+  await savePollState(env, record, poll);
+  return retryResponse(
+    request,
+    env,
+    "authorization_pending",
+    "Device authorization is still pending.",
+    poll.interval,
+  );
 }
 
 function requestWithClientId(request: Request, clientId: string): Request {
@@ -746,6 +840,7 @@ export async function handleDeviceApprove(request: Request, env: Env): Promise<R
   await env.OAUTH_KV.put(deviceKey(record.deviceCodeHash), JSON.stringify(record), {
     expirationTtl: Math.max(1, record.expiresAt - unixNow()),
   });
+  await rememberApprovedDevice(record);
   return clearDeviceCsrfCookie(json(request, env, { ok: true }));
 }
 

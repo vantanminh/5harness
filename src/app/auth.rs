@@ -7,6 +7,7 @@
 
 use std::env;
 use std::fs;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -42,6 +43,19 @@ pub struct AuthState {
     pub user_email: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct LoginStatus {
+    pub logged_in: bool,
+    pub server: Option<String>,
+    pub user_id: Option<String>,
+    pub user_email: Option<String>,
+    pub access_expires_at: Option<i64>,
+    pub refresh_expires_at: Option<i64>,
+    pub access_valid: bool,
+    pub refresh_valid: bool,
+    pub auth_file: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -94,6 +108,71 @@ pub fn read_auth() -> Result<Option<AuthState>> {
         ));
     }
     Ok(Some(auth))
+}
+
+pub fn login_status() -> Result<LoginStatus> {
+    let auth_file = auth_file_path().display().to_string();
+    let Some(auth) = read_auth()? else {
+        return Ok(LoginStatus {
+            logged_in: false,
+            server: None,
+            user_id: None,
+            user_email: None,
+            access_expires_at: None,
+            refresh_expires_at: None,
+            access_valid: false,
+            refresh_valid: false,
+            auth_file,
+        });
+    };
+    let now = unix_now();
+    Ok(LoginStatus {
+        logged_in: true,
+        server: Some(auth.server),
+        user_id: auth.user_id,
+        user_email: auth.user_email,
+        access_expires_at: Some(auth.access_expires_at),
+        refresh_expires_at: auth.refresh_expires_at,
+        access_valid: auth.access_expires_at > now,
+        refresh_valid: auth
+            .refresh_expires_at
+            .map(|expires_at| expires_at > now)
+            .unwrap_or(true),
+        auth_file,
+    })
+}
+
+pub fn format_login_status(status: &LoginStatus) -> String {
+    if !status.logged_in {
+        return format!(
+            "Harness cloud login: not connected\nCredential file: {}\nRun `harness login --server <web-url>` to authorize this machine.",
+            status.auth_file
+        );
+    }
+    let now = unix_now();
+    let account = status
+        .user_email
+        .as_deref()
+        .or(status.user_id.as_deref())
+        .unwrap_or("unknown account");
+    let access = match status.access_expires_at {
+        Some(expires_at) if expires_at > now => format!("valid ({}s remaining)", expires_at - now),
+        Some(_) => "expired (will refresh on the next cloud request)".to_string(),
+        None => "unknown".to_string(),
+    };
+    let refresh = match status.refresh_expires_at {
+        Some(expires_at) if expires_at > now => format!("valid ({}s remaining)", expires_at - now),
+        Some(_) => "expired".to_string(),
+        None => "valid".to_string(),
+    };
+    format!(
+        "Harness cloud login: connected\nServer: {}\nAccount: {}\nAccess token: {}\nRefresh token: {}\nCredential file: {}",
+        status.server.as_deref().unwrap_or("unknown"),
+        account,
+        access,
+        refresh,
+        status.auth_file
+    )
 }
 
 fn write_auth(auth: &AuthState) -> Result<()> {
@@ -191,17 +270,22 @@ pub fn login(
     }
     let verification_url = device_verification_url(&server, &device)?;
 
-    println!("Harness device login");
-    println!("Enter this code in your browser: {}", device.user_code);
-    println!("Verification URL: {verification_url}");
+    println_flush("Harness device login");
+    println_flush(&format!(
+        "Enter this code in your browser: {}",
+        device.user_code
+    ));
+    println_flush(&format!("Verification URL: {verification_url}"));
     if !no_browser {
         if let Err(error) = open_browser(&verification_url) {
             eprintln!("Could not open the browser automatically: {error}");
+            let _ = io::stderr().flush();
         }
     }
-    println!("Waiting for authorization…");
+    println_flush("Waiting for browser authorization. This terminal will finish automatically after you approve the code.");
 
     let token = poll_device_token(&client, &server, &device, &verifier, timeout_seconds)?;
+    println_flush("Browser authorization received. Completing login…");
     let auth = auth_state_from_token(server, token)?;
     write_auth(&auth)?;
     Ok(auth)
@@ -240,6 +324,7 @@ fn poll_device_token(
         Instant::now() + Duration::from_secs(timeout_seconds.clamp(1, 900).min(device.expires_in));
     let mut interval = Duration::from_secs(device.interval.unwrap_or(5).clamp(1, 30));
     let mut first_poll = true;
+    let mut last_heartbeat = Instant::now();
     loop {
         if !first_poll {
             let remaining = deadline.saturating_duration_since(Instant::now());
@@ -265,6 +350,7 @@ fn poll_device_token(
             Ok(response) => response,
             Err(error) if Instant::now() < deadline => {
                 eprintln!("Device authorization is temporarily unavailable; retrying… ({error})");
+                let _ = io::stderr().flush();
                 continue;
             }
             Err(error) => {
@@ -273,6 +359,7 @@ fn poll_device_token(
                 )))
             }
         };
+        let retry_after = retry_after_interval(response.headers());
         let status = response.status();
         let body = response.text().map_err(|e| {
             Error::new(format!(
@@ -290,9 +377,19 @@ fn poll_device_token(
             .as_ref()
             .and_then(|error| error.error.as_deref())
         {
-            Some("authorization_pending") => continue,
+            Some("authorization_pending") => {
+                if let Some(wait) = retry_after {
+                    interval = wait;
+                }
+                heartbeat_wait(deadline, &mut last_heartbeat);
+                continue;
+            }
             Some("slow_down") => {
-                interval = (interval + Duration::from_secs(5)).min(Duration::from_secs(30));
+                interval = retry_after
+                    .unwrap_or_else(|| interval + Duration::from_secs(5))
+                    .max(interval + Duration::from_secs(5))
+                    .min(Duration::from_secs(30));
+                heartbeat_wait(deadline, &mut last_heartbeat);
                 continue;
             }
             Some("access_denied") => {
@@ -526,6 +623,28 @@ fn unix_now() -> i64 {
         .unwrap_or(0)
 }
 
+fn println_flush(message: &str) {
+    println!("{message}");
+    let _ = io::stdout().flush();
+}
+
+fn heartbeat_wait(deadline: Instant, last_heartbeat: &mut Instant) {
+    if last_heartbeat.elapsed() < Duration::from_secs(15) {
+        return;
+    }
+    println_flush(&format!(
+        "Still waiting for browser authorization ({}s remaining)…",
+        deadline.saturating_duration_since(Instant::now()).as_secs()
+    ));
+    *last_heartbeat = Instant::now();
+}
+
+fn retry_after_interval(headers: &reqwest::header::HeaderMap) -> Option<Duration> {
+    let value = headers.get(reqwest::header::RETRY_AFTER)?.to_str().ok()?;
+    let seconds = value.parse::<u64>().ok()?;
+    Some(Duration::from_secs(seconds.clamp(1, 30)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -564,5 +683,41 @@ mod tests {
         let mut unsafe_device = device;
         unsafe_device.verification_uri = "https://evil.example.com/device".to_string();
         assert!(device_verification_url("https://cloud.example.com", &unsafe_device).is_err());
+    }
+
+    #[test]
+    fn formats_login_status_without_exposing_tokens() {
+        let disconnected = LoginStatus {
+            logged_in: false,
+            server: None,
+            user_id: None,
+            user_email: None,
+            access_expires_at: None,
+            refresh_expires_at: None,
+            access_valid: false,
+            refresh_valid: false,
+            auth_file: "/tmp/auth.json".to_string(),
+        };
+        let disconnected_text = format_login_status(&disconnected);
+        assert!(disconnected_text.contains("not connected"));
+        assert!(disconnected_text.contains("harness login"));
+        assert!(!disconnected_text.contains("access_token"));
+
+        let connected = LoginStatus {
+            logged_in: true,
+            server: Some("https://cloud.example.com".to_string()),
+            user_id: Some("uid-1".to_string()),
+            user_email: Some("user@example.com".to_string()),
+            access_expires_at: Some(unix_now() + 600),
+            refresh_expires_at: Some(unix_now() + 3600),
+            access_valid: true,
+            refresh_valid: true,
+            auth_file: "/tmp/auth.json".to_string(),
+        };
+        let connected_text = format_login_status(&connected);
+        assert!(connected_text.contains("connected"));
+        assert!(connected_text.contains("user@example.com"));
+        assert!(connected_text.contains("https://cloud.example.com"));
+        assert!(!connected_text.contains("secret"));
     }
 }

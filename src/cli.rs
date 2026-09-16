@@ -186,6 +186,11 @@ enum Commands {
         no_browser: bool,
         #[arg(long = "timeout-seconds", default_value_t = 300)]
         timeout_seconds: u64,
+        /// Print whether this machine already has a Harness cloud login
+        #[arg(long = "status")]
+        status: bool,
+        #[arg(long = "json")]
+        json: bool,
     },
     /// Remove the local Harness cloud credential and revoke it remotely
     Logout,
@@ -1216,7 +1221,31 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
             server,
             no_browser,
             timeout_seconds,
+            status,
+            json,
         } => {
+            if json && !status {
+                return Err(Error::new("`harness login --json` requires `--status`."));
+            }
+            if status {
+                let login_status = crate::app::auth::login_status()?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&login_status)?);
+                } else {
+                    println!("{}", crate::app::auth::format_login_status(&login_status));
+                }
+                if !login_status.logged_in {
+                    return Err(Error::new(
+                        "Harness cloud is not connected. Run `harness login --server <web-url>`.",
+                    ));
+                }
+                if !login_status.refresh_valid {
+                    return Err(Error::new(
+                        "Harness cloud refresh credential expired. Run `harness login` again.",
+                    ));
+                }
+                return Ok(());
+            }
             let auth = crate::app::auth::login(server.as_deref(), no_browser, timeout_seconds)?;
             match auth.user_email {
                 Some(email) => println!("Harness cloud login complete for {email}."),

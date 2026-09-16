@@ -64,6 +64,25 @@ fn cloud_commands_expose_safe_subcommand_contract() {
     let login_help = stdout(&login);
     assert!(login_help.contains("--server"), "{login_help}");
     assert!(login_help.contains("--no-browser"), "{login_help}");
+    assert!(login_help.contains("--status"), "{login_help}");
+    assert!(login_help.contains("--json"), "{login_help}");
+
+    let status = run(&["login", "--status", "--json"], None);
+    assert!(!status.status.success(), "{}", stderr(&status));
+    let status_json: serde_json::Value =
+        serde_json::from_str(&stdout(&status)).unwrap_or_else(|_| {
+            panic!(
+                "login --status --json stdout: {} stderr: {}",
+                stdout(&status),
+                stderr(&status)
+            )
+        });
+    assert_eq!(status_json["logged_in"], false, "{status_json}");
+    assert!(
+        stderr(&status).contains("not connected"),
+        "{}",
+        stderr(&status)
+    );
 
     let sync = run(&["sync", "--help"], None);
     assert!(sync.status.success(), "{}", stderr(&sync));

@@ -12,6 +12,8 @@ harness login
     -> Firebase Auth at the device verification page
     -> PKCE-bound device approval and token polling (no loopback callback)
     -> rotated opaque CLI credentials in ~/.5harness/auth.json
+harness login --status
+    -> local credential file, without starting a new device-code flow
 
 harness sync push
     -> deterministic durable-file manifest
