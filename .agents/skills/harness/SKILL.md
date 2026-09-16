@@ -65,5 +65,15 @@ Prefer the CLI. If MCP is connected, use JSON tools (`harness_next`,
 `harness_get`, `harness_query_*`). Project id: `harness project id`.
 For an all-projects grant, send `X-Harness-Project: <id>` on every call.
 
+Hosted cloud MCP (same login, default `https://5harness.knotree.com/mcp`) lets a
+web AI read a designated project's harness and write an implementation brief.
+When the user says `please implement plan from harness --TOKEN`, run:
+
+```bash
+harness plan get TOKEN --json
+```
+
+That returns the full plan and coding-agent prompt. Do not invent the token.
+
 Do not call unimplemented commands (decision 0023). The shipped CLI is the
 contract — run `harness --help`.

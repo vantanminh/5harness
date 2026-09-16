@@ -58,6 +58,39 @@ service cloud.firestore {
       allow read: if owner(uid);
       allow create, update: if validProject(uid, projectId);
       allow delete: if owner(uid);
+
+      match /commits/{commitId} {
+        allow read: if owner(uid);
+        allow create: if owner(uid)
+          && request.resource.data.id == commitId
+          && request.resource.data.project_id == projectId
+          && request.resource.data.message is string
+          && request.resource.data.client_name is string
+          && request.resource.data.changed_paths is list;
+        allow update, delete: if false;
+      }
+
+      match /views/{viewId} {
+        allow read: if owner(uid);
+        allow create, update: if owner(uid)
+          && viewId == 'catalog'
+          && request.resource.data.schema_version == 1
+          && request.resource.data.project_id == projectId
+          && request.resource.data.entities is list;
+        allow delete: if owner(uid);
+      }
+    }
+
+    match /users/{uid}/plans/{planId} {
+      allow read: if owner(uid);
+      allow create: if owner(uid)
+        && request.resource.data.token == planId
+        && request.resource.data.project_id is string
+        && request.resource.data.title is string
+        && request.resource.data.plan_markdown is string
+        && request.resource.data.implement_prompt is string
+        && request.resource.data.handoff_command is string;
+      allow update, delete: if owner(uid);
     }
 
     match /{document=**} {

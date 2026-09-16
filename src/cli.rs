@@ -44,8 +44,8 @@ use crate::VERSION;
     name = "harness",
     version = VERSION,
     disable_version_flag = true,
-    about = "npm-native agent-ready repository harness — init, durable records, and queries",
-    long_about = None
+    about = "npm/bun/pnpm agent-ready repository harness — native OS binary, init, durable records, and cloud sync",
+    after_help = "Install and update with npm, bun, or pnpm (`npm i -g 5harness`). The package launches the OS-native binary, not a Node CLI.\nLogin defaults to https://5harness.knotree.com (override with --server or HARNESS_CLOUD_URL)."
 )]
 struct Cli {
     /// print CLI version (also -V)
@@ -178,8 +178,9 @@ enum Commands {
         #[command(subcommand)]
         cmd: Option<DashboardCmd>,
     },
-    /// Authorize this CLI with the hosted Harness cloud using a device code
+    /// Authorize this CLI with Harness Cloud (default https://5harness.knotree.com)
     Login {
+        /// Cloud URL (default: https://5harness.knotree.com)
         #[arg(long = "server")]
         server: Option<String>,
         #[arg(long = "no-browser")]
@@ -199,6 +200,11 @@ enum Commands {
         #[command(subcommand)]
         cmd: SyncCmd,
     },
+    /// Load a cloud implementation brief created by a web AI
+    Plan {
+        #[command(subcommand)]
+        cmd: PlanCmd,
+    },
     /// Browse and search harness documentation
     Docs {
         #[command(subcommand)]
@@ -206,7 +212,7 @@ enum Commands {
     },
     /// Print shell completion script (bash | zsh | pwsh)
     Completion { shell: String },
-    /// Update 5harness globally using the detected package manager
+    /// Update 5harness globally using npm, bun, or pnpm (downloads the OS-native binary)
     Update,
     /// Upgrade harness block in AGENTS.md to match current CLI version
     Upgrade {
@@ -613,6 +619,17 @@ enum DashboardCmd {
 }
 
 #[derive(Subcommand, Debug)]
+enum PlanCmd {
+    /// Load the full plan and coding-agent prompt by token
+    Get {
+        /// Token from `please implement plan from harness --TOKEN`
+        token: String,
+        #[arg(long = "json")]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
 enum SyncCmd {
     /// Encrypt and upload the current durable markdown snapshot
     Push {
@@ -622,6 +639,8 @@ enum SyncCmd {
         passphrase: Option<String>,
         #[arg(long = "passphrase-stdin")]
         passphrase_stdin: bool,
+        #[arg(long = "message")]
+        message: Option<String>,
         #[arg(long = "json")]
         json: bool,
     },
@@ -1030,6 +1049,30 @@ enum ExportCmd {
     },
 }
 
+fn global_update_command() -> (String, Vec<String>) {
+    let agent = env::var("npm_config_user_agent").unwrap_or_default();
+    if agent.contains("bun/") {
+        return (
+            "bun".into(),
+            vec!["add".into(), "-g".into(), "5harness@latest".into()],
+        );
+    }
+    if agent.contains("pnpm/") {
+        return (
+            "pnpm".into(),
+            vec!["add".into(), "-g".into(), "5harness@latest".into()],
+        );
+    }
+    (
+        "npm".into(),
+        vec![
+            "install".into(),
+            "--global".into(),
+            "5harness@latest".into(),
+        ],
+    )
+}
+
 pub fn run() -> Result<()> {
     let mut argv: Vec<String> = env::args().collect();
     for a in argv.iter_mut() {
@@ -1236,7 +1279,7 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
                 }
                 if !login_status.logged_in {
                     return Err(Error::new(
-                        "Harness cloud is not connected. Run `harness login --server <web-url>`.",
+                        "Harness cloud is not connected. Run `harness login` (default https://5harness.knotree.com).",
                     ));
                 }
                 if !login_status.refresh_valid {
@@ -1267,13 +1310,15 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
                 dir,
                 passphrase,
                 passphrase_stdin,
+                message,
                 json,
             } => {
                 let target = dir.path(None, cwd);
-                let result = crate::app::sync::run_push(
+                let result = crate::app::sync::run_push_with_message(
                     &target,
                     passphrase.as_deref(),
                     passphrase_stdin,
+                    message.as_deref(),
                 )?;
                 if json {
                     println!("{}", serde_json::to_string_pretty(&result)?);
@@ -1339,6 +1384,17 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
                 Ok(())
             }
         },
+        Commands::Plan { cmd } => match cmd {
+            PlanCmd::Get { token, json } => {
+                let plan = crate::app::plan::fetch_plan(&token)?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&plan)?);
+                } else {
+                    print!("{}", crate::app::plan::format_plan_for_agent(&plan));
+                }
+                Ok(())
+            }
+        },
         Commands::Docs { cmd } => docs_cmd(cmd),
         Commands::Completion { shell } => {
             let mut command = Cli::command();
@@ -1352,8 +1408,14 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
             Ok(())
         }
         Commands::Update => {
-            let status = std::process::Command::new("npm").args(["install", "--global", "5harness@latest"]).status()?;
-            if status.success() { Ok(()) } else { Err(Error::new(format!("npm update failed with {status}"))) }
+            let (bin, args) = global_update_command();
+            println!("Updating 5harness with `{bin} {}` (OS-native binary via npm/bun/pnpm).", args.join(" "));
+            let status = std::process::Command::new(&bin).args(&args).status()?;
+            if status.success() {
+                Ok(())
+            } else {
+                Err(Error::new(format!("{bin} update failed with {status}")))
+            }
         }
         Commands::Upgrade { dir } => {
             let target = dir.path(None, cwd);

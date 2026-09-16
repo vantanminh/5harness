@@ -1,15 +1,24 @@
 import { getBearerToken, verifyFirebaseIdToken } from "./auth";
 import { errorJson, json, originAllowed, withCors } from "./cors";
 import { ApiError } from "./errors";
+import { validateCatalog } from "./catalog";
+import { commitMetadata, validateCommitInput } from "./commits";
 import {
   FirestoreError,
   deleteProject,
+  listCommits,
   listProjects,
   projectMetadata,
+  readCommit,
+  readPlan,
   readProject,
   refreshFirebaseIdToken,
   upsertProject,
+  writeCatalog,
+  writeCommit,
+  writePlan,
 } from "./firestore";
+import { validatePlanInput, validatePlanToken } from "./plans";
 import {
   DAILY_BYTES_LIMIT,
   DAILY_READ_LIMIT,
@@ -256,6 +265,77 @@ export async function handleApi(
       );
       return json(request, env, { projects: projects.map(projectMetadata) });
     }
+    if (url.pathname === "/api/plans" && request.method === "POST") {
+      await consumeRateLimit(request, env, "plan-write", 20);
+      const principal = await principalFromRequest(request, env);
+      requireScope(principal, "sync:write");
+      await consumeDailyQuota(env, principal.uid, "syncWrites", 1, DAILY_WRITE_LIMIT);
+      const plan = validatePlanInput(await bodyObject(request), {
+        uid: principal.uid,
+        email: principal.email,
+      });
+      if (!plan) {
+        throw new ApiError(400, "invalid_plan", "Implementation brief is invalid.");
+      }
+      await writePlan(
+        principal.firebaseToken,
+        principal.firestoreEnv,
+        principal.uid,
+        plan as unknown as Record<string, unknown>,
+      );
+      return json(request, env, plan);
+    }
+    if (url.pathname.startsWith("/api/plans/") && request.method === "GET") {
+      await consumeRateLimit(request, env, "plan-read", 60);
+      const principal = await principalFromRequest(request, env);
+      requireScope(principal, "sync:read");
+      const token = decodeURIComponent(url.pathname.slice("/api/plans/".length));
+      if (!validatePlanToken(token)) {
+        throw new ApiError(400, "invalid_plan_token", "Plan token is invalid.");
+      }
+      await consumeDailyQuota(env, principal.uid, "syncReads", 1, DAILY_READ_LIMIT);
+      const plan = await readPlan(
+        principal.firebaseToken,
+        principal.firestoreEnv,
+        principal.uid,
+        token,
+      );
+      if (!plan) throw new ApiError(404, "plan_not_found", "Plan was not found.");
+      return json(request, env, plan);
+    }
+    const commitList = url.pathname.match(/^\/api\/sync\/snapshots\/([^/]+)\/commits\/?$/);
+    const commitOne = url.pathname.match(/^\/api\/sync\/snapshots\/([^/]+)\/commits\/([^/]+)$/);
+    if (commitList && request.method === "GET") {
+      await consumeRateLimit(request, env, "sync-commits", 60);
+      const principal = await principalFromRequest(request, env);
+      requireScope(principal, "sync:read");
+      const projectId = safeProjectId(decodeURIComponent(commitList[1] ?? ""));
+      await consumeDailyQuota(env, principal.uid, "syncReads", 1, DAILY_READ_LIMIT);
+      const commits = await listCommits(
+        principal.firebaseToken,
+        principal.firestoreEnv,
+        principal.uid,
+        projectId,
+      );
+      return json(request, env, { project_id: projectId, commits });
+    }
+    if (commitOne && request.method === "GET") {
+      await consumeRateLimit(request, env, "sync-commit", 120);
+      const principal = await principalFromRequest(request, env);
+      requireScope(principal, "sync:read");
+      const projectId = safeProjectId(decodeURIComponent(commitOne[1] ?? ""));
+      const commitId = decodeURIComponent(commitOne[2] ?? "");
+      await consumeDailyQuota(env, principal.uid, "syncReads", 1, DAILY_READ_LIMIT);
+      const commit = await readCommit(
+        principal.firebaseToken,
+        principal.firestoreEnv,
+        principal.uid,
+        projectId,
+        commitId,
+      );
+      if (!commit) throw new ApiError(404, "commit_not_found", "Commit was not found.");
+      return json(request, env, { project_id: projectId, commit });
+    }
     if (
       url.pathname.startsWith("/api/sync/snapshots/") &&
       (request.method === "GET" || request.method === "DELETE")
@@ -330,12 +410,49 @@ export async function handleApi(
         envelope,
         baseRevision(body.base_revision),
       );
+      const commit = body.commit
+        ? validateCommitInput(body.commit, {
+            authorUserId: principal.uid,
+            authorEmail: principal.email,
+          })
+        : null;
+      if (body.commit && !commit) {
+        throw new ApiError(400, "invalid_commit", "Sync commit record is invalid.");
+      }
+      if (commit) {
+        await writeCommit(
+          principal.firebaseToken,
+          principal.firestoreEnv,
+          principal.uid,
+          projectId,
+          {
+            ...commit,
+            revision: result.revision,
+            project_id: projectId,
+          } as unknown as Record<string, unknown>,
+        );
+      }
+      if (body.catalog) {
+        const catalog = validateCatalog(body.catalog, projectId);
+        if (!catalog) {
+          throw new ApiError(400, "invalid_catalog", "Harness catalog is invalid.");
+        }
+        await writeCatalog(
+          principal.firebaseToken,
+          principal.firestoreEnv,
+          principal.uid,
+          projectId,
+          catalog as unknown as Record<string, unknown>,
+        );
+      }
       return json(request, env, {
         snapshot_id: projectId,
         revision: result.revision,
         created_at: result.createdAt,
         plaintext_sha256: envelope.plaintext_sha256,
         ciphertext_bytes: result.ciphertextBytes,
+        commit_id: commit?.id ?? null,
+        commit: commit ? commitMetadata(commit) : null,
       });
     }
     return errorJson(request, env, "not_found", "API route was not found.", 404);

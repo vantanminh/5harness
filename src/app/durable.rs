@@ -60,7 +60,9 @@ fn with_links(mut data: Frontmatter, links_csv: Option<&str>) -> Frontmatter {
 }
 
 pub fn maybe_reindex(project_root: &Path) -> Result<()> {
-    write_project_index(project_root).map(|_| ())
+    write_project_index(project_root).map(|_| ())?;
+    crate::app::sync::maybe_auto_sync(project_root);
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]

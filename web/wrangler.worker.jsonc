@@ -25,7 +25,7 @@
   "vars": {
     "FIREBASE_PROJECT_ID": "harness5",
     "FIREBASE_API_KEY": "AIzaSyCvV_Hdl36iwuH3tolYwAJaj7xgthvrvL8",
-    "CORS_ORIGINS": "https://5harness-cloud.pages.dev"
+    "CORS_ORIGINS": "https://5harness-cloud.pages.dev,https://5harness.knotree.com"
   },
   "triggers": {
     "crons": ["17 * * * *"]

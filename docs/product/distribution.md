@@ -7,7 +7,7 @@
 | npm name | `5harness` |
 | bin | `harness` / `5harness` / `5hn` → `dist/cli.js` (fixed-path shim → native Rust binary) |
 | GitHub | [vantanminh/5harness](https://github.com/vantanminh/5harness) |
-| **Preferred install** | `npm i -g 5harness` |
+| **Preferred install** | `npm i -g 5harness` (also `bun add -g 5harness` / `pnpm add -g 5harness`) |
 | Windows auto-install | Download `install/windows.ps1` from a versioned `vX.Y.Z` tag, inspect it, then run it |
 | macOS auto-install | Download `install/macos.sh` from a versioned `vX.Y.Z` tag, inspect it, then run it |
 | Linux auto-install | Download `install/linux.sh` from a versioned `vX.Y.Z` tag, inspect it, then run it |
@@ -19,12 +19,17 @@
 ## Install story (product)
 
 ```bash
-npm i -g 5harness
+npm i -g 5harness          # or: bun add -g 5harness / pnpm add -g 5harness
 cd /path/to/project
 harness init          # new project: scaffold + register
 # or after git clone of an already-harnessed repo:
 harness link          # register path + reindex committed history
+harness login         # default https://5harness.knotree.com
 ```
+
+The npm/bun/pnpm package is how users install, upgrade, and pin versions. The
+runtime that actually runs is the **OS-native binary** shipped in `bin/` and
+selected by `dist/cli.js` for the current OS/CPU.
 
 Global install matches multi-project use and a future local dashboard. Project
 files (markdown) remain in the repo for GitHub backup and collaborator clones.

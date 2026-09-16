@@ -7,6 +7,7 @@ pub mod init;
 pub mod link;
 pub mod local;
 pub mod mcp;
+pub mod plan;
 pub mod project_link;
 pub mod query;
 pub mod status;

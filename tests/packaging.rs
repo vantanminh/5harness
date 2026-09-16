@@ -8,6 +8,24 @@ fn root() -> PathBuf {
 }
 
 #[test]
+fn npm_launcher_executes_native_os_binary() {
+    let launcher = fs::read_to_string(root().join("dist/cli.js")).unwrap();
+    assert!(launcher.contains("Thin npm bin shim"));
+    assert!(launcher.contains("native Rust binary"));
+    assert!(launcher.contains("function rustTriple"));
+    assert!(launcher.contains("path.join(root, \"bin\""));
+    assert!(launcher.contains("spawnSync(candidate"));
+    assert!(!launcher.contains("node:vm"));
+    let readme = fs::read_to_string(root().join("README.md")).unwrap();
+    assert!(readme.contains("npm i -g 5harness"));
+    assert!(readme.contains("bun add -g 5harness") || readme.contains("bun add --global 5harness"));
+    assert!(
+        readme.contains("pnpm add -g 5harness") || readme.contains("pnpm add --global 5harness")
+    );
+    assert!(readme.contains("5harness.knotree.com"));
+}
+
+#[test]
 fn package_json_keeps_5harness_bins() {
     let pkg: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(root().join("package.json")).unwrap()).unwrap();

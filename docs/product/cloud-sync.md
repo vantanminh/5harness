@@ -7,7 +7,7 @@ the repository remains the source of truth.
 ## Data flow
 
 ```text
-harness login
+harness login                 # default https://5harness.knotree.com
     -> Cloudflare Worker /oauth/device/code
     -> Firebase Auth at the device verification page
     -> PKCE-bound device approval and token polling (no loopback callback)
@@ -15,11 +15,16 @@ harness login
 harness login --status
     -> local credential file, without starting a new device-code flow
 
-harness sync push
-    -> deterministic durable-file manifest
-    -> PBKDF2-HMAC-SHA256 + AES-256-GCM on the client
+harness sync push (first time stores the passphrase locally)
+    -> deterministic durable-file manifest + changed-path commit
+    -> PBKDF2-HMAC-SHA256 + AES-256-GCM snapshot on the client
+    -> user-scoped harness catalog for hosted MCP reads
     -> Cloudflare Worker API
     -> Firebase Firestore REST under users/{uid}/projects/{projectId}
+    -> commits/{commitId} and views/catalog
+
+later durable CLI mutations
+    -> auto-sync the same path without a manual push
 ```
 
 The Worker verifies Firebase ID tokens with Google's Secure Token JWKS and
@@ -46,6 +51,31 @@ The CLI includes UTF-8 Markdown files below these project-relative roots:
 `README.md` files, `.5harness/`, `AGENTS.md`, credentials, traces, indexes, and
 arbitrary project files are excluded. A pull validates the project id, file
 hashes, UTF-8 content, and confined paths before making atomic local writes.
+
+Each upload also records a GitHub-like **commit**: id, time, author, source
+client, message, and changed paths only. The dashboard lists those commits and
+opens a detail view. A separate catalog of harness entities (not source code)
+is stored so hosted MCP can read the designated project sequentially.
+
+After login and the first successful `sync push`, durable mutations auto-sync
+using the stored passphrase or `HARNESS_SYNC_PASSPHRASE`. Set
+`HARNESS_AUTO_SYNC=0` to disable.
+
+## Hosted MCP and implementation briefs
+
+Web AIs connect to `https://5harness.knotree.com/mcp` with the same OAuth user
+as `harness login`. Tools:
+
+1. `harness_cloud_guide` / initialize instructions — sequential read order
+2. `harness_projects` — list synced projects; the user designates one
+3. `harness_project_overview` / `harness_search` / `harness_entities`
+4. `harness_get` — one entity at a time
+5. `harness_plan_create` — store idea, research, detailed plan, and a complete
+   coding-agent prompt; returns token `please implement plan from harness --TOKEN`
+6. `harness_plan_get` — load that brief by token
+
+Coding agents run `harness plan get TOKEN` (CLI or local MCP `harness_plan_get`)
+to receive the full plan and prompt. Do not invent the token.
 
 ## Conflict behavior
 

@@ -90,7 +90,8 @@ pub fn mcp_tools() -> Value {
         {"name":"harness_backlog_add","description":"Add a backlog item. Mutates durable markdown.","inputSchema":{"type":"object","properties":{"title":{"type":"string"},"risk":{"type":"string"}},"required":["title"]}},
         {"name":"harness_reindex","description":"Rebuild the derived project index.","inputSchema":{"type":"object","properties":{}}},
         {"name":"harness_project_role","description":"Read local Project Link role and stack.","inputSchema":{"type":"object","properties":{}}},
-        {"name":"harness_project_peers","description":"List configured Project Link peers.","inputSchema":{"type":"object","properties":{}}}
+        {"name":"harness_project_peers","description":"List configured Project Link peers.","inputSchema":{"type":"object","properties":{}}},
+        {"name":"harness_plan_get","description":"Load a cloud implementation brief by token from `please implement plan from harness --TOKEN`. Returns the full plan and coding-agent prompt.","inputSchema":{"type":"object","properties":{"token":{"type":"string"}},"required":["token"]}}
     ])
 }
 
@@ -307,6 +308,26 @@ fn call_tool(root: &Path, name: &str, args: &Value) -> Result<String> {
         "harness_doctor" => Ok(serde_json::to_string(&doctor_json(root)?)?),
         "harness_project_role" => Ok(serde_json::to_string(&project_link::role(root)?)?),
         "harness_project_peers" => Ok(serde_json::to_string(&project_link::peers(root)?)?),
+        "harness_plan_get" => {
+            let token = args
+                .get("token")
+                .and_then(|v| v.as_str())
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| Error::new("harness_plan_get requires token"))?;
+            let plan = crate::app::plan::fetch_plan(token)?;
+            Ok(serde_json::to_string(&json!({
+                "token": plan.token,
+                "project_id": plan.project_id,
+                "title": plan.title,
+                "idea": plan.idea,
+                "research_notes": plan.research_notes,
+                "plan_markdown": plan.plan_markdown,
+                "implement_prompt": plan.implement_prompt,
+                "handoff_command": plan.handoff_command,
+                "created_at": plan.created_at,
+                "text": crate::app::plan::format_plan_for_agent(&plan),
+            }))?)
+        }
         "harness_intake" => {
             let ty = args
                 .get("type")

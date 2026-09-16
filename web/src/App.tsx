@@ -29,6 +29,13 @@ import {
   subscribeToAuth,
 } from "./lib/firebase";
 import {
+  commitAuthor,
+  commitClient,
+  filesChanged,
+  shortCommitId,
+  type CloudCommit,
+} from "./lib/commits";
+import {
   decryptEnvelope,
   type EncryptedEnvelope,
   type SyncManifest,
@@ -78,6 +85,7 @@ function App() {
             <Route path="/device" element={<DevicePage />} />
             <Route path="/dashboard" element={<RequireAuth><DashboardPage /></RequireAuth>} />
             <Route path="/projects/:projectId" element={<RequireAuth><ProjectPage /></RequireAuth>} />
+            <Route path="/projects/:projectId/commits/:commitId" element={<RequireAuth><CommitDetailPage /></RequireAuth>} />
             <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
@@ -444,6 +452,7 @@ function ProjectPage() {
   const { projectId = "" } = useParams();
   const navigate = useNavigate();
   const [snapshot, setSnapshot] = useState<(CloudProject & { envelope: EncryptedEnvelope }) | null>(null);
+  const [commits, setCommits] = useState<CloudCommit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [passphrase, setPassphrase] = useState("");
@@ -453,8 +462,15 @@ function ProjectPage() {
   const [deleting, setDeleting] = useState(false);
   useEffect(() => {
     let active = true;
-    void apiFetch<(CloudProject & { has_snapshot: boolean; envelope: EncryptedEnvelope })>("/sync/snapshots/" + encodeURIComponent(projectId))
-      .then((result) => { if (active) setSnapshot(result); })
+    void Promise.all([
+      apiFetch<(CloudProject & { has_snapshot: boolean; envelope: EncryptedEnvelope })>("/sync/snapshots/" + encodeURIComponent(projectId)),
+      apiFetch<{ commits: CloudCommit[] }>("/sync/snapshots/" + encodeURIComponent(projectId) + "/commits").catch(() => ({ commits: [] as CloudCommit[] })),
+    ])
+      .then(([result, commitResult]) => {
+        if (!active) return;
+        setSnapshot(result);
+        setCommits(commitResult.commits ?? []);
+      })
       .catch((reason) => { if (active) setError(errorMessage(reason)); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -495,11 +511,105 @@ function ProjectPage() {
             <div className="detail-card"><span>Encrypted size</span><strong>{snapshot.ciphertext_bytes ? formatBytes(snapshot.ciphertext_bytes) : "—"}</strong></div>
             <div className="detail-card"><span>Encryption</span><strong>AES-256-GCM</strong></div>
           </div>
+          <CommitHistory projectId={projectId} commits={commits} />
           {!manifest ? (
             <div className="unlock-card"><div><p className="eyebrow">Local decryption</p><h2>Unlock this snapshot</h2><p className="muted">The passphrase is used only in this browser tab. It is never sent to Firebase.</p></div><div className="unlock-form"><input type="password" value={passphrase} onChange={(event) => setPassphrase(event.target.value)} placeholder="Sync passphrase" autoComplete="off" /><button className="button primary" onClick={() => void unlock()} disabled={decrypting || passphrase.length < 12}>{decrypting ? "Decrypting…" : "Unlock locally"}</button></div>{decryptedError && <Notice tone="error">{decryptedError}</Notice>}</div>
           ) : (
             <ManifestView manifest={manifest} onLock={() => { setManifest(null); setPassphrase(""); }} />
           )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function CommitHistory({ projectId, commits }: { projectId: string; commits: CloudCommit[] }) {
+  return (
+    <div className="commit-card">
+      <div className="manifest-heading">
+        <div>
+          <p className="eyebrow">History</p>
+          <h2>{commits.length} sync commit{commits.length === 1 ? "" : "s"}</h2>
+          <p className="muted">Each auto-sync stores only changed durable paths, with author, client, and time.</p>
+        </div>
+      </div>
+      {commits.length === 0 ? (
+        <p className="muted">No commit history yet. Push or auto-sync from a current CLI.</p>
+      ) : (
+        <div className="commit-list">
+          {commits.map((commit) => (
+            <Link
+              key={commit.id}
+              className="commit-row"
+              to={"/projects/" + encodeURIComponent(projectId) + "/commits/" + encodeURIComponent(commit.id)}
+            >
+              <code className="commit-id">{shortCommitId(commit.id)}</code>
+              <div className="commit-copy">
+                <strong>{commit.message}</strong>
+                <span>{commitAuthor(commit)} · {commitClient(commit)} · {commit.created_at ? formatDate(commit.created_at) : "unknown time"}</span>
+              </div>
+              <span className="commit-files">{filesChanged(commit)} files</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CommitDetailPage() {
+  const { projectId = "", commitId = "" } = useParams();
+  const [commit, setCommit] = useState<CloudCommit | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    void apiFetch<{ commit: CloudCommit }>(
+      "/sync/snapshots/" + encodeURIComponent(projectId) + "/commits/" + encodeURIComponent(commitId),
+    )
+      .then((result) => { if (active) setCommit(result.commit); })
+      .catch((reason) => { if (active) setError(errorMessage(reason)); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [projectId, commitId]);
+  if (loading) return <LoadingState label="Loading commit…" />;
+  return (
+    <section>
+      <Link className="back-link" to={"/projects/" + encodeURIComponent(projectId)}>← Back to snapshot</Link>
+      {error && <Notice tone="error">{error}</Notice>}
+      {commit && (
+        <>
+          <div className="section-heading project-heading">
+            <div>
+              <p className="eyebrow">Sync commit</p>
+              <h1>{commit.message}</h1>
+              <code>{commit.id}</code>
+            </div>
+          </div>
+          <div className="detail-grid">
+            <div className="detail-card"><span>Author</span><strong>{commitAuthor(commit)}</strong></div>
+            <div className="detail-card"><span>When</span><strong>{commit.created_at ? formatDate(commit.created_at) : "—"}</strong></div>
+            <div className="detail-card"><span>Client</span><strong>{commitClient(commit)}</strong></div>
+            <div className="detail-card"><span>Parent</span><strong>{commit.parent_id ? shortCommitId(commit.parent_id) : "root"}</strong></div>
+          </div>
+          <div className="commit-card">
+            <div className="manifest-heading">
+              <div>
+                <p className="eyebrow">Changed paths</p>
+                <h2>{filesChanged(commit)} durable files</h2>
+                <p className="muted">Only paths that changed in this commit are stored in the history record.</p>
+              </div>
+            </div>
+            <div className="file-list">
+              {(commit.changed_paths ?? []).map((file) => (
+                <div className={"file-row change-" + file.change} key={file.path}>
+                  <span className="file-type">{file.change.slice(0, 1).toUpperCase()}</span>
+                  <code>{file.path}</code>
+                  <span>{file.change}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </>
       )}
     </section>
@@ -535,7 +645,7 @@ function SettingsPage() {
     <section className="settings-layout">
       <div><p className="eyebrow">Account and setup</p><h1>Settings</h1><p className="muted">Cloud sync is designed so your Firebase project is usable by many accounts without exposing service credentials.</p></div>
       <div className="settings-card"><div className="settings-avatar">{(user?.displayName || user?.email || "U").slice(0, 1).toUpperCase()}</div><div><span className="card-kicker">Signed in account</span><h2>{user?.displayName || user?.email}</h2><p className="muted">{user?.email}</p></div></div>
-      <div className="settings-card stacked"><span className="card-kicker">CLI connection</span><h2>Authorize from your terminal</h2><pre><code>harness login --server https://your-worker.workers.dev</code></pre><p className="muted">Then set a long passphrase and run <code>harness sync push</code>. Pulling on a new device requires the same passphrase.</p></div>
+      <div className="settings-card stacked"><span className="card-kicker">CLI connection</span><h2>Authorize from your terminal</h2><pre><code>harness login</code></pre><p className="muted">Defaults to <code>https://5harness.knotree.com</code>. Override with <code>--server</code> if needed. After the first <code>harness sync push</code>, durable edits auto-sync as GitHub-like commits. Web AIs can connect at <code>/mcp</code> with the same account.</p></div>
       <div className="settings-card stacked"><span className="card-kicker">Privacy boundary</span><div className="check-row"><span className="check">✓</span><span>Firebase stores an encrypted envelope scoped to your user id.</span></div><div className="check-row"><span className="check">✓</span><span>OAuth refresh credentials are rotated and never shown in this UI.</span></div><div className="check-row"><span className="check">✓</span><span>Deleting a cloud snapshot does not delete your local repository files.</span></div></div>
       <div className="settings-card stacked danger-zone"><span className="card-kicker">Access control</span><h2>Revoke CLI access</h2><p className="muted">Use this after losing a device. It revokes every active CLI token family; your Firebase browser session stays signed in.</p><button className="danger-button" onClick={() => void revokeCliSessions()} disabled={revoking}>{revoking ? "Revoking…" : "Revoke all CLI sessions"}</button>{message && <Notice tone="info">{message}</Notice>}{error && <Notice tone="error">{error}</Notice>}</div>
     </section>

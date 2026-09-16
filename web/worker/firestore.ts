@@ -417,6 +417,176 @@ export async function upsertProject(
   };
 }
 
+function nestedUrl(
+  env: Env,
+  uid: string,
+  projectId: string,
+  collection: string,
+  docId?: string,
+): string {
+  const base = documentUrl(env, uid, projectId) + "/" + encodeURIComponent(collection);
+  return docId === undefined ? base : base + "/" + encodeURIComponent(docId);
+}
+
+function userDocUrl(env: Env, uid: string, collection: string, docId?: string): string {
+  const firebaseProject = env.FIREBASE_PROJECT_ID?.trim();
+  if (!firebaseProject) throw new FirestoreError("Firebase project is not configured.", 500);
+  const base =
+    firestoreBase(env) +
+    "/projects/" +
+    encodeURIComponent(firebaseProject) +
+    "/databases/(default)/documents/users/" +
+    encodeURIComponent(uid) +
+    "/" +
+    encodeURIComponent(collection);
+  return docId === undefined ? base : base + "/" + encodeURIComponent(docId);
+}
+
+async function patchDocument(
+  token: string,
+  url: string,
+  fields: Record<string, unknown>,
+  createOnly = false,
+): Promise<FirestoreDocument> {
+  const encoded = encodeFirestoreFields(fields);
+  const target = new URL(url);
+  for (const fieldName of Object.keys(encoded)) {
+    target.searchParams.append("updateMask.fieldPaths", fieldName);
+  }
+  if (createOnly) target.searchParams.set("currentDocument.exists", "false");
+  const response = await firestoreResponse(token, target.toString(), {
+    method: "PATCH",
+    body: JSON.stringify({ fields: encoded }),
+  });
+  if (response.status === 409 || response.status === 412) {
+    throw new FirestoreError("Cloud document already exists.", 409);
+  }
+  if (!response.ok) {
+    throw new FirestoreError(
+      "Firestore REST returned HTTP " + response.status + " while writing.",
+      response.status >= 500 ? 502 : response.status,
+    );
+  }
+  try {
+    return (await response.json()) as FirestoreDocument;
+  } catch {
+    return { fields: encoded };
+  }
+}
+
+async function getDocument(token: string, url: string): Promise<FirestoreDocument | null> {
+  const response = await firestoreResponse(token, url);
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new FirestoreError(
+      "Firestore REST returned HTTP " + response.status + ".",
+      response.status >= 500 ? 502 : response.status,
+    );
+  }
+  try {
+    return (await response.json()) as FirestoreDocument;
+  } catch {
+    throw new FirestoreError("Firestore REST returned invalid JSON.");
+  }
+}
+
+export async function writeCommit(
+  token: string,
+  env: Env,
+  uid: string,
+  projectId: string,
+  commit: Record<string, unknown>,
+): Promise<void> {
+  const id = String(commit.id ?? "");
+  if (!id) throw new FirestoreError("Commit id is required.", 400);
+  await patchDocument(token, nestedUrl(env, uid, projectId, "commits", id), commit, true);
+}
+
+export async function listCommits(
+  token: string,
+  env: Env,
+  uid: string,
+  projectId: string,
+): Promise<Record<string, unknown>[]> {
+  const url = new URL(nestedUrl(env, uid, projectId, "commits"));
+  url.searchParams.set("pageSize", "100");
+  const response = await firestoreResponse(token, url.toString());
+  if (response.status === 404) return [];
+  if (!response.ok) {
+    throw new FirestoreError(
+      "Firestore REST returned HTTP " + response.status + ".",
+      response.status >= 500 ? 502 : response.status,
+    );
+  }
+  let payload: { documents?: FirestoreDocument[] };
+  try {
+    payload = (await response.json()) as typeof payload;
+  } catch {
+    throw new FirestoreError("Firestore REST returned invalid JSON.");
+  }
+  return (payload.documents ?? [])
+    .map((document) => decodeFirestoreDocument(document))
+    .sort(
+      (left, right) =>
+        Date.parse(String(right.created_at ?? "")) - Date.parse(String(left.created_at ?? "")),
+    );
+}
+
+export async function readCommit(
+  token: string,
+  env: Env,
+  uid: string,
+  projectId: string,
+  commitId: string,
+): Promise<Record<string, unknown> | null> {
+  const document = await getDocument(
+    token,
+    nestedUrl(env, uid, projectId, "commits", commitId),
+  );
+  return document ? decodeFirestoreDocument(document) : null;
+}
+
+export async function writeCatalog(
+  token: string,
+  env: Env,
+  uid: string,
+  projectId: string,
+  catalog: Record<string, unknown>,
+): Promise<void> {
+  await patchDocument(token, nestedUrl(env, uid, projectId, "views", "catalog"), catalog);
+}
+
+export async function readCatalog(
+  token: string,
+  env: Env,
+  uid: string,
+  projectId: string,
+): Promise<Record<string, unknown> | null> {
+  const document = await getDocument(token, nestedUrl(env, uid, projectId, "views", "catalog"));
+  return document ? decodeFirestoreDocument(document) : null;
+}
+
+export async function writePlan(
+  token: string,
+  env: Env,
+  uid: string,
+  plan: Record<string, unknown>,
+): Promise<void> {
+  const id = String(plan.token ?? "");
+  if (!id) throw new FirestoreError("Plan token is required.", 400);
+  await patchDocument(token, userDocUrl(env, uid, "plans", id), plan, true);
+}
+
+export async function readPlan(
+  token: string,
+  env: Env,
+  uid: string,
+  planId: string,
+): Promise<Record<string, unknown> | null> {
+  const document = await getDocument(token, userDocUrl(env, uid, "plans", planId));
+  return document ? decodeFirestoreDocument(document) : null;
+}
+
 export function projectMetadata(record: ProjectRecord): Record<string, unknown> {
   return {
     project_id: record.projectId,

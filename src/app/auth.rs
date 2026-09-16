@@ -28,6 +28,7 @@ pub const CLIENT_ID: &str = "harness-cli";
 pub const AUTH_FILE_NAME: &str = "auth.json";
 pub const DEFAULT_SCOPE: &str = "sync:read sync:write";
 pub const DEVICE_GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:device_code";
+pub const DEFAULT_CLOUD_SERVER: &str = "https://5harness.knotree.com";
 const DEVICE_CODE_PATH: &str = "/oauth/device/code";
 const TOKEN_PATH: &str = "/oauth/token";
 const DEVICE_PATH: &str = "/device";
@@ -145,7 +146,7 @@ pub fn login_status() -> Result<LoginStatus> {
 pub fn format_login_status(status: &LoginStatus) -> String {
     if !status.logged_in {
         return format!(
-            "Harness cloud login: not connected\nCredential file: {}\nRun `harness login --server <web-url>` to authorize this machine.",
+            "Harness cloud login: not connected\nCredential file: {}\nRun `harness login` to authorize this machine (default https://5harness.knotree.com).",
             status.auth_file
         );
     }
@@ -467,7 +468,7 @@ fn _legacy_callback_note() {
 pub fn access_token() -> Result<(String, AuthState)> {
     let Some(mut auth) = read_auth()? else {
         return Err(Error::new(
-            "Harness cloud is not connected. Run `harness login --server <web-url>` first.",
+            "Harness cloud is not connected. Run `harness login` first (default https://5harness.knotree.com).",
         ));
     };
     let now = unix_now();
@@ -523,23 +524,28 @@ pub fn access_token() -> Result<(String, AuthState)> {
     Ok((auth.access_token.clone(), auth))
 }
 
-pub fn resolve_server(input: Option<&str>) -> Result<String> {
-    let candidate = input
+pub fn select_cloud_server(
+    cli: Option<&str>,
+    env_url: Option<&str>,
+    saved: Option<&str>,
+) -> String {
+    [cli, env_url, saved]
+        .into_iter()
+        .flatten()
         .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToOwned::to_owned)
-        .or_else(|| {
-            env::var("HARNESS_CLOUD_URL")
-                .ok()
-                .map(|v| v.trim().to_string())
-        })
-        .or_else(|| read_auth().ok().flatten().map(|auth| auth.server));
-    let server = candidate.ok_or_else(|| {
-        Error::new(
-            "No Harness cloud URL configured. Pass `--server <web-url>` or set HARNESS_CLOUD_URL.",
-        )
-    })?;
-    validate_server_url(&server)
+        .find(|value| !value.is_empty())
+        .unwrap_or(DEFAULT_CLOUD_SERVER)
+        .to_string()
+}
+
+pub fn resolve_server(input: Option<&str>) -> Result<String> {
+    let env_url = env::var("HARNESS_CLOUD_URL").ok();
+    let saved = read_auth().ok().flatten().map(|auth| auth.server);
+    validate_server_url(&select_cloud_server(
+        input,
+        env_url.as_deref(),
+        saved.as_deref(),
+    ))
 }
 
 pub fn validate_server_url(raw: &str) -> Result<String> {
@@ -648,6 +654,35 @@ fn retry_after_interval(headers: &reqwest::header::HeaderMap) -> Option<Duration
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn login_defaults_to_knotree_when_no_override_is_set() {
+        assert_eq!(DEFAULT_CLOUD_SERVER, "https://5harness.knotree.com");
+        assert_eq!(
+            select_cloud_server(None, None, None),
+            "https://5harness.knotree.com"
+        );
+        assert_eq!(
+            select_cloud_server(Some("https://custom.example"), None, None),
+            "https://custom.example"
+        );
+        assert_eq!(
+            select_cloud_server(
+                None,
+                Some("https://from-env.example"),
+                Some("https://saved.example")
+            ),
+            "https://from-env.example"
+        );
+        assert_eq!(
+            select_cloud_server(None, None, Some("https://saved.example")),
+            "https://saved.example"
+        );
+        assert_eq!(
+            validate_server_url(DEFAULT_CLOUD_SERVER).unwrap(),
+            DEFAULT_CLOUD_SERVER
+        );
+    }
 
     #[test]
     fn validates_https_and_local_development_urls() {

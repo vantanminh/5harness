@@ -22,7 +22,9 @@ harness search "verify story"
 harness get US-001
 ```
 
-Users install via **npm** (`-g` preferred).
+Users install and update via **npm, bun, or pnpm** (`npm i -g 5harness`
+preferred). The package launches the **OS-native binary** for the current
+platform; it is not a Node.js CLI.
 
 **Agent mutation rule (mandatory):** agents change operational durable state
 **only** through harness CLI tools — never by hand-editing story/decision/intake
@@ -47,7 +49,7 @@ Rust version without a corresponding `CHANGELOG.md` entry.
 
 ## Product Direction (locked — decision 0011)
 
-1. **Distribution:** npm package **`5harness`** with bins `harness` / `5harness`; preferred `npm i -g 5harness`.
+1. **Distribution:** npm package **`5harness`** with bins `harness` / `5harness`; preferred `npm i -g 5harness` (bun/pnpm equivalents supported). Runtime is the OS-native binary.
 2. **Init + link:** `init` scaffolds project markdown and registers the path in
    `~/.5harness`; `link` registers an existing clone for dashboard/query.
 3. **Durable SoT:** markdown entities in the project (Git-backed). Derived index
@@ -55,8 +57,9 @@ Rust version without a corresponding `CHANGELOG.md` entry.
 4. **Agents:** mutate durable state only via CLI tools; use get/search/links/
    query for reads (no whole-vault dumps).
 5. **Dashboard:** browser UI over machine-local registry + project paths.
-6. **Out of near-term scope:** cloud registry, vector RAG as primary search,
-   project SQLite as SoT (superseded).
+6. **Out of near-term scope:** vector RAG as primary search, project SQLite as
+   SoT (superseded). Hosted cloud sync + MCP (login default
+   `https://5harness.knotree.com`) is in scope.
 
 ## Project Skills
 
@@ -72,17 +75,19 @@ This repository also contains the hosted sync surfaces under `firebase/` and
 must include only the supported durable roots, encrypt before upload, and keep
 `.5harness/`, credentials, traces, indexes, and arbitrary project files local.
 
-- Use `harness login --server https://<worker-domain>` for browser PKCE login;
-  the Worker is the canonical OAuth/MCP endpoint.
-- Use `harness sync push|pull|status`; never hand-edit sync state or durable
-  entity Markdown to resolve a conflict.
+- Use `harness login` (default `https://5harness.knotree.com`; `--server` still
+  overrides) for browser PKCE login; the Worker is the canonical OAuth/MCP
+  endpoint.
+- After the first `harness sync push`, durable mutations auto-sync as GitHub-like
+  commits. Use `harness sync push|pull|status` and `harness plan get <token>`;
+  never hand-edit sync state or durable entity Markdown to resolve a conflict.
 - Never commit Firebase service-account keys, `.env`, `.firebaserc`, Pages
   secrets, or a sync passphrase.
 - Backend and deployment runbooks live in `docs/product/cloud-sync.md`,
   `firebase/README.md`, and `web/README.md`.
 
 <!-- HARNESS:BEGIN -->
-<!-- harness-version: 0.29.0 -->
+<!-- harness-version: 0.30.0 -->
 <!-- harness-project-id: 2155089a1e379d9ebae4b4ac654e7360 -->
 ## Harness
 

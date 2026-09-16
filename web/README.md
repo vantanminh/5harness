@@ -79,6 +79,8 @@ npm run deploy:worker
 the resulting `https://<worker>.<account>.workers.dev` URL as the CLI server:
 
 ```bash
+harness login
+# default https://5harness.knotree.com — override with --server if needed
 harness login --server https://<worker>.<account>.workers.dev
 ```
 
@@ -119,4 +121,5 @@ the CLI and MCP OAuth server because Pages does not proxy root OAuth routes.
 3. Set exact `CORS_ORIGINS`; never use `*` for a credentialed browser origin.
 4. Configure the `OAUTH_KV` namespace and `RATE_LIMIT_SALT` secret.
 5. Run the Worker health check at `/api/health`, then use the returned Worker
-   URL with `harness login --server` and `harness sync push`.
+   URL with `harness login` (default `https://5harness.knotree.com`) and
+   `harness sync push`. Hosted MCP is served at `/mcp` on the same origin.

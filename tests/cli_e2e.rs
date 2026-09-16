@@ -55,6 +55,9 @@ fn help_lists_init_and_product_contract() {
     assert!(text.contains("register the project"), "{text}");
     assert!(text.contains("login"), "{text}");
     assert!(text.contains("sync"), "{text}");
+    assert!(text.contains("plan"), "{text}");
+    assert!(text.contains("npm/bun/pnpm"), "{text}");
+    assert!(text.contains("5harness.knotree.com"), "{text}");
 }
 
 #[test]
@@ -63,9 +66,26 @@ fn cloud_commands_expose_safe_subcommand_contract() {
     assert!(login.status.success(), "{}", stderr(&login));
     let login_help = stdout(&login);
     assert!(login_help.contains("--server"), "{login_help}");
+    assert!(login_help.contains("5harness.knotree.com"), "{login_help}");
     assert!(login_help.contains("--no-browser"), "{login_help}");
     assert!(login_help.contains("--status"), "{login_help}");
     assert!(login_help.contains("--json"), "{login_help}");
+
+    let plan = run(&["plan", "--help"], None);
+    assert!(plan.status.success(), "{}", stderr(&plan));
+    let plan_help = stdout(&plan);
+    assert!(plan_help.contains("get"), "{plan_help}");
+    assert!(
+        plan_help.contains("token") || plan_help.contains("TOKEN"),
+        "{plan_help}"
+    );
+
+    let update = run(&["update", "--help"], None);
+    assert!(update.status.success(), "{}", stderr(&update));
+    let update_help = stdout(&update);
+    assert!(update_help.contains("npm"), "{update_help}");
+    assert!(update_help.contains("bun"), "{update_help}");
+    assert!(update_help.contains("pnpm"), "{update_help}");
 
     let status = run(&["login", "--status", "--json"], None);
     assert!(!status.status.success(), "{}", stderr(&status));

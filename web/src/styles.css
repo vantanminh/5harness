@@ -149,6 +149,17 @@ h2 { letter-spacing: -0.045em; }
 .danger-zone .danger-button { margin-top: 16px; }
 .check-row { display: flex; gap: 11px; align-items: start; padding: 11px 0; color: var(--muted); font-size: 0.79rem; line-height: 1.5; }
 .check { color: var(--sage-deep); font-weight: 800; }
+.commit-card { margin: 28px 0; padding: 22px 24px; border: 1px solid var(--line); border-radius: 22px; background: var(--paper); }
+.commit-list { border-top: 1px solid var(--line); margin-top: 12px; }
+.commit-row { display: grid; grid-template-columns: 88px 1fr auto; gap: 14px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.commit-row:hover strong { color: var(--sage-deep); }
+.commit-id { color: var(--coral-deep); font-size: 0.78rem; }
+.commit-copy { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.commit-copy strong { font-size: 0.92rem; letter-spacing: -0.03em; }
+.commit-copy span { color: var(--muted); font-size: 0.75rem; }
+.commit-files { color: var(--muted); font-size: 0.75rem; white-space: nowrap; }
+.change-added .file-type { background: #e7f5ea; color: #2f6d3c; }
+.change-deleted .file-type { background: #fde8e4; color: var(--coral-deep); }
 
 @media (max-width: 900px) {
   .hero-grid { grid-template-columns: 1fr; gap: 35px; min-height: auto; }

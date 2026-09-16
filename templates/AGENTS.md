@@ -6,18 +6,19 @@ skill.
 
 ## Optional Harness Cloud sync
 
-If this project opts into cloud sync, use `harness login --server
-https://<worker-domain>` followed by `harness sync push|pull|status`. The
-Cloudflare Worker is the canonical OAuth/MCP endpoint; an optional Pages
-proxy may serve the dashboard. The CLI
-encrypts supported durable Markdown before upload; the passphrase never leaves
-the device. Do not sync `.5harness/`, credentials, traces, indexes, or
-arbitrary files. Never commit `.env`, Firebase service-account keys, Pages
-secrets, or a sync passphrase. Review the project's cloud sync runbook before
-enabling it.
+If this project opts into cloud sync, use `harness login` (default
+https://5harness.knotree.com) followed by one `harness sync push` so later
+durable edits auto-sync. Use `harness sync pull|status` and
+`harness plan get <token>` for web-AI briefs. The Cloudflare Worker is the
+canonical OAuth/MCP endpoint; an optional Pages proxy may serve the dashboard.
+The CLI encrypts a restore snapshot before upload; a user-scoped catalog is
+stored so hosted MCP can read harness entities. Do not sync `.5harness/`,
+credentials, traces, indexes, or arbitrary files. Never commit `.env`, Firebase
+service-account keys, Pages secrets, or a sync passphrase. Review the project's
+cloud sync runbook before enabling it.
 
 <!-- HARNESS:BEGIN -->
-<!-- harness-version: 0.29.0 -->
+<!-- harness-version: 0.30.0 -->
 ## Harness
 
 **5harness** (bin `harness`) is this repo's operating system for **coding

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MCP_SEQUENTIAL_GUIDE } from "./catalog";
 import { validateOAuthGrantProps } from "./mcp";
 
 const env = {
@@ -12,6 +13,14 @@ const grant = {
   firebaseApiKey: "api-key",
   firebaseRefreshToken: "refresh-token",
 };
+
+describe("hosted MCP plan handoff", () => {
+  it("exposes sequential-read guidance and a tokenized coding-agent command", () => {
+    expect(MCP_SEQUENTIAL_GUIDE).toContain("harness_plan_create");
+    expect(MCP_SEQUENTIAL_GUIDE).toContain("please implement plan from harness --");
+    expect(MCP_SEQUENTIAL_GUIDE).toContain("harness plan get");
+  });
+});
 
 describe("MCP OAuth grant binding", () => {
   it("accepts a grant issued for this Firebase identity and Worker", () => {

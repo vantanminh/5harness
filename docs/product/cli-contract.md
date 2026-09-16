@@ -95,9 +95,12 @@ They auto-migrate an existing DB; if the DB is missing, run `harness init` first
 | `harness intake close <id>` | Mark an intake completed. `--id <id>` is an alias. |
 | `harness intake dismiss <id>` | Dismiss an intake without implementation. `--id <id>` is an alias. |
 
-Cloud login uses a device-code handoff: `harness login --server <web-url>`
-prints a short-lived code and verification URL, then polls the Worker for a
-PKCE-bound token. It does not require a loopback callback listener.
+Cloud login uses a device-code handoff: `harness login` defaults to
+`https://5harness.knotree.com` (`--server` still overrides), prints a
+short-lived code and verification URL, then polls the Worker for a PKCE-bound
+token. It does not require a loopback callback listener. After the first
+`harness sync push`, durable mutations auto-sync. `harness plan get <token>`
+loads a web-AI implementation brief.
 
 Write commands (`intake`, `story`, `decision`, `backlog`) keep the same *intent*
 but persist to markdown entities. Agents **must** use these tools; they must not

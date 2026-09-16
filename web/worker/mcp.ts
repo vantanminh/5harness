@@ -1,17 +1,117 @@
 import { getBearerToken, verifyFirebaseIdToken } from "./auth";
-import { errorJson, withCors } from "./cors";
+import {
+  findEntity,
+  MCP_SEQUENTIAL_GUIDE,
+  paginateEntities,
+  projectOverview,
+  searchCatalog,
+  validateCatalog,
+} from "./catalog";
+import { withCors } from "./cors";
 import { ApiError } from "./errors";
-import { listProjects, projectMetadata, readProject, refreshFirebaseIdToken } from "./firestore";
+import {
+  listProjects,
+  projectMetadata,
+  readCatalog,
+  readPlan,
+  readProject,
+  refreshFirebaseIdToken,
+  writePlan,
+} from "./firestore";
 import { usageFor } from "./limits";
-import { isValidProjectId, SYNC_READ_SCOPE } from "./protocol";
+import { validatePlanInput, validatePlanToken } from "./plans";
+import { isValidProjectId, SYNC_READ_SCOPE, SYNC_WRITE_SCOPE } from "./protocol";
 import type { Env, HarnessOAuthProps } from "./types";
 
 export const MCP_ROUTE = "/mcp";
 
 const tools = [
   {
+    name: "harness_cloud_guide",
+    description:
+      "Sequential-read instructions for this MCP. Call first. Harness-only: stories, decisions, intakes, backlog, reports — not source code.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "harness_projects",
+    description: "List the authenticated user's synced Harness projects. Pick one the user named before reading entities.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "harness_project_overview",
+    description: "Summary counts and recently updated harness entities for one designated project.",
+    inputSchema: {
+      type: "object",
+      required: ["project_id"],
+      properties: { project_id: { type: "string" } },
+    },
+  },
+  {
+    name: "harness_entities",
+    description: "Page harness entities for a designated project. Filter by type; use limit/offset; do not dump the vault.",
+    inputSchema: {
+      type: "object",
+      required: ["project_id"],
+      properties: {
+        project_id: { type: "string" },
+        type: { type: "string" },
+        limit: { type: "integer" },
+        offset: { type: "integer" },
+      },
+    },
+  },
+  {
+    name: "harness_search",
+    description: "Search harness entities in one designated project (id, title, status, body snippets).",
+    inputSchema: {
+      type: "object",
+      required: ["project_id", "query"],
+      properties: {
+        project_id: { type: "string" },
+        query: { type: "string" },
+        limit: { type: "integer" },
+      },
+    },
+  },
+  {
+    name: "harness_get",
+    description: "Read one harness entity by id or path from a designated project.",
+    inputSchema: {
+      type: "object",
+      required: ["project_id", "id"],
+      properties: { project_id: { type: "string" }, id: { type: "string" } },
+    },
+  },
+  {
+    name: "harness_plan_create",
+    description:
+      "Store a detailed implementation brief in Harness Cloud. Returns a unique token and the exact handoff command `please implement plan from harness --TOKEN`. Requires sync:write.",
+    inputSchema: {
+      type: "object",
+      required: ["project_id", "title", "idea", "plan_markdown", "implement_prompt"],
+      properties: {
+        project_id: { type: "string" },
+        title: { type: "string" },
+        idea: { type: "string" },
+        research_notes: { type: "string" },
+        plan_markdown: { type: "string" },
+        implement_prompt: { type: "string" },
+        client_name: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "harness_plan_get",
+    description: "Load a cloud implementation brief by token, including the full coding-agent prompt.",
+    inputSchema: {
+      type: "object",
+      required: ["token"],
+      properties: { token: { type: "string" } },
+    },
+  },
+  {
     name: "harness_sync_projects",
-    description: "List the authenticated user's live encrypted Harness snapshots.",
+    description: "List encrypted snapshot metadata for the authenticated user.",
     inputSchema: { type: "object", properties: {} },
   },
   {
@@ -21,7 +121,7 @@ const tools = [
   },
   {
     name: "harness_sync_snapshot",
-    description: "Read one encrypted Harness snapshot by project id.",
+    description: "Read one encrypted Harness snapshot by project id (ciphertext, not markdown).",
     inputSchema: {
       type: "object",
       required: ["project_id"],
@@ -112,20 +212,108 @@ async function firebaseContext(
   };
 }
 
+async function loadCatalog(
+  context: { token: string; uid: string; firestoreEnv: Env },
+  projectIdUnknown: unknown,
+) {
+  if (!isValidProjectId(projectIdUnknown)) {
+    throw new ApiError(400, "invalid_project_id", "Project id is invalid.");
+  }
+  const raw = await readCatalog(
+    context.token,
+    context.firestoreEnv,
+    context.uid,
+    projectIdUnknown,
+  );
+  const catalog = raw ? validateCatalog(raw, projectIdUnknown) : null;
+  if (!catalog) {
+    throw new ApiError(
+      404,
+      "catalog_not_found",
+      "No AI-readable harness catalog exists for this project. Sync from a current CLI, then retry.",
+    );
+  }
+  return catalog;
+}
+
 async function callTool(
   name: string,
   args: Record<string, unknown>,
   request: Request,
   env: Env,
 ): Promise<unknown> {
-  const { props } = await authenticatedContext(request, env);
+  const { props, scopes } = await authenticatedContext(request, env);
   const context = await firebaseContext(props, env);
-  if (name === "harness_sync_projects") {
+  if (name === "harness_cloud_guide") {
+    return {
+      guide: MCP_SEQUENTIAL_GUIDE,
+      handoff_example: "please implement plan from harness --kfkadjakdnjkad",
+      coding_agent: "harness plan get <token>",
+    };
+  }
+  if (name === "harness_projects" || name === "harness_sync_projects") {
     const projects = await listProjects(context.token, context.firestoreEnv, context.uid);
     return { projects: projects.map(projectMetadata) };
   }
   if (name === "harness_sync_usage") {
     return usageFor(env, context.uid);
+  }
+  if (name === "harness_project_overview") {
+    const catalog = await loadCatalog(context, args.project_id);
+    return { project_id: catalog.project_id, ...projectOverview(catalog.entities) };
+  }
+  if (name === "harness_entities") {
+    const catalog = await loadCatalog(context, args.project_id);
+    const limit = typeof args.limit === "number" ? args.limit : 20;
+    const offset = typeof args.offset === "number" ? args.offset : 0;
+    const type = typeof args.type === "string" ? args.type : undefined;
+    return { project_id: catalog.project_id, ...paginateEntities(catalog.entities, type, limit, offset) };
+  }
+  if (name === "harness_search") {
+    const catalog = await loadCatalog(context, args.project_id);
+    const query = typeof args.query === "string" ? args.query : "";
+    const limit = typeof args.limit === "number" ? args.limit : 20;
+    return {
+      project_id: catalog.project_id,
+      query,
+      hits: searchCatalog(catalog.entities, query, limit),
+    };
+  }
+  if (name === "harness_get") {
+    const catalog = await loadCatalog(context, args.project_id);
+    const id = typeof args.id === "string" ? args.id : "";
+    const entity = findEntity(catalog.entities, id);
+    if (!entity) throw new ApiError(404, "entity_not_found", "Harness entity was not found.");
+    return { project_id: catalog.project_id, entity };
+  }
+  if (name === "harness_plan_create") {
+    if (!scopes.includes(SYNC_WRITE_SCOPE)) {
+      throw new ApiError(403, "insufficient_scope", "Creating a plan requires sync:write.");
+    }
+    const plan = validatePlanInput(args, { uid: context.uid });
+    if (!plan) throw new ApiError(400, "invalid_plan", "Implementation brief is invalid.");
+    await writePlan(
+      context.token,
+      context.firestoreEnv,
+      context.uid,
+      plan as unknown as Record<string, unknown>,
+    );
+    return {
+      token: plan.token,
+      project_id: plan.project_id,
+      title: plan.title,
+      handoff_command: plan.handoff_command,
+      coding_agent: "harness plan get " + plan.token,
+    };
+  }
+  if (name === "harness_plan_get") {
+    const token = typeof args.token === "string" ? args.token.trim().replace(/^-+/, "") : "";
+    if (!validatePlanToken(token)) {
+      throw new ApiError(400, "invalid_plan_token", "Plan token is invalid.");
+    }
+    const plan = await readPlan(context.token, context.firestoreEnv, context.uid, token);
+    if (!plan) throw new ApiError(404, "plan_not_found", "Plan was not found.");
+    return plan;
   }
   if (name === "harness_sync_snapshot") {
     const projectId = args.project_id;
@@ -196,6 +384,7 @@ export const mcpApiHandler = {
           rpcResult(id, {
             protocolVersion: "2025-06-18",
             capabilities: { tools: {} },
+            instructions: MCP_SEQUENTIAL_GUIDE,
             serverInfo: { name: "5harness Cloud", version: "1" },
           }),
         );

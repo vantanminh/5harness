@@ -23,17 +23,23 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
 use crate::app::auth;
+use crate::app::catalog::file_to_catalog_entry;
 use crate::app::index::write_project_index;
 use crate::app::link::read_project_id;
+use crate::domain::entities::ENTITY_TYPES;
 use crate::error::{Error, Result};
-use crate::infra::entities::atomic_write;
+use crate::infra::entities::{atomic_write, list_entity_files};
+use crate::VERSION;
 
 pub const SYNC_SCHEMA_VERSION: u32 = 1;
 pub const PBKDF2_ITERATIONS: u32 = 310_000;
 pub const MAX_MANIFEST_BYTES: usize = 700 * 1024;
 pub const MAX_ENVELOPE_BYTES: usize = 900_000;
 pub const SYNC_STATE_FILE_NAME: &str = "cloud-sync.json";
+pub const PASSPHRASE_FILE_NAME: &str = "cloud-passphrase";
 const MAX_FILES: usize = 10_000;
+const MAX_CATALOG_ENTITIES: usize = 400;
+const MAX_CATALOG_BODY_CHARS: usize = 24_000;
 const MIN_PASSPHRASE_CHARS: usize = 12;
 const DURABLE_ROOTS: &[&str] = &[
     "docs/stories",
@@ -74,6 +80,55 @@ pub struct EncryptedEnvelope {
     pub created_at: String,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FileChange {
+    pub path: String,
+    pub change: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SyncFileDigest {
+    pub path: String,
+    pub sha256: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SyncCommit {
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
+    pub created_at: String,
+    pub author_user_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub author_email: Option<String>,
+    pub client_name: String,
+    pub client_version: String,
+    pub source: String,
+    pub message: String,
+    pub changed_paths: Vec<FileChange>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CatalogEntity {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub entity_type: String,
+    pub path: String,
+    pub title: String,
+    pub status: String,
+    pub body: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SyncCatalog {
+    pub schema_version: u32,
+    pub project_id: String,
+    pub generated_at: String,
+    pub entities: Vec<CatalogEntity>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct SyncState {
     server: String,
@@ -83,6 +138,10 @@ struct SyncState {
     #[serde(default)]
     last_files_sha256: String,
     last_synced_at: String,
+    #[serde(default)]
+    last_files: Vec<SyncFileDigest>,
+    #[serde(default)]
+    last_commit_id: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -92,6 +151,8 @@ struct PushResponse {
     created_at: String,
     plaintext_sha256: String,
     ciphertext_bytes: usize,
+    #[serde(default)]
+    commit_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -122,6 +183,10 @@ pub struct SyncResult {
     pub files: usize,
     pub plaintext_sha256: Option<String>,
     pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commit_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changed_paths: Option<Vec<FileChange>>,
 }
 
 pub fn run_push(
@@ -129,14 +194,45 @@ pub fn run_push(
     passphrase: Option<&str>,
     passphrase_stdin: bool,
 ) -> Result<SyncResult> {
+    run_push_with_message(project_root, passphrase, passphrase_stdin, None)
+}
+
+pub fn run_push_with_message(
+    project_root: &Path,
+    passphrase: Option<&str>,
+    passphrase_stdin: bool,
+    message: Option<&str>,
+) -> Result<SyncResult> {
     let (token, auth_state) = auth::access_token()?;
     let project_id = read_project_id(project_root)?;
-    let phrase = resolve_passphrase(passphrase, passphrase_stdin)?;
+    let phrase = resolve_passphrase(project_root, passphrase, passphrase_stdin)?;
     let (manifest, envelope) = create_envelope(project_root, &project_id, &phrase)?;
     let local_state = read_sync_state(project_root)?;
-    let base_revision = local_state
-        .filter(|state| state.server == auth_state.server && state.project_id == project_id)
-        .map(|state| state.last_revision);
+    let matching_state = local_state
+        .filter(|state| state.server == auth_state.server && state.project_id == project_id);
+    let base_revision = matching_state
+        .as_ref()
+        .map(|state| state.last_revision.clone());
+    let previous_files = matching_state
+        .as_ref()
+        .map(|state| state.last_files.as_slice())
+        .unwrap_or(&[]);
+    let changed_paths = diff_file_digests(previous_files, &manifest.files);
+    let commit = build_commit_record(
+        matching_state
+            .as_ref()
+            .map(|state| state.last_commit_id.as_str())
+            .filter(|id| !id.is_empty()),
+        auth_state.user_id.as_deref(),
+        auth_state.user_email.as_deref(),
+        "harness-cli",
+        VERSION,
+        &client_source(),
+        message.unwrap_or("Sync durable Harness markdown"),
+        changed_paths.clone(),
+        &chrono::Utc::now().to_rfc3339(),
+    );
+    let catalog = build_sync_catalog(project_root, &project_id)?;
     let client = http_client()?;
     let response = client
         .post(auth::api_url(&auth_state.server, "/sync/snapshots"))
@@ -145,6 +241,8 @@ pub fn run_push(
             "project_id": project_id,
             "base_revision": base_revision,
             "envelope": envelope,
+            "commit": commit,
+            "catalog": catalog,
         }))
         .send()
         .map_err(|e| Error::new(format!("Harness cloud sync upload failed: {e}")))?;
@@ -157,6 +255,10 @@ pub fn run_push(
     let pushed: PushResponse = response
         .json()
         .map_err(|e| Error::new(format!("Invalid sync upload response: {e}")))?;
+    let commit_id = pushed
+        .commit_id
+        .clone()
+        .unwrap_or_else(|| commit.id.clone());
     let state = SyncState {
         server: auth_state.server,
         project_id: project_id.clone(),
@@ -164,8 +266,11 @@ pub fn run_push(
         last_plaintext_sha256: pushed.plaintext_sha256.clone(),
         last_files_sha256: manifest_files_sha256(&manifest)?,
         last_synced_at: pushed.created_at.clone(),
+        last_files: file_digests(&manifest.files),
+        last_commit_id: commit_id.clone(),
     };
     write_sync_state(project_root, &state)?;
+    remember_passphrase(project_root, &phrase)?;
     Ok(SyncResult {
         action: "push".into(),
         project_id,
@@ -173,10 +278,14 @@ pub fn run_push(
         files: manifest.files.len(),
         plaintext_sha256: Some(pushed.plaintext_sha256),
         message: format!(
-            "Uploaded {} durable files ({} encrypted bytes).",
+            "Uploaded {} durable files ({} encrypted bytes, {} changed, commit {}).",
             manifest.files.len(),
-            pushed.ciphertext_bytes
+            pushed.ciphertext_bytes,
+            changed_paths.len(),
+            commit_id
         ),
+        commit_id: Some(commit_id),
+        changed_paths: Some(changed_paths),
     })
 }
 
@@ -212,7 +321,7 @@ pub fn run_pull(
             "Cloud snapshot project identity did not match this repository; refusing to apply it.",
         ));
     }
-    let phrase = resolve_passphrase(passphrase, passphrase_stdin)?;
+    let phrase = resolve_passphrase(project_root, passphrase, passphrase_stdin)?;
     let manifest = decrypt_envelope(&remote.envelope, &phrase)?;
     validate_manifest(&manifest, &project_id)?;
     let plaintext_sha256 = manifest_sha256(&manifest)?;
@@ -244,8 +353,11 @@ pub fn run_pull(
         last_plaintext_sha256: plaintext_sha256.clone(),
         last_files_sha256: manifest_files_sha256(&manifest)?,
         last_synced_at: remote.updated_at,
+        last_files: file_digests(&manifest.files),
+        last_commit_id: String::new(),
     };
     write_sync_state(project_root, &state)?;
+    remember_passphrase(project_root, &phrase)?;
     Ok(SyncResult {
         action: "pull".into(),
         project_id,
@@ -261,6 +373,8 @@ pub fn run_pull(
                 ""
             }
         ),
+        commit_id: None,
+        changed_paths: None,
     })
 }
 
@@ -710,7 +824,11 @@ fn validate_passphrase(passphrase: &str) -> Result<()> {
     Ok(())
 }
 
-fn resolve_passphrase(explicit: Option<&str>, passphrase_stdin: bool) -> Result<String> {
+fn resolve_passphrase(
+    project_root: &Path,
+    explicit: Option<&str>,
+    passphrase_stdin: bool,
+) -> Result<String> {
     let value = if let Some(value) = explicit {
         value.to_string()
     } else if passphrase_stdin {
@@ -719,6 +837,8 @@ fn resolve_passphrase(explicit: Option<&str>, passphrase_stdin: bool) -> Result<
         value.trim_end_matches(['\r', '\n']).to_string()
     } else if let Ok(value) = env::var("HARNESS_SYNC_PASSPHRASE") {
         value
+    } else if let Some(stored) = load_stored_passphrase(project_root) {
+        stored
     } else {
         if !io::stdin().is_terminal() {
             return Err(Error::new(
@@ -729,6 +849,230 @@ fn resolve_passphrase(explicit: Option<&str>, passphrase_stdin: bool) -> Result<
     };
     validate_passphrase(&value)?;
     Ok(value)
+}
+
+fn passphrase_path(project_root: &Path) -> PathBuf {
+    project_root
+        .join(".5harness")
+        .join("local")
+        .join(PASSPHRASE_FILE_NAME)
+}
+
+pub fn remember_passphrase(project_root: &Path, passphrase: &str) -> Result<()> {
+    let path = passphrase_path(project_root);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    atomic_write(&path, passphrase)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
+    }
+    Ok(())
+}
+
+fn load_stored_passphrase(project_root: &Path) -> Option<String> {
+    fs::read_to_string(passphrase_path(project_root))
+        .ok()
+        .map(|value| value.trim_end_matches(['\r', '\n']).to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn auto_sync_enabled() -> bool {
+    match env::var("HARNESS_AUTO_SYNC") {
+        Ok(value) => matches!(
+            value.to_ascii_lowercase().as_str(),
+            "1" | "true" | "on" | "yes"
+        ),
+        Err(_) => !cfg!(test),
+    }
+}
+
+/// Best-effort upload after a durable markdown mutation. Never fails the write.
+pub fn maybe_auto_sync(project_root: &Path) {
+    if !auto_sync_enabled() {
+        return;
+    }
+    match try_auto_sync(project_root) {
+        Ok(Some(result)) => {
+            let commit = result
+                .commit_id
+                .as_deref()
+                .map(|id| format!(" (commit {id})"))
+                .unwrap_or_default();
+            eprintln!("Harness cloud auto-sync: {}{commit}", result.message);
+        }
+        Ok(None) => {}
+        Err(error) => {
+            eprintln!("Harness cloud auto-sync skipped: {error}");
+        }
+    }
+}
+
+pub fn try_auto_sync(project_root: &Path) -> Result<Option<SyncResult>> {
+    if auth::read_auth()?.is_none() {
+        return Ok(None);
+    }
+    let passphrase = env::var("HARNESS_SYNC_PASSPHRASE")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| load_stored_passphrase(project_root));
+    let Some(passphrase) = passphrase else {
+        return Ok(None);
+    };
+    let project_id = read_project_id(project_root)?;
+    let manifest = build_manifest(project_root, &project_id)?;
+    if let Some(state) = read_sync_state(project_root)? {
+        if state.last_files_sha256 == manifest_files_sha256(&manifest)? {
+            return Ok(None);
+        }
+    }
+    Ok(Some(run_push_with_message(
+        project_root,
+        Some(&passphrase),
+        false,
+        Some("Auto-sync durable Harness changes"),
+    )?))
+}
+
+pub fn file_digests(files: &[SyncFile]) -> Vec<SyncFileDigest> {
+    files
+        .iter()
+        .map(|file| SyncFileDigest {
+            path: file.path.clone(),
+            sha256: file.sha256.clone(),
+        })
+        .collect()
+}
+
+pub fn diff_file_digests(previous: &[SyncFileDigest], current: &[SyncFile]) -> Vec<FileChange> {
+    use std::collections::HashMap;
+    let previous_map: HashMap<&str, &str> = previous
+        .iter()
+        .map(|file| (file.path.as_str(), file.sha256.as_str()))
+        .collect();
+    let current_map: HashMap<&str, &str> = current
+        .iter()
+        .map(|file| (file.path.as_str(), file.sha256.as_str()))
+        .collect();
+    let mut changes = Vec::new();
+    for file in current {
+        match previous_map.get(file.path.as_str()) {
+            None => changes.push(FileChange {
+                path: file.path.clone(),
+                change: "added".into(),
+                sha256: Some(file.sha256.clone()),
+            }),
+            Some(digest) if *digest != file.sha256 => changes.push(FileChange {
+                path: file.path.clone(),
+                change: "modified".into(),
+                sha256: Some(file.sha256.clone()),
+            }),
+            Some(_) => {}
+        }
+    }
+    for file in previous {
+        if !current_map.contains_key(file.path.as_str()) {
+            changes.push(FileChange {
+                path: file.path.clone(),
+                change: "deleted".into(),
+                sha256: None,
+            });
+        }
+    }
+    changes.sort_by(|left, right| left.path.cmp(&right.path));
+    changes
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn build_commit_record(
+    parent_id: Option<&str>,
+    author_user_id: Option<&str>,
+    author_email: Option<&str>,
+    client_name: &str,
+    client_version: &str,
+    source: &str,
+    message: &str,
+    changed_paths: Vec<FileChange>,
+    created_at: &str,
+) -> SyncCommit {
+    let mut commit = SyncCommit {
+        id: String::new(),
+        parent_id: parent_id
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned),
+        created_at: created_at.to_string(),
+        author_user_id: author_user_id.unwrap_or("unknown").to_string(),
+        author_email: author_email.map(ToOwned::to_owned),
+        client_name: client_name.to_string(),
+        client_version: client_version.to_string(),
+        source: source.to_string(),
+        message: message.to_string(),
+        changed_paths,
+    };
+    commit.id = commit_id_for(&commit);
+    commit
+}
+
+pub fn commit_id_for(commit: &SyncCommit) -> String {
+    let canonical = json!({
+        "parent_id": commit.parent_id,
+        "created_at": commit.created_at,
+        "author_user_id": commit.author_user_id,
+        "client_name": commit.client_name,
+        "client_version": commit.client_version,
+        "source": commit.source,
+        "message": commit.message,
+        "changed_paths": commit.changed_paths,
+    });
+    let digest = sha256_hex(canonical.to_string().as_bytes());
+    digest.chars().take(16).collect()
+}
+
+pub fn client_source() -> String {
+    env::var("COMPUTERNAME")
+        .or_else(|_| env::var("HOSTNAME"))
+        .ok()
+        .map(|value| value.chars().take(80).collect::<String>())
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "harness-cli".into())
+}
+
+pub fn build_sync_catalog(project_root: &Path, project_id: &str) -> Result<SyncCatalog> {
+    let mut entities = Vec::new();
+    for ty in ENTITY_TYPES {
+        for file in list_entity_files(project_root, ty)? {
+            let entry = file_to_catalog_entry(&file);
+            let mut body = file.body;
+            if body.chars().count() > MAX_CATALOG_BODY_CHARS {
+                body = body.chars().take(MAX_CATALOG_BODY_CHARS).collect();
+                body.push('…');
+            }
+            entities.push(CatalogEntity {
+                id: entry.id,
+                entity_type: entry.ty,
+                path: entry.path,
+                title: entry.title,
+                status: entry.status,
+                body,
+            });
+            if entities.len() >= MAX_CATALOG_ENTITIES {
+                break;
+            }
+        }
+        if entities.len() >= MAX_CATALOG_ENTITIES {
+            break;
+        }
+    }
+    entities.sort_by(|left, right| left.path.cmp(&right.path));
+    Ok(SyncCatalog {
+        schema_version: SYNC_SCHEMA_VERSION,
+        project_id: project_id.to_string(),
+        generated_at: chrono::Utc::now().to_rfc3339(),
+        entities,
+    })
 }
 
 fn sync_state_path(project_root: &Path) -> PathBuf {
@@ -876,5 +1220,101 @@ mod tests {
             manifest_files_sha256(&first).unwrap(),
             manifest_files_sha256(&second).unwrap()
         );
+    }
+
+    #[test]
+    fn commit_diff_records_only_changed_paths() {
+        let previous = vec![
+            SyncFileDigest {
+                path: "docs/stories/US-001.md".into(),
+                sha256: sha256_hex(b"old"),
+            },
+            SyncFileDigest {
+                path: "docs/intakes/IN-001.md".into(),
+                sha256: sha256_hex(b"keep"),
+            },
+        ];
+        let current = vec![
+            SyncFile {
+                path: "docs/stories/US-001.md".into(),
+                sha256: sha256_hex(b"new"),
+                content_base64: STANDARD.encode(b"new"),
+            },
+            SyncFile {
+                path: "docs/intakes/IN-001.md".into(),
+                sha256: sha256_hex(b"keep"),
+                content_base64: STANDARD.encode(b"keep"),
+            },
+            SyncFile {
+                path: "docs/decisions/001.md".into(),
+                sha256: sha256_hex(b"added"),
+                content_base64: STANDARD.encode(b"added"),
+            },
+        ];
+        let changes = diff_file_digests(&previous, &current);
+        let paths: Vec<_> = changes
+            .iter()
+            .map(|change| (change.path.as_str(), change.change.as_str()))
+            .collect();
+        assert_eq!(
+            paths,
+            vec![
+                ("docs/decisions/001.md", "added"),
+                ("docs/stories/US-001.md", "modified"),
+            ]
+        );
+        let deleted = diff_file_digests(
+            &previous,
+            &[SyncFile {
+                path: "docs/stories/US-001.md".into(),
+                sha256: sha256_hex(b"old"),
+                content_base64: STANDARD.encode(b"old"),
+            }],
+        );
+        assert_eq!(deleted.len(), 1);
+        assert_eq!(deleted[0].path, "docs/intakes/IN-001.md");
+        assert_eq!(deleted[0].change, "deleted");
+    }
+
+    #[test]
+    fn commit_record_has_github_like_metadata() {
+        let commit = build_commit_record(
+            None,
+            Some("user-1"),
+            Some("user@example.com"),
+            "harness-cli",
+            "0.30.0",
+            "workstation",
+            "Auto-sync durable Harness changes",
+            vec![FileChange {
+                path: "docs/stories/US-001.md".into(),
+                change: "added".into(),
+                sha256: Some("a".repeat(64)),
+            }],
+            "2026-09-16T00:00:00Z",
+        );
+        assert_eq!(commit.id.len(), 16);
+        assert!(commit.id.chars().all(|ch| ch.is_ascii_hexdigit()));
+        assert_eq!(commit.author_email.as_deref(), Some("user@example.com"));
+        assert_eq!(commit.client_name, "harness-cli");
+        assert_eq!(commit.source, "workstation");
+        assert_eq!(commit.changed_paths.len(), 1);
+        assert!(commit.parent_id.is_none());
+        let again = build_commit_record(
+            None,
+            Some("user-1"),
+            Some("user@example.com"),
+            "harness-cli",
+            "0.30.0",
+            "workstation",
+            "Auto-sync durable Harness changes",
+            vec![FileChange {
+                path: "docs/stories/US-001.md".into(),
+                change: "added".into(),
+                sha256: Some("a".repeat(64)),
+            }],
+            "2026-09-16T00:00:00Z",
+        );
+        assert_eq!(commit.id, again.id);
     }
 }

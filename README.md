@@ -21,14 +21,21 @@ repo into a structured workspace for humans and coding agents.
 
 ## Install
 
-Preferred (global — multi-project + dashboard):
+Install and update with **npm, bun, or pnpm**. The package is a thin launcher:
+it downloads/runs the **OS-native binary** for your platform (not a Node.js CLI).
 
 ```bash
 npm i -g 5harness
+# or
+bun add -g 5harness
+# or
+pnpm add -g 5harness
+
 harness --version
+npm update -g 5harness    # or bun/pnpm equivalent, or `harness update`
 ```
 
-Automatic native install (no compile from source):
+Direct OS installers (no Node required) are a fallback:
 
 **Windows (PowerShell):**
 
@@ -57,7 +64,7 @@ less install-5harness.sh
 bash install-5harness.sh
 ```
 
-Point any native installer at a local build with `HARNESS_INSTALL_FROM` (directory or binary path). Pin a release with `HARNESS_INSTALL_VERSION=<version>` and use `HARNESS_INSTALL_SKIP_PATH=1` in automation. npm install remains available.
+Point any native installer at a local build with `HARNESS_INSTALL_FROM` (directory or binary path). Pin a release with `HARNESS_INSTALL_VERSION=<version>` and use `HARNESS_INSTALL_SKIP_PATH=1` in automation. Prefer npm/bun/pnpm for version management.
 
 Project-local (optional):
 
@@ -105,7 +112,7 @@ harness dashboard            # or bare: harness
 | **Agent loop** | `doctor`, `status`, `next`, `context`, `handoff`, `watch` |
 | **MCP** | Local `harness mcp` / dashboard MCP — reads + durable mutations (US-041) |
 | **Dashboard** | Localhost multi-project UI + optional MCP monitoring |
-| **Cloud sync** | Optional encrypted snapshots with Firebase backend + Cloudflare Pages dashboard |
+| **Cloud sync** | Auto-sync after login; GitHub-like commits; hosted MCP for web AIs at `https://5harness.knotree.com` |
 | **Releases** | CI multi-OS matrix, OIDC publish, GitHub Releases, SBOM |
 
 ### Project Link (opt-in)
@@ -192,27 +199,36 @@ Product pivot: [decision 0011](docs/decisions/0011-global-tool-markdown-durable-
 
 ## Optional cloud sync
 
-The optional Harness Cloud surfaces synchronize encrypted durable-history
-snapshots across trusted devices:
+Harness Cloud synchronizes durable markdown across devices and exposes a hosted
+MCP so a web AI (ChatGPT and others) can read a designated project's harness
+and write an implementation brief.
 
 ```bash
-harness login --server https://<worker-domain>
-harness sync push --passphrase-stdin < passphrase.txt
+harness login                 # default https://5harness.knotree.com
+harness sync push             # once: store passphrase, then auto-sync on durable edits
 harness sync status
-harness sync pull --passphrase-stdin < passphrase.txt
+harness plan get <token>      # load a brief created by a web AI
 ```
 
 `harness login` prints a short-lived device code and verification URL. Approve
 the code in the browser; the CLI polls the Worker with PKCE and does not need a
-loopback callback listener. Check an existing session with
-`harness login --status` or `harness login --status --json`.
+loopback callback listener. After the first successful push, later durable CLI
+mutations auto-sync as GitHub-like commits (id, time, author, client, changed
+paths). Override the server with `--server` or `HARNESS_CLOUD_URL`. Check an
+existing session with `harness login --status`.
 
-The CLI encrypts the supported Markdown roots locally with PBKDF2 + AES-256-GCM
-before uploading to Firebase. The web dashboard uses Firebase Auth and a
-Cloudflare Worker; an optional Cloudflare Pages proxy can keep an existing
-dashboard URL working. The Worker is the canonical CLI and MCP endpoint, and
-the dashboard can inspect metadata and unlock a snapshot locally with the same
-passphrase. Configure and deploy the surfaces using
+The CLI still encrypts a restore snapshot with PBKDF2 + AES-256-GCM. A
+user-scoped harness catalog is stored so hosted MCP can read entities without
+source code. Connect a web AI to `https://5harness.knotree.com/mcp` with the
+same account, ask it to research a project, then have it call
+`harness_plan_create`. It should return:
+
+```text
+please implement plan from harness --<token>
+```
+
+A coding agent loads the full plan and prompt with `harness plan get <token>`.
+Configure and deploy using
 [`docs/product/cloud-sync.md`](docs/product/cloud-sync.md),
 [`firebase/README.md`](firebase/README.md), and [`web/README.md`](web/README.md).
 

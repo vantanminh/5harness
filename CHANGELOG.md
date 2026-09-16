@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-09-16
+
+### Added
+
+- Default `harness login` server is `https://5harness.knotree.com` (`--server`
+  and `HARNESS_CLOUD_URL` still override).
+- After the first `harness sync push`, durable mutations auto-sync as
+  GitHub-like commits (id, time, author, client, source, changed paths). The
+  dashboard lists commits and opens a detail view.
+- Hosted MCP at `/mcp` reads a designated project's harness catalog
+  sequentially and can store an implementation brief. Web AIs return
+  `please implement plan from harness --TOKEN`; coding agents load the full
+  plan and prompt with `harness plan get TOKEN`.
+- Install/update guidance is npm, bun, and pnpm; the package still launches
+  the OS-native binary.
+
 ## [0.29.0] - 2026-09-16
 
 ### Added
