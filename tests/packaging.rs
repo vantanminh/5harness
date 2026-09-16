@@ -9,7 +9,8 @@ fn root() -> PathBuf {
 
 #[test]
 fn npm_launcher_executes_native_os_binary() {
-    let launcher = fs::read_to_string(root().join("dist/cli.js")).unwrap();
+    // The published `dist/cli.js` is copied from this committed source at pack time.
+    let launcher = fs::read_to_string(root().join("npm/shim.mjs")).unwrap();
     assert!(launcher.contains("Thin npm bin shim"));
     assert!(launcher.contains("native Rust binary"));
     assert!(launcher.contains("function rustTriple"));
@@ -23,6 +24,9 @@ fn npm_launcher_executes_native_os_binary() {
         readme.contains("pnpm add -g 5harness") || readme.contains("pnpm add --global 5harness")
     );
     assert!(readme.contains("5harness.knotree.com"));
+    let build = fs::read_to_string(root().join("scripts/build-native.mjs")).unwrap();
+    assert!(build.contains("\"npm\"") && build.contains("\"shim.mjs\""));
+    assert!(build.contains("\"cli.js\""));
 }
 
 #[test]
