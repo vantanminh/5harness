@@ -21,14 +21,24 @@ export const onRequest = async ({ request, env, params }: PagesContext): Promise
   const path = Array.isArray(parameter) ? parameter.join("/") : parameter || "";
   let upstream: URL;
   try {
-    upstream = new URL(
-      env.FIREBASE_API_URL.replace(/\/+$/, "") + "/" + path.replace(/^\/+/, ""),
-    );
+    const backend = new URL(env.FIREBASE_API_URL.trim());
+    if (backend.username || backend.password || backend.search || backend.hash) {
+      throw new Error("backend URL must not contain credentials or query parameters");
+    }
+    backend.pathname =
+      backend.pathname.replace(/\/+$/, "") + "/" + path.replace(/^\/+/, "");
+    upstream = backend;
     const local = ["localhost", "127.0.0.1", "[::1]"].includes(upstream.hostname);
     if (upstream.protocol !== "https:" && !(upstream.protocol === "http:" && local)) {
       throw new Error("Firebase API URL must use HTTPS outside local development.");
     }
   } catch {
+    const configured = env.FIREBASE_API_URL;
+    console.error("Pages proxy rejected backend URL", {
+      type: typeof configured,
+      length: typeof configured === "string" ? configured.length : 0,
+      prefix: typeof configured === "string" ? configured.slice(0, 48) : "",
+    });
     return Response.json(
       { error: "backend_not_configured", message: "Firebase API proxy URL is invalid." },
       { status: 503, headers: { "Cache-Control": "no-store" } },
