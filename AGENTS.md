@@ -72,7 +72,8 @@ This repository also contains the hosted sync surfaces under `firebase/` and
 must include only the supported durable roots, encrypt before upload, and keep
 `.5harness/`, credentials, traces, indexes, and arbitrary project files local.
 
-- Use `harness login --server https://<pages-domain>` for browser PKCE login.
+- Use `harness login --server https://<worker-domain>` for browser PKCE login;
+  the Worker is the canonical OAuth/MCP endpoint.
 - Use `harness sync push|pull|status`; never hand-edit sync state or durable
   entity Markdown to resolve a conflict.
 - Never commit Firebase service-account keys, `.env`, `.firebaserc`, Pages

@@ -56,6 +56,22 @@ function propsFromToken(value: unknown): HarnessOAuthProps {
   return value as HarnessOAuthProps;
 }
 
+export function validateOAuthGrantProps(
+  value: unknown,
+  tokenUserId: string,
+  env: Pick<Env, "FIREBASE_PROJECT_ID" | "FIREBASE_API_KEY">,
+): HarnessOAuthProps {
+  const props = propsFromToken(value);
+  if (
+    props.uid !== tokenUserId ||
+    props.projectId !== env.FIREBASE_PROJECT_ID ||
+    props.firebaseApiKey !== env.FIREBASE_API_KEY
+  ) {
+    throw new ApiError(401, "invalid_token", "Harness OAuth grant is not valid for this Worker.");
+  }
+  return props;
+}
+
 async function authenticatedContext(
   request: Request,
   env: Env,
@@ -67,10 +83,7 @@ async function authenticatedContext(
   if (!scopes.includes(SYNC_READ_SCOPE)) {
     throw new ApiError(403, "insufficient_scope", "This MCP call requires sync:read.");
   }
-  const props = propsFromToken(tokenData.grant.props);
-  if (props.projectId !== env.FIREBASE_PROJECT_ID) {
-    throw new ApiError(401, "invalid_token", "Harness OAuth grant belongs to another project.");
-  }
+  const props = validateOAuthGrantProps(tokenData.grant.props, tokenData.userId, env);
   return { props, scopes };
 }
 
@@ -83,7 +96,7 @@ async function firebaseContext(
     props.firebaseApiKey,
   );
   const user = await verifyFirebaseIdToken(token, {
-    FIREBASE_PROJECT_ID: props.projectId,
+    FIREBASE_PROJECT_ID: env.FIREBASE_PROJECT_ID,
   });
   if (user.uid !== props.uid) {
     throw new ApiError(401, "invalid_token", "Harness OAuth grant identity no longer matches Firebase.");
@@ -93,7 +106,7 @@ async function firebaseContext(
     uid: user.uid,
     firestoreEnv: {
       ...env,
-      FIREBASE_PROJECT_ID: props.projectId,
+      FIREBASE_PROJECT_ID: env.FIREBASE_PROJECT_ID,
       FIRESTORE_API_BASE_URL: props.firestoreApiBaseUrl,
     },
   };
@@ -144,6 +157,7 @@ export const mcpApiHandler = {
     if (request.method === "OPTIONS") {
       return withCors(request, env, new Response(null, { status: 204 }));
     }
+    let requestId: unknown = null;
     try {
       const token = getBearerToken(request);
       const tokenData = await env.OAUTH_PROVIDER?.unwrapToken(token);
@@ -173,6 +187,7 @@ export const mcpApiHandler = {
           ? (body as { id?: unknown; method?: unknown; params?: unknown })
           : {};
       const id = message.id;
+      requestId = id ?? null;
       const method = typeof message.method === "string" ? message.method : "";
       if (method === "initialize") {
         return withCors(
@@ -217,9 +232,9 @@ export const mcpApiHandler = {
         error instanceof ApiError ? error.message : "Harness MCP request failed.";
       console.error("Harness MCP request failed", error instanceof Error ? error.name : "unknown");
       if (status === 401 || status === 403) {
-        return withCors(request, env, rpcError(null, -32001, message));
+        return withCors(request, env, rpcError(requestId, -32001, message));
       }
-      return withCors(request, env, rpcError(null, -32000, message));
+      return withCors(request, env, rpcError(requestId, -32000, message));
     }
   },
 };

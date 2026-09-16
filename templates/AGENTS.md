@@ -7,7 +7,9 @@ skill.
 ## Optional Harness Cloud sync
 
 If this project opts into cloud sync, use `harness login --server
-https://<pages-domain>` followed by `harness sync push|pull|status`. The CLI
+https://<worker-domain>` followed by `harness sync push|pull|status`. The
+Cloudflare Worker is the canonical OAuth/MCP endpoint; an optional Pages
+proxy may serve the dashboard. The CLI
 encrypts supported durable Markdown before upload; the passphrase never leaves
 the device. Do not sync `.5harness/`, credentials, traces, indexes, or
 arbitrary files. Never commit `.env`, Firebase service-account keys, Pages

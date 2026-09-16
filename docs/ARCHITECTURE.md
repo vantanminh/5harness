@@ -15,8 +15,8 @@
 | Project Link | Git-tracked peer ids + machine-local registry resolution; no cloud graph |
 | Traces | Machine-local (not default Git) |
 | Packaging | npm package containing target-native binaries; standalone installers for Linux/macOS/Windows |
-| Cloud backend | Firebase Functions + Admin SDK; Firestore ciphertext only |
-| Cloud frontend | Vite + React Router on Cloudflare Pages; Pages Function API proxy |
+| Cloud backend | Cloudflare Worker + KV OAuth; Firebase Auth/Firestore REST; ciphertext only |
+| Cloud frontend | Vite + React Router served by the Worker; optional Pages dashboard proxy |
 | Project SQLite as SoT | **Retired** (was v0.5 MVP; supersedes decision 0004 for this product) |
 
 Record locking choices under `docs/decisions/`.
@@ -76,8 +76,8 @@ replace the single-project consent selection or the all-projects
 trusted device
   -> harness login (loopback callback + PKCE)
   -> browser Firebase Auth + App Check
-  -> Cloudflare Pages /api proxy
-  -> Firebase Functions (Admin SDK, quotas, CAS revisions)
+  -> Cloudflare Worker (OAuth/KV, quotas, CAS revisions)
+  -> Firebase Auth + Firestore REST (Spark plan)
   -> user-scoped Firestore encrypted envelope
 ```
 

@@ -196,7 +196,7 @@ The optional Harness Cloud surfaces synchronize encrypted durable-history
 snapshots across trusted devices:
 
 ```bash
-harness login --server https://<pages-domain>
+harness login --server https://<worker-domain>
 harness sync push --passphrase-stdin < passphrase.txt
 harness sync status
 harness sync pull --passphrase-stdin < passphrase.txt
@@ -204,8 +204,10 @@ harness sync pull --passphrase-stdin < passphrase.txt
 
 The CLI encrypts the supported Markdown roots locally with PBKDF2 + AES-256-GCM
 before uploading to Firebase. The web dashboard uses Firebase Auth and a
-Cloudflare Pages proxy; it can inspect metadata and unlock a snapshot locally
-with the same passphrase. Configure and deploy the two surfaces using
+Cloudflare Worker; an optional Cloudflare Pages proxy can keep an existing
+dashboard URL working. The Worker is the canonical CLI and MCP endpoint, and
+the dashboard can inspect metadata and unlock a snapshot locally with the same
+passphrase. Configure and deploy the surfaces using
 [`docs/product/cloud-sync.md`](docs/product/cloud-sync.md),
 [`firebase/README.md`](firebase/README.md), and [`web/README.md`](web/README.md).
 
@@ -282,8 +284,8 @@ node dist/cli.js --help
 
 ## CI / CD
 
-- **Cloud surfaces**: Firebase Functions + Vite/Cloudflare Pages checks on
-  changes under `firebase/` or `web/`
+- **Cloud surfaces**: Firebase Auth/Firestore rules + Cloudflare Worker/Pages
+  checks on changes under `firebase/` or `web/`
 - **CI** (push/PR): `release:check` on **ubuntu / windows / macos × Node 22 + 24**
 - **Auto-release** (push to `main`): bump, tag, **OIDC npm publish --provenance**,
   GitHub Release + SBOM (skip with `[skip release]`)
