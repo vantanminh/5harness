@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   findEntity,
+  MAX_ENTITY_BODY_CHARS,
+  MAX_ENTITY_STATUS_CHARS,
+  MAX_ENTITY_TITLE_CHARS,
   MCP_SEQUENTIAL_GUIDE,
   paginateEntities,
   projectOverview,
@@ -52,5 +55,29 @@ describe("hosted MCP catalog", () => {
     expect(MCP_SEQUENTIAL_GUIDE).toContain("harness_plan_create");
     expect(MCP_SEQUENTIAL_GUIDE).toContain("please implement plan from harness --");
     expect(MCP_SEQUENTIAL_GUIDE).toContain("source code");
+  });
+
+  it("normalizes oversized derived catalog fields", () => {
+    const normalized = validateCatalog(
+      {
+        ...catalog,
+        entities: [
+          {
+            ...catalog.entities[0],
+            title: "t".repeat(MAX_ENTITY_TITLE_CHARS + 20),
+            status: "s".repeat(MAX_ENTITY_STATUS_CHARS + 20),
+            body: "b".repeat(MAX_ENTITY_BODY_CHARS + 8),
+          },
+        ],
+      },
+      catalog.project_id,
+    );
+
+    expect(normalized?.entities[0]?.title).toHaveLength(MAX_ENTITY_TITLE_CHARS);
+    expect(normalized?.entities[0]?.title.endsWith("…")).toBe(true);
+    expect(normalized?.entities[0]?.status).toHaveLength(MAX_ENTITY_STATUS_CHARS);
+    expect(normalized?.entities[0]?.status.endsWith("…")).toBe(true);
+    expect(normalized?.entities[0]?.body).toHaveLength(MAX_ENTITY_BODY_CHARS);
+    expect(normalized?.entities[0]?.body.endsWith("…")).toBe(true);
   });
 });

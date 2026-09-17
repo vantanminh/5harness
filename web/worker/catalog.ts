@@ -1,4 +1,6 @@
 export const MAX_CATALOG_ENTITIES = 400;
+export const MAX_ENTITY_TITLE_CHARS = 300;
+export const MAX_ENTITY_STATUS_CHARS = 80;
 export const MAX_ENTITY_BODY_CHARS = 24_000;
 export const MAX_PAGE_SIZE = 50;
 export const ENTITY_TYPES = ["story", "decision", "intake", "backlog", "report"] as const;
@@ -40,6 +42,12 @@ function isEntityType(value: unknown): value is EntityType {
   return typeof value === "string" && (ENTITY_TYPES as readonly string[]).includes(value);
 }
 
+function truncateCatalogText(value: string, maxChars: number): string {
+  const characters = Array.from(value);
+  if (characters.length <= maxChars) return value;
+  return characters.slice(0, Math.max(maxChars - 1, 0)).join("") + "…";
+}
+
 export function validateCatalogEntity(value: unknown): CatalogEntity | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const item = value as Record<string, unknown>;
@@ -48,16 +56,16 @@ export function validateCatalogEntity(value: unknown): CatalogEntity | null {
   if (typeof item.path !== "string" || item.path.length > 400 || item.path.includes("..")) {
     return null;
   }
-  if (typeof item.title !== "string" || item.title.length > 300) return null;
-  if (typeof item.status !== "string" || item.status.length > 80) return null;
+  if (typeof item.title !== "string" || item.title.length > MAX_ENTITY_BODY_CHARS) return null;
+  if (typeof item.status !== "string" || item.status.length > MAX_ENTITY_BODY_CHARS) return null;
   if (typeof item.body !== "string" || item.body.length > MAX_ENTITY_BODY_CHARS + 8) return null;
   return {
     id: item.id,
     type: item.type,
     path: item.path,
-    title: item.title,
-    status: item.status,
-    body: item.body,
+    title: truncateCatalogText(item.title, MAX_ENTITY_TITLE_CHARS),
+    status: truncateCatalogText(item.status, MAX_ENTITY_STATUS_CHARS),
+    body: truncateCatalogText(item.body, MAX_ENTITY_BODY_CHARS),
   };
 }
 

@@ -40,6 +40,8 @@ pub const PASSPHRASE_FILE_NAME: &str = "cloud-passphrase";
 const MAX_FILES: usize = 10_000;
 const MAX_CATALOG_ENTITIES: usize = 400;
 const MAX_CATALOG_BODY_CHARS: usize = 24_000;
+const MAX_CATALOG_TITLE_CHARS: usize = 300;
+const MAX_CATALOG_STATUS_CHARS: usize = 80;
 const MIN_PASSPHRASE_CHARS: usize = 12;
 const DURABLE_ROOTS: &[&str] = &[
     "docs/stories",
@@ -1045,18 +1047,18 @@ pub fn build_sync_catalog(project_root: &Path, project_id: &str) -> Result<SyncC
     for ty in ENTITY_TYPES {
         for file in list_entity_files(project_root, ty)? {
             let entry = file_to_catalog_entry(&file);
-            let mut body = file.body;
-            if body.chars().count() > MAX_CATALOG_BODY_CHARS {
-                body = body.chars().take(MAX_CATALOG_BODY_CHARS).collect();
-                body.push('…');
-            }
+            let entity_type = if ENTITY_TYPES.contains(&entry.ty.as_str()) {
+                entry.ty
+            } else {
+                (*ty).to_string()
+            };
             entities.push(CatalogEntity {
                 id: entry.id,
-                entity_type: entry.ty,
+                entity_type,
                 path: entry.path,
-                title: entry.title,
-                status: entry.status,
-                body,
+                title: truncate_catalog_text(entry.title, MAX_CATALOG_TITLE_CHARS),
+                status: truncate_catalog_text(entry.status, MAX_CATALOG_STATUS_CHARS),
+                body: truncate_catalog_text(file.body, MAX_CATALOG_BODY_CHARS),
             });
             if entities.len() >= MAX_CATALOG_ENTITIES {
                 break;
@@ -1073,6 +1075,15 @@ pub fn build_sync_catalog(project_root: &Path, project_id: &str) -> Result<SyncC
         generated_at: chrono::Utc::now().to_rfc3339(),
         entities,
     })
+}
+
+fn truncate_catalog_text(value: String, max_chars: usize) -> String {
+    if value.chars().count() <= max_chars {
+        return value;
+    }
+    let mut truncated: String = value.chars().take(max_chars.saturating_sub(1)).collect();
+    truncated.push('…');
+    truncated
 }
 
 fn sync_state_path(project_root: &Path) -> PathBuf {
@@ -1316,5 +1327,29 @@ mod tests {
             "2026-09-16T00:00:00Z",
         );
         assert_eq!(commit.id, again.id);
+    }
+
+    #[test]
+    fn sync_catalog_bounds_derived_text_fields() {
+        let root = temp_dir("catalog-bounds");
+        fs::create_dir_all(root.join("docs/intakes")).unwrap();
+        let summary = "s".repeat(MAX_CATALOG_TITLE_CHARS + 40);
+        let status = "x".repeat(MAX_CATALOG_STATUS_CHARS + 10);
+        fs::write(
+            root.join("docs/intakes/IN-LONG.md"),
+            format!(
+                "---\nid: IN-LONG\ntype: intake\nsummary: {summary}\nstatus: {status}\n---\n# Long intake\n"
+            ),
+        )
+        .unwrap();
+
+        let catalog = build_sync_catalog(&root, "project-1234567890").unwrap();
+        assert_eq!(catalog.entities.len(), 1);
+        let entity = &catalog.entities[0];
+        assert_eq!(entity.id, "IN-LONG");
+        assert_eq!(entity.title.chars().count(), MAX_CATALOG_TITLE_CHARS);
+        assert_eq!(entity.title.chars().last(), Some('…'));
+        assert_eq!(entity.status.chars().count(), MAX_CATALOG_STATUS_CHARS);
+        assert_eq!(entity.status.chars().last(), Some('…'));
     }
 }

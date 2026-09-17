@@ -401,15 +401,6 @@ export async function handleApi(
       }
       await consumeDailyQuota(env, principal.uid, "syncWrites", 1, DAILY_WRITE_LIMIT);
       await consumeDailyQuota(env, principal.uid, "syncBytes", encodedBytes, DAILY_BYTES_LIMIT);
-      const result = await upsertProject(
-        principal.firebaseToken,
-        principal.firestoreEnv,
-        principal.uid,
-        projectId,
-        envelope.project_name,
-        envelope,
-        baseRevision(body.base_revision),
-      );
       const commit = body.commit
         ? validateCommitInput(body.commit, {
             authorUserId: principal.uid,
@@ -419,6 +410,19 @@ export async function handleApi(
       if (body.commit && !commit) {
         throw new ApiError(400, "invalid_commit", "Sync commit record is invalid.");
       }
+      const catalog = body.catalog ? validateCatalog(body.catalog, projectId) : null;
+      if (body.catalog && !catalog) {
+        throw new ApiError(400, "invalid_catalog", "Harness catalog is invalid.");
+      }
+      const result = await upsertProject(
+        principal.firebaseToken,
+        principal.firestoreEnv,
+        principal.uid,
+        projectId,
+        envelope.project_name,
+        envelope,
+        baseRevision(body.base_revision),
+      );
       if (commit) {
         await writeCommit(
           principal.firebaseToken,
@@ -432,11 +436,7 @@ export async function handleApi(
           } as unknown as Record<string, unknown>,
         );
       }
-      if (body.catalog) {
-        const catalog = validateCatalog(body.catalog, projectId);
-        if (!catalog) {
-          throw new ApiError(400, "invalid_catalog", "Harness catalog is invalid.");
-        }
+      if (catalog) {
         await writeCatalog(
           principal.firebaseToken,
           principal.firestoreEnv,
