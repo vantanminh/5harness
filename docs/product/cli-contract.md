@@ -98,7 +98,11 @@ They auto-migrate an existing DB; if the DB is missing, run `harness init` first
 Cloud login uses a device-code handoff: `harness login` defaults to
 `https://5harness.knotree.com` (`--server` still overrides), prints a
 short-lived code and verification URL, then polls the Worker for a PKCE-bound
-token. It does not require a loopback callback listener. After the first
+token. It does not require a loopback callback listener. When the machine has
+no sync passphrase, login prompts for and confirms a 12-character minimum
+passphrase and stores it in the machine-local Harness home; sync reuses it
+across linked projects. Explicit sync passphrase flags and
+`HARNESS_SYNC_PASSPHRASE` override the stored value. After the first
 `harness sync push`, durable mutations auto-sync. `harness plan get <token>`
 loads a web-AI implementation brief.
 

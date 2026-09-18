@@ -70,6 +70,7 @@ fn cloud_commands_expose_safe_subcommand_contract() {
     assert!(login_help.contains("--no-browser"), "{login_help}");
     assert!(login_help.contains("--status"), "{login_help}");
     assert!(login_help.contains("--json"), "{login_help}");
+    assert!(login_help.contains("sync passphrase"), "{login_help}");
 
     let plan = run(&["plan", "--help"], None);
     assert!(plan.status.success(), "{}", stderr(&plan));

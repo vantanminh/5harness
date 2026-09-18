@@ -218,6 +218,9 @@ snapshots. It does not replace Git-backed Markdown as the source of truth.
 - The CLI derives an AES-256-GCM key locally with PBKDF2-HMAC-SHA256. The sync
   passphrase and plaintext never enter browser requests, Firebase, Firestore,
   Worker logs, or the local auth file.
+- Interactive `harness login` stores the confirmed machine-scoped sync
+  passphrase under the local Harness home so linked projects can reuse it. The
+  passphrase is never uploaded or printed.
 - `~/.5harness/auth.json` contains the CLI's rotating opaque credentials. It is
   machine-local, written atomically, mode `0600` on Unix, and never committed.
 - Firebase web configuration values are public client identifiers. Firebase

@@ -178,7 +178,7 @@ enum Commands {
         #[command(subcommand)]
         cmd: Option<DashboardCmd>,
     },
-    /// Authorize this CLI with Harness Cloud (default https://5harness.knotree.com)
+    /// Authorize this CLI with Harness Cloud and configure a machine sync passphrase
     Login {
         /// Cloud URL (default: https://5harness.knotree.com)
         #[arg(long = "server")]
@@ -1289,12 +1289,14 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
                 }
                 return Ok(());
             }
+            crate::app::sync::ensure_global_passphrase()?;
             let auth = crate::app::auth::login(server.as_deref(), no_browser, timeout_seconds)?;
             match auth.user_email {
                 Some(email) => println!("Harness cloud login complete for {email}."),
                 None => println!("Harness cloud login complete."),
             }
             println!("Credential stored in {}", crate::app::auth::auth_file_path().display());
+            println!("Machine-scoped sync passphrase configured.");
             Ok(())
         }
         Commands::Logout => {

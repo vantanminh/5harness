@@ -29,6 +29,7 @@ use crate::app::link::read_project_id;
 use crate::domain::entities::ENTITY_TYPES;
 use crate::error::{Error, Result};
 use crate::infra::entities::{atomic_write, list_entity_files};
+use crate::infra::registry::get_harness_home;
 use crate::VERSION;
 
 pub const SYNC_SCHEMA_VERSION: u32 = 1;
@@ -37,6 +38,7 @@ pub const MAX_MANIFEST_BYTES: usize = 700 * 1024;
 pub const MAX_ENVELOPE_BYTES: usize = 900_000;
 pub const SYNC_STATE_FILE_NAME: &str = "cloud-sync.json";
 pub const PASSPHRASE_FILE_NAME: &str = "cloud-passphrase";
+pub const GLOBAL_PASSPHRASE_FILE_NAME: &str = "sync-passphrase";
 const MAX_FILES: usize = 10_000;
 const MAX_CATALOG_ENTITIES: usize = 400;
 const MAX_CATALOG_BODY_CHARS: usize = 24_000;
@@ -826,6 +828,42 @@ fn validate_passphrase(passphrase: &str) -> Result<()> {
     Ok(())
 }
 
+/// Ensure that an interactive cloud login has a machine-scoped sync secret.
+///
+/// The OAuth credential is already machine-scoped, so keeping the sync
+/// passphrase beside it avoids asking once per project while preserving the
+/// existing project-local fallback for older checkouts. Explicit CLI input
+/// and HARNESS_SYNC_PASSPHRASE remain higher-precedence sync overrides.
+pub fn ensure_global_passphrase() -> Result<()> {
+    if let Some(stored) = load_global_passphrase() {
+        validate_passphrase(&stored)?;
+        return Ok(());
+    }
+
+    if let Some(from_env) = env::var("HARNESS_SYNC_PASSPHRASE")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+    {
+        validate_passphrase(&from_env)?;
+        remember_global_passphrase(&from_env)?;
+        return Ok(());
+    }
+
+    if !io::stdin().is_terminal() {
+        return Err(Error::new(
+            "Sync passphrase required during login. Use HARNESS_SYNC_PASSPHRASE for non-interactive login.",
+        ));
+    }
+
+    let passphrase = rpassword::prompt_password("Create sync passphrase: ")?;
+    validate_passphrase(&passphrase)?;
+    let confirmation = rpassword::prompt_password("Confirm sync passphrase: ")?;
+    if passphrase != confirmation {
+        return Err(Error::new("Sync passphrases do not match"));
+    }
+    remember_global_passphrase(&passphrase)
+}
+
 fn resolve_passphrase(
     project_root: &Path,
     explicit: Option<&str>,
@@ -839,6 +877,8 @@ fn resolve_passphrase(
         value.trim_end_matches(['\r', '\n']).to_string()
     } else if let Ok(value) = env::var("HARNESS_SYNC_PASSPHRASE") {
         value
+    } else if let Some(stored) = load_global_passphrase() {
+        stored
     } else if let Some(stored) = load_stored_passphrase(project_root) {
         stored
     } else {
@@ -858,6 +898,26 @@ fn passphrase_path(project_root: &Path) -> PathBuf {
         .join(".5harness")
         .join("local")
         .join(PASSPHRASE_FILE_NAME)
+}
+
+pub fn global_passphrase_path() -> PathBuf {
+    get_harness_home().join(GLOBAL_PASSPHRASE_FILE_NAME)
+}
+
+pub fn remember_global_passphrase(passphrase: &str) -> Result<()> {
+    validate_passphrase(passphrase)?;
+    let path = global_passphrase_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    atomic_write(&path, passphrase)
+}
+
+fn load_global_passphrase() -> Option<String> {
+    fs::read_to_string(global_passphrase_path())
+        .ok()
+        .map(|value| value.trim_end_matches(['\r', '\n']).to_string())
+        .filter(|value| !value.is_empty())
 }
 
 pub fn remember_passphrase(project_root: &Path, passphrase: &str) -> Result<()> {
@@ -919,6 +979,7 @@ pub fn try_auto_sync(project_root: &Path) -> Result<Option<SyncResult>> {
     let passphrase = env::var("HARNESS_SYNC_PASSPHRASE")
         .ok()
         .filter(|value| !value.trim().is_empty())
+        .or_else(load_global_passphrase)
         .or_else(|| load_stored_passphrase(project_root));
     let Some(passphrase) = passphrase else {
         return Ok(None);
@@ -1138,6 +1199,9 @@ fn unix_now() -> i64 {
 mod tests {
     use super::*;
     use std::fs;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     fn temp_dir(label: &str) -> PathBuf {
         let path =
@@ -1193,6 +1257,39 @@ mod tests {
         );
         assert!(decrypt_envelope(&envelope, "a different passphrase").is_err());
         assert!(!envelope.ciphertext_base64.is_empty());
+    }
+
+    #[test]
+    fn login_passphrase_is_persisted_at_machine_scope_and_reused() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let previous_home = std::env::var_os("HARNESS_HOME");
+        let previous_passphrase = std::env::var_os("HARNESS_SYNC_PASSPHRASE");
+        let home = temp_dir("global-passphrase");
+        let passphrase = "a machine-wide sync passphrase";
+        std::env::set_var("HARNESS_HOME", &home);
+        std::env::set_var("HARNESS_SYNC_PASSPHRASE", passphrase);
+
+        ensure_global_passphrase().unwrap();
+        assert_eq!(
+            fs::read_to_string(global_passphrase_path()).unwrap(),
+            passphrase
+        );
+
+        std::env::remove_var("HARNESS_SYNC_PASSPHRASE");
+        let project = temp_dir("global-passphrase-project");
+        assert_eq!(
+            resolve_passphrase(&project, None, false).unwrap(),
+            passphrase
+        );
+
+        match previous_home {
+            Some(value) => std::env::set_var("HARNESS_HOME", value),
+            None => std::env::remove_var("HARNESS_HOME"),
+        }
+        match previous_passphrase {
+            Some(value) => std::env::set_var("HARNESS_SYNC_PASSPHRASE", value),
+            None => std::env::remove_var("HARNESS_SYNC_PASSPHRASE"),
+        }
     }
 
     #[test]

@@ -12,10 +12,11 @@ harness login                 # default https://5harness.knotree.com
     -> Firebase Auth at the device verification page
     -> PKCE-bound device approval and token polling (no loopback callback)
     -> rotated opaque CLI credentials in ~/.5harness/auth.json
+    -> one confirmed sync passphrase in ~/.5harness/sync-passphrase
 harness login --status
     -> local credential file, without starting a new device-code flow
 
-harness sync push (first time stores the passphrase locally)
+harness sync push (uses the machine-scoped passphrase)
     -> deterministic durable-file manifest + changed-path commit
     -> PBKDF2-HMAC-SHA256 + AES-256-GCM snapshot on the client
     -> user-scoped harness catalog for hosted MCP reads
@@ -57,8 +58,12 @@ client, message, and changed paths only. The dashboard lists those commits and
 opens a detail view. A separate catalog of harness entities (not source code)
 is stored so hosted MCP can read the designated project sequentially.
 
-After login and the first successful `sync push`, durable mutations auto-sync
-using the stored passphrase or `HARNESS_SYNC_PASSPHRASE`. Set
+On the first interactive `harness login`, the CLI asks for and confirms a
+12-character minimum sync passphrase when none is already stored. It is kept
+in the machine-local Harness home and reused across linked projects; it never
+leaves the CLI. Explicit `--passphrase`, `--passphrase-stdin`, and
+`HARNESS_SYNC_PASSPHRASE` values override it. After login and the first
+successful `sync push`, durable mutations auto-sync using that passphrase. Set
 `HARNESS_AUTO_SYNC=0` to disable.
 
 ## Hosted MCP and implementation briefs

@@ -204,18 +204,22 @@ MCP so a web AI (ChatGPT and others) can read a designated project's harness
 and write an implementation brief.
 
 ```bash
-harness login                 # default https://5harness.knotree.com
-harness sync push             # once: store passphrase, then auto-sync on durable edits
+harness login                 # default https://5harness.knotree.com; creates a machine sync passphrase once
+harness sync push             # uses the machine passphrase across linked projects
 harness sync status
 harness plan get <token>      # load a brief created by a web AI
 ```
 
 `harness login` prints a short-lived device code and verification URL. Approve
 the code in the browser; the CLI polls the Worker with PKCE and does not need a
-loopback callback listener. After the first successful push, later durable CLI
-mutations auto-sync as GitHub-like commits (id, time, author, client, changed
-paths). Override the server with `--server` or `HARNESS_CLOUD_URL`. Check an
-existing session with `harness login --status`.
+loopback callback listener. On the first login without a machine-scoped sync
+passphrase, the CLI asks you to create and confirm one and stores it under the
+machine-local Harness home. Later durable CLI mutations auto-sync as
+GitHub-like commits (id, time, author, client, changed paths) across linked
+projects. Explicit `--passphrase`, `--passphrase-stdin`, or
+`HARNESS_SYNC_PASSPHRASE` values still override the stored value. Override the
+server with `--server` or `HARNESS_CLOUD_URL`. Check an existing session with
+`harness login --status`.
 
 The CLI still encrypts a restore snapshot with PBKDF2 + AES-256-GCM. A
 user-scoped harness catalog is stored so hosted MCP can read entities without

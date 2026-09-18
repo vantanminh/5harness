@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `harness login` now creates and stores a confirmed machine-scoped sync
+  passphrase once, allowing cloud sync and auto-sync to reuse it across linked
+  projects.
+
 ### Fixed
 
 - Cloud sync now accepts opaque CLI OAuth bearer tokens and refreshes them
