@@ -64,7 +64,9 @@ using the stored passphrase or `HARNESS_SYNC_PASSPHRASE`. Set
 ## Hosted MCP and implementation briefs
 
 Web AIs connect to `https://5harness.knotree.com/mcp` with the same OAuth user
-as `harness login`. Tools:
+as `harness login`. Hosted MCP OAuth advertises the stable ChatGPT/Codex Client
+ID Metadata Document flow first and keeps RFC 7591 dynamic client registration
+at `/oauth/register` as a compatibility fallback. Tools:
 
 1. `harness_cloud_guide` / initialize instructions — sequential read order
 2. `harness_projects` — list synced projects; the user designates one

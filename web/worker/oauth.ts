@@ -376,6 +376,9 @@ export const oauthOptions: OAuthProviderOptions<Env> = {
   defaultHandler,
   authorizeEndpoint: AUTHORIZE_ROUTE,
   tokenEndpoint: TOKEN_ROUTE,
+  // Prefer the stable ChatGPT/Codex client identity document. DCR remains
+  // enabled below for MCP clients that do not support CIMD yet.
+  clientIdMetadataDocumentEnabled: true,
   clientRegistrationEndpoint: REGISTER_ROUTE,
   scopesSupported: [SYNC_READ_SCOPE, SYNC_WRITE_SCOPE, "offline_access"],
   resourceMetadata: {

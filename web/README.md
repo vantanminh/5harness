@@ -90,7 +90,11 @@ PKCE-bound `/oauth/token` endpoint until the rotating credential is issued.
 This avoids a loopback callback listener. After a successful approval the
 terminal should print `Harness cloud login complete` without waiting for the
 timeout. Check an existing session with `harness login --status`. The legacy
-`/authorize` route stays available for existing OAuth clients.
+`/authorize` route stays available for existing OAuth clients. Hosted MCP OAuth
+advertises Client ID Metadata Documents (CIMD), which lets ChatGPT use its
+stable public client identity without dynamic registration; the RFC 7591
+`/oauth/register` endpoint remains enabled as a compatibility fallback for
+clients that still use DCR.
 
 The Worker configuration intentionally contains only public Firebase web
 configuration. OAuth grant properties are encrypted by

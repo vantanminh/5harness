@@ -153,6 +153,29 @@ describe("StudyOS-style OAuth/KV adapter", () => {
     expect(metadata.grant_types_supported).toEqual(
       expect.arrayContaining([DEVICE_GRANT_TYPE]),
     );
+    expect(metadata.client_id_metadata_document_supported).toBe(true);
+  });
+
+  it("keeps public-client DCR available as the CIMD compatibility fallback", async () => {
+    const response = await handleOAuthRequest(
+      new Request("https://worker.example/oauth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_name: "ChatGPT compatibility client",
+          redirect_uris: ["https://chatgpt.com/connector_platform_oauth_redirect"],
+          grant_types: ["authorization_code"],
+          response_types: ["code"],
+          token_endpoint_auth_method: "none",
+        }),
+      }),
+      testEnv(),
+      context(),
+    );
+    expect(response.status).toBe(201);
+    const registration = (await response.json()) as Record<string, unknown>;
+    expect(registration.client_id).toEqual(expect.any(String));
+    expect(registration.token_endpoint_auth_method).toBe("none");
   });
 
   it("exchanges an approved device code through the provider token machinery", async () => {
