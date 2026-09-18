@@ -40,6 +40,7 @@ import {
   type EncryptedEnvelope,
   type SyncManifest,
 } from "./lib/envelope";
+import { buildOAuthCallbackUrl } from "./oauth";
 
 type AuthContextValue = {
   user: User | null;
@@ -215,7 +216,12 @@ function AuthorizePage() {
     try {
       const refreshToken = await firebaseRefreshToken();
       if (!refreshToken) throw new Error("Firebase session is unavailable. Sign in again.");
-      const result = await apiFetch<{ redirect_uri: string; code: string; state: string }>("/oauth/authorize", {
+      const result = await apiFetch<{
+        redirect_uri: string;
+        code: string;
+        state: string;
+        iss?: string;
+      }>("/oauth/authorize", {
         method: "POST",
         credentials: "include",
         body: jsonBody({
@@ -224,20 +230,24 @@ function AuthorizePage() {
           firebase_refresh_token: refreshToken,
         }),
       });
-      const callback = new URL(result.redirect_uri);
-      callback.searchParams.set("code", result.code);
-      callback.searchParams.set("state", result.state);
-      window.location.assign(callback.toString());
+      window.location.assign(buildOAuthCallbackUrl(result.redirect_uri, {
+        code: result.code,
+        state: result.state,
+        iss: result.iss,
+      }));
     } catch (reason) {
       setError(errorMessage(reason));
       setBusy(false);
     }
   };
   const cancel = () => {
-    const callback = new URL(request.params.redirect_uri);
-    callback.searchParams.set("error", "access_denied");
-    callback.searchParams.set("state", request.params.state);
-    window.location.assign(callback.toString());
+    window.location.assign(buildOAuthCallbackUrl(request.params.redirect_uri, {
+      error: "access_denied",
+      state: request.params.state,
+      // The authorization server issuer is this same origin. Error responses
+      // need it too when RFC 9207 issuer identification is advertised.
+      iss: window.location.origin,
+    }));
   };
   return (
     <section className="center-card consent-card">
