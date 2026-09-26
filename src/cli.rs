@@ -33,6 +33,7 @@ use crate::app::query::{query_view, query_view_json};
 use crate::app::status::{
     doctor_json, format_doctor, format_handoff, format_status, next_items, status_json,
 };
+use crate::app::{maybe_auto_update, perform_update, UpdateMode};
 use crate::domain::frontmatter::as_string;
 use crate::domain::paths::resolve_target_dir;
 use crate::error::{Error, Result};
@@ -45,7 +46,7 @@ use crate::VERSION;
     version = VERSION,
     disable_version_flag = true,
     about = "npm/bun/pnpm agent-ready repository harness — native OS binary, init, durable records, and cloud sync",
-    after_help = "Install and update with npm, bun, or pnpm (`npm i -g 5harness`). The package launches the OS-native binary, not a Node CLI.\nLogin defaults to https://5harness.knotree.com (override with --server or HARNESS_CLOUD_URL)."
+    after_help = "Install the latest release with one command per OS (see README). `harness update` installs that release immediately; a native install also updates itself on later commands.\nLogin defaults to https://5harness.knotree.com (override with --server or HARNESS_CLOUD_URL)."
 )]
 struct Cli {
     /// print CLI version (also -V)
@@ -212,8 +213,15 @@ enum Commands {
     },
     /// Print shell completion script (bash | zsh | pwsh)
     Completion { shell: String },
-    /// Update 5harness globally using npm, bun, or pnpm (downloads the OS-native binary)
-    Update,
+    /// Install the latest 5harness release (native binary, or npm/bun/pnpm when that launched harness)
+    Update {
+        /// Turn on automatic updates and install the latest release now
+        #[arg(long = "auto")]
+        auto: bool,
+        /// Turn off automatic updates
+        #[arg(long = "no-auto", conflicts_with = "auto")]
+        no_auto: bool,
+    },
     /// Upgrade harness block in AGENTS.md to match current CLI version
     Upgrade {
         #[command(flatten)]
@@ -1049,31 +1057,15 @@ enum ExportCmd {
     },
 }
 
-fn global_update_command() -> (String, Vec<String>) {
-    let agent = env::var("npm_config_user_agent").unwrap_or_default();
-    if agent.contains("bun/") {
-        return (
-            "bun".into(),
-            vec!["add".into(), "-g".into(), "5harness@latest".into()],
-        );
-    }
-    if agent.contains("pnpm/") {
-        return (
-            "pnpm".into(),
-            vec!["add".into(), "-g".into(), "5harness@latest".into()],
-        );
-    }
-    (
-        "npm".into(),
-        vec![
-            "install".into(),
-            "--global".into(),
-            "5harness@latest".into(),
-        ],
-    )
-}
-
 pub fn run() -> Result<()> {
+    if let Err(err) = maybe_auto_update() {
+        if env::var_os("HARNESS_DEBUG").is_some() {
+            eprintln!(
+                "auto-update skipped: {}",
+                crate::error::redact_sensitive(&err.message)
+            );
+        }
+    }
     let mut argv: Vec<String> = env::args().collect();
     for a in argv.iter_mut() {
         if a == "-V" {
@@ -1409,15 +1401,17 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
             }
             Ok(())
         }
-        Commands::Update => {
-            let (bin, args) = global_update_command();
-            println!("Updating 5harness with `{bin} {}` (OS-native binary via npm/bun/pnpm).", args.join(" "));
-            let status = std::process::Command::new(&bin).args(&args).status()?;
-            if status.success() {
-                Ok(())
+        Commands::Update { auto, no_auto } => {
+            let mode = if no_auto {
+                UpdateMode::DisableAuto
+            } else if auto {
+                UpdateMode::EnableAuto
             } else {
-                Err(Error::new(format!("{bin} update failed with {status}")))
-            }
+                UpdateMode::Now
+            };
+            let report = perform_update(mode)?;
+            println!("{}", report.summary);
+            Ok(())
         }
         Commands::Upgrade { dir } => {
             let target = dir.path(None, cwd);

@@ -302,20 +302,21 @@ validated by `npm run pack:check` (see `scripts/pack-check.mjs`).
 
 ---
 
-## Update check (npm)
+## Updates
 
-On most commands (not bare `--help` / `--version`), the CLI may check the public
-npm registry for a newer `5harness` version.
+`harness update` installs the latest GitHub release for this OS. A native
+install turns automatic updates on, so later commands (not `--help` /
+`--version`) apply a newer release and continue on that binary. npm, bun, and
+pnpm installs update through that package manager when it launched the process.
 
 | Behavior | Detail |
 | --- | --- |
 | Frequency | Successful results are fresh for 1h; transient failures retry after 5m (cache: `~/.5harness/update-check.json`) |
-| Effect | One-line **stderr** notice only; never blocks or changes exit codes |
-| Fail-open | Network/errors are silent |
-| Disable | `HARNESS_NO_UPDATE_CHECK=1`, or when `CI=true` / `CONTINUOUS_INTEGRATION` |
+| Verification | Release `SHA256SUMS` must match the downloaded binary before it is installed or executed |
+| Effect | Replaces the native binary (or runs the detected package manager) and restarts the current command |
+| Fail-open | Automatic-update network errors are silent and do not change the command's exit code |
+| Disable | `harness update --no-auto`, `HARNESS_NO_UPDATE_CHECK=1`, or when `CI=true` / `CONTINUOUS_INTEGRATION` |
 | Interval override | `HARNESS_UPDATE_CHECK_INTERVAL_MS` (milliseconds; tests/debug) |
-
-No auto-upgrade is performed.
 
 ---
 
