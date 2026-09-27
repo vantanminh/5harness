@@ -325,20 +325,23 @@ fn default_install_bin() -> PathBuf {
             return PathBuf::from(trimmed).join("bin").join(binary_file_name());
         }
     }
-    #[cfg(windows)]
-    {
-        let base = env::var("LOCALAPPDATA")
-            .or_else(|_| env::var("USERPROFILE"))
-            .unwrap_or_else(|_| ".".into());
-        return PathBuf::from(base)
-            .join("5harness")
-            .join("bin")
-            .join("harness.exe");
-    }
-    #[cfg(not(windows))]
-    {
-        resolve_harness_home().join("bin").join("harness")
-    }
+    platform_default_install_bin()
+}
+
+#[cfg(windows)]
+fn platform_default_install_bin() -> PathBuf {
+    let base = env::var("LOCALAPPDATA")
+        .or_else(|_| env::var("USERPROFILE"))
+        .unwrap_or_else(|_| ".".into());
+    PathBuf::from(base)
+        .join("5harness")
+        .join("bin")
+        .join("harness.exe")
+}
+
+#[cfg(not(windows))]
+fn platform_default_install_bin() -> PathBuf {
+    resolve_harness_home().join("bin").join("harness")
 }
 
 fn binary_file_name() -> &'static str {
