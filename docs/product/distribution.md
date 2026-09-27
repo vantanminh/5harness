@@ -9,8 +9,8 @@
 | GitHub | [vantanminh/5harness](https://github.com/vantanminh/5harness) |
 | **Preferred install** | One command per OS (below). `npm i -g 5harness` (also `bun add -g 5harness` / `pnpm add -g 5harness`) installs the same latest package |
 | Windows install | `irm https://raw.githubusercontent.com/vantanminh/5harness/main/install/windows.ps1 \| iex` |
-| macOS install | `curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh \| bash` |
-| Linux install | `curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh \| bash` |
+| macOS install | `bash -c "set -o pipefail; curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh \| bash"` |
+| Linux install | `bash -c "set -o pipefail; curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh \| bash"` |
 | Alternate install | `npm i -D 5harness` + `npx harness …` |
 | Node | `>=22.5.0` (packaging/publish glue; CLI runtime is native) |
 | License | MIT |
@@ -46,10 +46,10 @@ updates on. Supported release targets are Linux `x86_64`/`aarch64`, macOS
 
 ```bash
 # macOS
-curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh | bash
+bash -c "set -o pipefail; curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh | bash"
 
 # Linux
-curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh | bash
+bash -c "set -o pipefail; curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh | bash"
 ```
 
 ```powershell

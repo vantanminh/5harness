@@ -237,10 +237,10 @@ fn security_docs_track_runtime_boundaries_and_one_command_installers() {
 
     let readme = fs::read_to_string(root().join("README.md")).unwrap();
     assert!(readme.contains(
-        "https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh | bash"
+        "bash -c \"set -o pipefail; curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh | bash\""
     ));
     assert!(readme.contains(
-        "https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh | bash"
+        "bash -c \"set -o pipefail; curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh | bash\""
     ));
     assert!(readme.contains(
         "https://raw.githubusercontent.com/vantanminh/5harness/main/install/windows.ps1 | iex"

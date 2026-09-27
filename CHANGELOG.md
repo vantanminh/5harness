@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `harness update` through npm, bun, or pnpm restarts from the path captured
+  before the package manager replaces the running binary.
+- macOS and Linux install commands fail when the installer download fails.
+- Native updates run `--version` on the downloaded binary before replacing the
+  installed copy.
 - Cloud sync now accepts opaque CLI OAuth bearer tokens and refreshes them
   through the stable `harness-cli` client alias.
 - Cloud sync push now tolerates long catalog metadata without advancing the

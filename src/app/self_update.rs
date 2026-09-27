@@ -10,8 +10,9 @@ use std::env;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::process::{Command, Stdio};
+use std::thread;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use sha2::{Digest, Sha256};
 
@@ -233,12 +234,16 @@ fn resolve_latest(home: &Path) -> Result<Release> {
 fn apply_channel(channel: &Channel, latest: &Release, verbose: bool) -> Result<PathBuf> {
     match channel {
         Channel::PackageManager => {
+            // npm/bun/pnpm can unlink the running binary before the new one is
+            // in place. Resolve the path first; `/proc/self/exe` afterwards
+            // points at a "(deleted)" path and the restart fails.
+            let restart = running_executable()?;
             let command = package_manager_command();
             if verbose {
                 eprintln!("Updating 5harness with `{}`.", command.join(" "));
             }
             run_package_manager(&command)?;
-            running_executable()
+            Ok(restart)
         }
         Channel::Native(dest) => {
             if verbose {
@@ -669,7 +674,12 @@ fn write_verified_executable(dest: &Path, bytes: &[u8], expected_hex: &str) -> R
         )));
     }
     let nanos = now_ms();
-    let temp = parent.join(format!(".harness-update-{nanos}"));
+    let temp_name = if cfg!(windows) {
+        format!(".harness-update-{nanos}.exe")
+    } else {
+        format!(".harness-update-{nanos}")
+    };
+    let temp = parent.join(temp_name);
     {
         let mut file = OpenOptions::new()
             .write(true)
@@ -690,6 +700,10 @@ fn write_verified_executable(dest: &Path, bytes: &[u8], expected_hex: &str) -> R
             "SHA-256 mismatch after writing the harness binary",
         ));
     }
+    if let Err(err) = confirm_runs(&temp) {
+        let _ = fs::remove_file(&temp);
+        return Err(err);
+    }
     if let Err(err) = swap_in(&temp, dest) {
         let _ = fs::remove_file(&temp);
         return Err(err);
@@ -701,6 +715,39 @@ fn write_verified_executable(dest: &Path, bytes: &[u8], expected_hex: &str) -> R
         ));
     }
     Ok(())
+}
+
+fn confirm_runs(path: &Path) -> Result<()> {
+    let mut child = Command::new(path)
+        .arg("--version")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|err| {
+            Error::new(format!(
+                "downloaded harness binary could not start --version: {err}"
+            ))
+        })?;
+    let started = Instant::now();
+    loop {
+        match child.try_wait()? {
+            Some(status) if status.success() => return Ok(()),
+            Some(status) => {
+                return Err(Error::new(format!(
+                    "downloaded harness binary failed --version with {status}"
+                )));
+            }
+            None if started.elapsed() > Duration::from_secs(15) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(Error::new(
+                    "downloaded harness binary did not finish --version",
+                ));
+            }
+            None => thread::sleep(Duration::from_millis(20)),
+        }
+    }
 }
 
 fn swap_in(temp: &Path, dest: &Path) -> Result<()> {
@@ -1035,16 +1082,21 @@ mod tests {
         fs::create_dir_all(root.join("bin")).unwrap();
         let dest = root.join("bin").join("harness");
         let bytes = b"#!/bin/sh\nexit 0\n";
-        let digest = sha256_hex(bytes);
         let err = write_verified_executable(&dest, bytes, &"ab".repeat(32)).unwrap_err();
         assert!(err.message.contains("SHA-256 mismatch"));
         assert!(!dest.exists());
-        write_verified_executable(&dest, bytes, &digest).unwrap();
-        assert_eq!(fs::read(&dest).unwrap(), bytes);
-
         #[cfg(unix)]
         {
             use std::os::unix::fs::symlink;
+            let digest = sha256_hex(bytes);
+            write_verified_executable(&dest, bytes, &digest).unwrap();
+            assert_eq!(fs::read(&dest).unwrap(), bytes);
+            let broken = b"#!/bin/sh\nexit 1\n";
+            let broken_digest = sha256_hex(broken);
+            let err = write_verified_executable(&dest, broken, &broken_digest).unwrap_err();
+            assert!(err.message.contains("failed --version"), "{err:?}");
+            assert_eq!(fs::read(&dest).unwrap(), bytes);
+
             let link = root.join("bin").join("linked");
             symlink(&dest, &link).unwrap();
             let err = write_verified_executable(&link, bytes, &digest).unwrap_err();

@@ -26,13 +26,13 @@ Each operating system has one command. It installs the latest release.
 **macOS**
 
 ```bash
-curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh | bash
+bash -c "set -o pipefail; curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh | bash"
 ```
 
 **Linux**
 
 ```bash
-curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh | bash
+bash -c "set -o pipefail; curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh | bash"
 ```
 
 **Windows (PowerShell)**

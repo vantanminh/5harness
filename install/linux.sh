@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Automatic Linux install for 5harness (native CLI).
 # Documented command:
-#   curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh | bash
+#   bash -c "set -o pipefail; curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh | bash"
 # Local artifact (tests / CI):
 #   HARNESS_INSTALL_FROM=/path/to/artifact-dir-or-bin ./install/linux.sh
 #
