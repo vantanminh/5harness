@@ -89,6 +89,10 @@ fn all_native_install_scripts_exist_and_support_local_artifacts() {
             text.contains(symlink_guard),
             "{name} must reject symlinked install paths"
         );
+        assert!(
+            text.contains("auto-update"),
+            "{name} must enable automatic updates after install"
+        );
         assert!(!text.contains(",,}"), "{name} must run on stock macOS bash");
     }
     let linux = fs::read_to_string(root().join("install/linux.sh")).unwrap();
@@ -210,7 +214,7 @@ fn ci_still_publishes_to_npmjs_with_provenance() {
 }
 
 #[test]
-fn security_docs_track_runtime_boundaries_and_versioned_installers() {
+fn security_docs_track_runtime_boundaries_and_one_command_installers() {
     let security = fs::read_to_string(root().join("docs/SECURITY.md")).unwrap();
     assert!(security.contains("Argon2id"));
     assert!(security.contains("--allow-project-command"));
@@ -232,9 +236,19 @@ fn security_docs_track_runtime_boundaries_and_versioned_installers() {
     }
 
     let readme = fs::read_to_string(root().join("README.md")).unwrap();
-    assert!(!readme.contains("raw.githubusercontent.com/vantanminh/5harness/main/install"));
-    assert!(!readme.contains("| iex"));
-    assert!(!readme.contains("| bash"));
+    assert!(readme.contains(
+        "https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh | bash"
+    ));
+    assert!(readme.contains(
+        "https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh | bash"
+    ));
+    assert!(readme.contains(
+        "https://raw.githubusercontent.com/vantanminh/5harness/main/install/windows.ps1 | iex"
+    ));
+    assert!(!readme.contains("less install-5harness.sh"));
+    assert!(!readme.contains("Get-Content .\\install-5harness.ps1"));
+    assert!(!readme.contains("VERSION="));
+    assert!(!security.contains("No auto-upgrade is performed."));
 
     let push = fs::read_to_string(root().join("scripts/git-push-release.mjs")).unwrap();
     assert!(push.find("pull",).unwrap() < push.find("Created tag").unwrap());
@@ -280,6 +294,52 @@ fn linux_installer_aborts_before_executing_checksum_mismatch() {
     assert!(stderr.contains("SHA-256 mismatch"), "{stderr}");
     assert!(!marker.exists(), "installer executed an unverified binary");
     assert!(!prefix.join("bin/harness").exists());
+    assert!(
+        !prefix.join("auto-update").exists(),
+        "failed install must not enable automatic updates"
+    );
+    let _ = fs::remove_dir_all(source_dir);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn linux_installer_enables_automatic_updates_after_a_verified_install() {
+    use sha2::{Digest, Sha256};
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = root();
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let source_dir = std::env::temp_dir().join(format!("harness-installer-auto-{nonce}"));
+    let prefix = source_dir.join("prefix");
+    fs::create_dir_all(&source_dir).unwrap();
+    let binary = source_dir.join("harness");
+    fs::write(&binary, "#!/bin/sh\nexit 0\n").unwrap();
+    fs::set_permissions(&binary, fs::Permissions::from_mode(0o755)).unwrap();
+    let digest = hex::encode(Sha256::digest(fs::read(&binary).unwrap()));
+
+    let output = Command::new("bash")
+        .arg(root.join("install/linux.sh"))
+        .env("HARNESS_INSTALL_FROM", &source_dir)
+        .env("HARNESS_INSTALL_PREFIX", &prefix)
+        .env("HARNESS_INSTALL_SKIP_PATH", "1")
+        .env("HARNESS_INSTALL_EXPECTED_SHA256", digest)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        fs::read_to_string(prefix.join("auto-update"))
+            .unwrap()
+            .trim(),
+        "1"
+    );
     let _ = fs::remove_dir_all(source_dir);
 }
 

@@ -7,10 +7,10 @@
 | npm name | `5harness` |
 | bin | `harness` / `5harness` / `5hn` → `dist/cli.js` (fixed-path shim → native Rust binary) |
 | GitHub | [vantanminh/5harness](https://github.com/vantanminh/5harness) |
-| **Preferred install** | `npm i -g 5harness` (also `bun add -g 5harness` / `pnpm add -g 5harness`) |
-| Windows auto-install | Download `install/windows.ps1` from a versioned `vX.Y.Z` tag, inspect it, then run it |
-| macOS auto-install | Download `install/macos.sh` from a versioned `vX.Y.Z` tag, inspect it, then run it |
-| Linux auto-install | Download `install/linux.sh` from a versioned `vX.Y.Z` tag, inspect it, then run it |
+| **Preferred install** | One command per OS (below). `npm i -g 5harness` (also `bun add -g 5harness` / `pnpm add -g 5harness`) installs the same latest package |
+| Windows install | `irm https://raw.githubusercontent.com/vantanminh/5harness/main/install/windows.ps1 \| iex` |
+| macOS install | `curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh \| bash` |
+| Linux install | `curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh \| bash` |
 | Alternate install | `npm i -D 5harness` + `npx harness …` |
 | Node | `>=22.5.0` (packaging/publish glue; CLI runtime is native) |
 | License | MIT |
@@ -27,51 +27,45 @@ harness link          # register path + reindex committed history
 harness login         # default https://5harness.knotree.com
 ```
 
-The npm/bun/pnpm package is how users install, upgrade, and pin versions. The
-runtime that actually runs is the **OS-native binary** shipped in `bin/` and
-selected by `dist/cli.js` for the current OS/CPU.
+`npm i -g 5harness` installs the latest package. The runtime that actually runs
+is the **OS-native binary** shipped in `bin/` and selected by `dist/cli.js`
+for the current OS/CPU. Native installs and `harness update` refresh that
+binary from the latest GitHub release.
 
 Global install matches multi-project use and a future local dashboard. Project
 files (markdown) remain in the repo for GitHub backup and collaborator clones.
 
 ### Native installers
 
-The direct installers are useful on a machine that does not have Node.js. They
-download the native binary for the current OS and CPU from the matching GitHub
-Release asset, install it under `~/.5harness/bin` (macOS/Linux) or
-`%LOCALAPPDATA%\5harness\bin` (Windows), and run `harness --version` before
-returning. Supported release targets are Linux `x86_64`/`aarch64`, macOS
-`x86_64`/`arm64`, and Windows `x86_64`/`arm64`; the release workflows build
-and publish each of these six target assets.
+Each operating system has one command. The script resolves the latest GitHub
+Release, downloads the native binary for the current OS and CPU, verifies it
+against that release's `SHA256SUMS`, installs it under `~/.5harness/bin`
+(macOS/Linux) or `%LOCALAPPDATA%\5harness\bin` (Windows), and turns automatic
+updates on. Supported release targets are Linux `x86_64`/`aarch64`, macOS
+`x86_64`/`arm64`, and Windows `x86_64`/`arm64`.
 
 ```bash
-# Linux or macOS
-VERSION=0.26.2
-curl --proto '=https' --tlsv1.2 -fsSL "https://raw.githubusercontent.com/vantanminh/5harness/v${VERSION}/install/linux.sh" -o install-5harness.sh
-less install-5harness.sh
-bash install-5harness.sh
+# macOS
+curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh | bash
 
-# Pin a release or install an offline/local artifact
-export HARNESS_INSTALL_VERSION="$VERSION"
-HARNESS_INSTALL_FROM=/path/to/artifacts ./install/linux.sh
+# Linux
+curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh | bash
 ```
 
 ```powershell
 # Windows PowerShell
-$version = "0.26.2"
-Invoke-WebRequest "https://raw.githubusercontent.com/vantanminh/5harness/v$version/install/windows.ps1" -OutFile install-5harness.ps1
-Get-Content .\install-5harness.ps1
-powershell -ExecutionPolicy Bypass -File .\install-5harness.ps1
-$env:HARNESS_INSTALL_VERSION = $version
-$env:HARNESS_INSTALL_FROM = "D:\path\to\harness-x86_64-pc-windows-msvc.exe"
-powershell -File install/windows.ps1
+irm https://raw.githubusercontent.com/vantanminh/5harness/main/install/windows.ps1 | iex
 ```
 
-Set `HARNESS_INSTALL_PREFIX` to choose another install root and
-`HARNESS_INSTALL_SKIP_PATH=1` when a CI job should not edit the user's PATH.
-The installer scripts are shipped in the npm tarball as well as attached to
-GitHub Releases, so the same commands can be tested offline with
-`HARNESS_INSTALL_FROM`.
+`harness update` installs the latest release immediately. With automatic
+updates on, later commands do the same after the checksum check and then
+continue, so there is no separate package-manager command. `harness update
+--no-auto` turns that off. `HARNESS_NO_UPDATE_CHECK=1` and `CI=true` skip it.
+
+Offline and CI jobs can still point at a local artifact with
+`HARNESS_INSTALL_FROM` and choose another root with `HARNESS_INSTALL_PREFIX`.
+`HARNESS_INSTALL_SKIP_PATH=1` keeps a CI job from editing PATH. The installer
+scripts ship in the npm tarball.
 
 ## Published artifacts
 

@@ -1,7 +1,6 @@
 # Automatic Windows install for 5harness (native CLI).
 # Documented command:
-#   irm https://raw.githubusercontent.com/vantanminh/5harness/v0.26.2/install/windows.ps1 -OutFile install.ps1
-#   powershell -File install.ps1
+#   irm https://raw.githubusercontent.com/vantanminh/5harness/main/install/windows.ps1 | iex
 # Local artifact (tests / offline):
 #   $env:HARNESS_INSTALL_FROM = "D:\path\to\artifact-dir-or-exe-or-zip"
 #   powershell -File install/windows.ps1
@@ -205,6 +204,20 @@ function Install-Binary([string]$Source, [string]$Prefix) {
   if ($LASTEXITCODE -ne 0) {
     Fail "harness --version failed after install"
   }
+  Enable-AutoUpdate $Prefix
+}
+
+function Enable-AutoUpdate([string]$Prefix) {
+  $marker = Join-Path $Prefix "auto-update"
+  Assert-NoReparsePointPath $marker
+  if (Test-Path -LiteralPath $marker) {
+    $item = Get-Item -LiteralPath $marker -Force
+    if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+      Fail "refusing to write symlinked auto-update marker: $marker"
+    }
+    Remove-Item -LiteralPath $marker -Force
+  }
+  [System.IO.File]::WriteAllText($marker, "1`n")
 }
 
 $prefix = Get-Prefix

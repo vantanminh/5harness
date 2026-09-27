@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   passphrase once, allowing cloud sync and auto-sync to reuse it across linked
   projects.
 
+### Changed
+
+- macOS, Linux, and Windows each install the latest release with one command.
+  `harness update` applies that release immediately, and a native install keeps
+  updating on later commands after the release checksum matches.
+
 ### Fixed
 
 - Cloud sync now accepts opaque CLI OAuth bearer tokens and refreshes them

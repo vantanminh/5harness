@@ -21,57 +21,29 @@ repo into a structured workspace for humans and coding agents.
 
 ## Install
 
-Install and update with **npm, bun, or pnpm**. The package is a thin launcher:
-it downloads/runs the **OS-native binary** for your platform (not a Node.js CLI).
+Each operating system has one command. It installs the latest release.
+
+**macOS**
 
 ```bash
-npm i -g 5harness
-# or
-bun add -g 5harness
-# or
-pnpm add -g 5harness
-
-harness --version
-npm update -g 5harness    # or bun/pnpm equivalent, or `harness update`
+curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh | bash
 ```
 
-Direct OS installers (no Node required) are a fallback:
+**Linux**
 
-**Windows (PowerShell):**
+```bash
+curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/linux.sh | bash
+```
+
+**Windows (PowerShell)**
 
 ```powershell
-$version = "0.27.1"
-Invoke-WebRequest "https://raw.githubusercontent.com/vantanminh/5harness/v$version/install/windows.ps1" -OutFile install-5harness.ps1
-Get-Content .\install-5harness.ps1
-powershell -ExecutionPolicy Bypass -File .\install-5harness.ps1
+irm https://raw.githubusercontent.com/vantanminh/5harness/main/install/windows.ps1 | iex
 ```
 
-**macOS:**
+`npm i -g 5harness`, `bun add -g 5harness`, and `pnpm add -g 5harness` also install the latest package. The package starts the OS-native binary.
 
-```bash
-VERSION=0.27.1
-curl --proto '=https' --tlsv1.2 -fsSL "https://raw.githubusercontent.com/vantanminh/5harness/v${VERSION}/install/macos.sh" -o install-5harness.sh
-less install-5harness.sh
-bash install-5harness.sh
-```
-
-**Linux:**
-
-```bash
-VERSION=0.27.1
-curl --proto '=https' --tlsv1.2 -fsSL "https://raw.githubusercontent.com/vantanminh/5harness/v${VERSION}/install/linux.sh" -o install-5harness.sh
-less install-5harness.sh
-bash install-5harness.sh
-```
-
-Point any native installer at a local build with `HARNESS_INSTALL_FROM` (directory or binary path). Pin a release with `HARNESS_INSTALL_VERSION=<version>` and use `HARNESS_INSTALL_SKIP_PATH=1` in automation. Prefer npm/bun/pnpm for version management.
-
-Project-local (optional):
-
-```bash
-npm i -D 5harness
-npx harness --help
-```
+A native install turns automatic updates on. Later commands switch to a newer verified release on their own. `harness update` updates immediately. `harness update --auto` turns automatic updates on, and `harness update --no-auto` turns them off.
 
 Releases use **npm trusted publishing (OIDC)** with **provenance** when
 configured. See [docs/product/distribution.md](docs/product/distribution.md).
@@ -328,16 +300,20 @@ Details: [docs/product/distribution.md](docs/product/distribution.md).
 6. [docs/decisions/](docs/decisions/) — locked choices  
 7. [docs/product/roadmap.md](docs/product/roadmap.md) — implementation tracking  
 
-## Update notices
+## Updates
 
-The CLI may print a one-line notice on stderr when a newer npm version exists.
-Successful checks are cached for one hour under `~/.5harness/`; transient npm
-errors retry after five minutes. Disable with
-`HARNESS_NO_UPDATE_CHECK=1` (also auto-disabled when `CI=true`).
+`harness update` installs the latest release. After a native install, later
+commands do that by themselves: the CLI downloads the GitHub release for this
+OS, checks it against `SHA256SUMS`, replaces the binary, and continues.
+Successful checks are cached for one hour under `~/.5harness/`; transient
+errors retry after five minutes. Disable with `HARNESS_NO_UPDATE_CHECK=1`
+(also skipped when `CI=true`).
 
 ```bash
-harness update    # reinstall latest with detected package manager
-harness upgrade   # refresh harness block in project AGENTS.md
+harness update            # install the latest release now
+harness update --auto     # turn automatic updates on and update now
+harness update --no-auto  # turn automatic updates off
+harness upgrade           # refresh harness block in project AGENTS.md
 ```
 
 ## License

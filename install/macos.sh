@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Automatic macOS install for 5harness (native CLI).
 # Documented command:
-#   curl -fsSL https://raw.githubusercontent.com/vantanminh/5harness/v0.26.2/install/macos.sh -o install.sh
-#   bash install.sh
+#   curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/vantanminh/5harness/main/install/macos.sh | bash
 # Local artifact (tests / CI):
 #   HARNESS_INSTALL_FROM=/path/to/artifact-dir-or-bin ./install/macos.sh
 #
@@ -205,6 +204,14 @@ install_bin() {
   add_path
   export PATH="${bin_dir}:${PATH}"
   "$dest" --version || fail "harness --version failed after install"
+  enable_auto_update
+}
+
+enable_auto_update() {
+  local marker="${prefix}/auto-update"
+  assert_no_symlink_components "$marker"
+  [[ ! -L "$marker" ]] || fail "refusing to write symlinked auto-update marker: $marker"
+  printf '1\n' > "$marker"
 }
 
 if [[ -n "${HARNESS_INSTALL_FROM:-}" ]]; then
