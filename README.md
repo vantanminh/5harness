@@ -76,6 +76,7 @@ harness dashboard            # or bare: harness
 | Feature | What it does |
 | --- | --- |
 | **Init / link** | Scaffold agent docs + markdown entities; register project in `~/.5harness` |
+| **Agent skills** | `harness skill add [-g] [-a <agent>]` — install `SKILL.md` for AI agents (project/global) |
 | **Durable history** | Stories, decisions, intakes, backlog, reports as **Git-backed** markdown |
 | **Agent index** | `search` / `get` / `links` / `reindex` — no whole-vault dumps |
 | **Tools-only mutation** | Agents change operational entities **only** via CLI (or MCP tools) |
@@ -94,11 +95,13 @@ without running `harness init` in the parent directory:
 
 ```bash
 cd /path/to/workspace-parent
+# Workspace & AI agent skill setup
 harness workspace discover --json         # preview repos, worktrees deduplicated
 harness workspace link --yes              # save to ~/.5harness/workspaces.json
 harness workspace context --max-chars 8000 --json
 harness workspace dep add --from backend --to web --kind api_contract --contract-path openapi/
 harness workspace impact check --source backend --story US-001 --create --emit-reports
+harness skill add --global                # install harness SKILL.md globally for AI agents
 ```
 
 See [docs/product/workspace-mode.md](docs/product/workspace-mode.md) for the full contract.

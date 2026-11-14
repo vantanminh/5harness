@@ -5,6 +5,7 @@ pub mod frontmatter;
 pub mod paths;
 pub mod project_id;
 pub mod registry;
+pub mod skill;
 pub mod upgrade;
 pub mod wikilinks;
 pub mod workspace;

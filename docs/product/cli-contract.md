@@ -270,3 +270,16 @@ Git repository or Harness project), stored in `$HARNESS_HOME/workspaces.json`:
 - MCP & Dashboard: `harness mcp [--workspace]` (`X-Harness-Project` accepts `<workspace-id>` or member `<project-id>`),
   dashboard `GET /api/workspaces`.
 - See [workspace-mode.md](./workspace-mode.md) and [decision 0028](../decisions/0028-workspace-mode-orchestration.md).
+
+## Agent Skills & Managed Upgrade (US-117, US-118)
+
+- `harness upgrade [--dir <path>] [--dry-run] [--json]` syncs the `<!-- HARNESS:BEGIN -->..<!-- HARNESS:END -->`
+  block in `AGENTS.md` (preserving `harness-project-id` and user prose outside the markers)
+  and updates `.agents/skills/harness/SKILL.md`.
+- `harness skill` (`skills`) manages `SKILL.md` agent packages across 15+ AI coding agents:
+  - `harness skill add [source] [--skill <name>] [-a|--agent <agent>] [-g|--global] [--all] [-y|--yes] [--dry-run] [--json]`
+  - `harness skill list [-a|--agent <agent>] [-g|--global | --project] [--json]`
+  - `harness skill remove <name> [-a|--agent <agent>] [-g|--global] [--dry-run] [--json]`
+  - `harness skill agents [--json]`
+  - `harness skill show [name] [--json]`
+- Lock metadata is recorded in `$HARNESS_HOME/skills-lock.json` cleanly outside user workspaces.

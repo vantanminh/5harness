@@ -30,6 +30,9 @@ use crate::app::local::{
 };
 use crate::app::project_link;
 use crate::app::query::{query_view, query_view_json};
+use crate::app::skill::{
+    add_skills, list_agents, list_skills, remove_skill, run_upgrade, show_skill, SkillAddOptions,
+};
 use crate::app::status::{
     doctor_json, format_doctor, format_handoff, format_status, next_items, status_json,
 };
@@ -167,6 +170,12 @@ enum Commands {
         #[command(subcommand)]
         cmd: WorkspaceCmd,
     },
+    /// Install, list, and manage AI agent skills (SKILL.md) for project and global agents
+    #[command(visible_alias = "skills")]
+    Skill {
+        #[command(subcommand)]
+        cmd: SkillCmd,
+    },
     /// Create and manage target-owned Project Link reports
     Report {
         #[command(subcommand)]
@@ -231,10 +240,14 @@ enum Commands {
         #[arg(long = "no-auto", conflicts_with = "auto")]
         no_auto: bool,
     },
-    /// Upgrade harness block in AGENTS.md to match current CLI version
+    /// Upgrade harness-managed AGENTS.md block and bundled SKILL.md to match current CLI version
     Upgrade {
         #[command(flatten)]
         dir: DirOpts,
+        #[arg(long = "dry-run")]
+        dry_run: bool,
+        #[arg(long = "json")]
+        json: bool,
     },
     /// Rebuild derived agent index from markdown entities
     Reindex {
@@ -1070,6 +1083,87 @@ enum ExportCmd {
 }
 
 #[derive(Subcommand, Debug)]
+enum SkillCmd {
+    /// Install skills for supported AI agents (defaults to bundled 5harness skill)
+    #[command(visible_alias = "install")]
+    Add {
+        /// Skill source: omitted/`harness`, local path/SKILL.md, `<owner>/<repo>`, or `https://...`
+        #[arg(value_name = "source")]
+        source: Option<String>,
+        /// Install only named skill(s) from a multi-skill repository
+        #[arg(short = 's', long = "skill", action = ArgAction::Append)]
+        skills: Vec<String>,
+        /// Target AI agent(s) (e.g. antigravity, claude-code, cursor, codex, universal, all)
+        #[arg(short = 'a', long = "agent", action = ArgAction::Append)]
+        agents: Vec<String>,
+        /// Install into user-global agent directory instead of project directory
+        #[arg(short = 'g', long = "global")]
+        global: bool,
+        /// Install all skills discovered in a multi-skill source
+        #[arg(long = "all")]
+        all: bool,
+        /// Confirm installation without interactive prompt
+        #[arg(short = 'y', long = "yes")]
+        yes: bool,
+        /// Preview planned targets without writing files
+        #[arg(long = "dry-run")]
+        dry_run: bool,
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// List installed agent skills in project and/or global directories
+    #[command(visible_alias = "ls")]
+    List {
+        #[arg(short = 'a', long = "agent", action = ArgAction::Append)]
+        agents: Vec<String>,
+        /// Only inspect user-global agent directories
+        #[arg(short = 'g', long = "global")]
+        global: bool,
+        /// Only inspect project-local agent directories
+        #[arg(long = "project", conflicts_with = "global")]
+        project: bool,
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Remove an installed skill by name
+    #[command(visible_alias = "rm")]
+    Remove {
+        name: String,
+        #[arg(short = 'a', long = "agent", action = ArgAction::Append)]
+        agents: Vec<String>,
+        /// Remove from user-global agent directories
+        #[arg(short = 'g', long = "global")]
+        global: bool,
+        #[arg(long = "dry-run")]
+        dry_run: bool,
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// List supported AI agents and their project/global skill directories
+    Agents {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Print the bundled 5harness SKILL.md or an installed skill
+    #[command(visible_alias = "print")]
+    Show {
+        name: Option<String>,
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "json")]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
 enum WorkspaceCmd {
     /// Preview child Git repositories and Harness projects under a parent workspace directory
     Discover {
@@ -1580,6 +1674,7 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
         Commands::Report { cmd } => report_cmd(cmd, cwd),
         Commands::Peer { cmd } => peer_cmd(cmd, cwd),
         Commands::Workspace { cmd } => workspace_cmd(cmd, cwd),
+        Commands::Skill { cmd } => skill_cmd(cmd, cwd),
         Commands::Dashboard { port, host, public_url, cmd } => match cmd {
             Some(DashboardCmd::SetPassword { password }) => {
                 let password = password.ok_or_else(|| Error::new("dashboard set-password requires --password"))?;
@@ -1750,15 +1845,20 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
             println!("{}", report.summary);
             Ok(())
         }
-        Commands::Upgrade { dir } => {
+        Commands::Upgrade { dir, dry_run, json } => {
             let target = dir.path(None, cwd);
-            let agents = target.join("AGENTS.md");
-            let text = fs::read_to_string(&agents)?;
-            let re = regex::Regex::new(r"(?m)^(<!--\s*harness-version:)\s*[^>]+(-->\s*)$").unwrap();
-            if !re.is_match(&text) { return Err(Error::new("AGENTS.md has no harness-managed version marker")); }
-            let updated = re.replace(&text, format!("$1 {VERSION} $2")).into_owned();
-            crate::infra::entities::atomic_write(&agents, &updated)?;
-            println!("Upgraded harness block in {}", agents.display());
+            let report = run_upgrade(&target, VERSION, dry_run)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                let prefix = if dry_run { "Would upgrade" } else { "Upgraded" };
+                println!(
+                    "{prefix} {} (AGENTS.md: {}, SKILL.md: {})",
+                    report.agents_path.display(),
+                    if report.agents_updated { "updated" } else { "unchanged" },
+                    report.skill_action
+                );
+            }
             Ok(())
         }
         Commands::Reindex { dir } => {
@@ -3756,6 +3856,155 @@ fn run_dashboard(host: &str, port: u16, forever: bool, public_url: Option<&str>)
     }
     let _ = dash;
     Ok(())
+}
+
+fn skill_cmd(cmd: SkillCmd, cwd: &Path) -> Result<()> {
+    match cmd {
+        SkillCmd::Add {
+            source,
+            skills,
+            agents,
+            global,
+            all,
+            yes,
+            dry_run,
+            dir,
+            json,
+        } => {
+            let project_dir = dir.path(None, cwd);
+            let report = add_skills(
+                &SkillAddOptions {
+                    source,
+                    skills,
+                    agents,
+                    global,
+                    all,
+                    yes,
+                    dry_run,
+                },
+                &project_dir,
+                cwd,
+            )?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                let verb = if dry_run {
+                    "Would install"
+                } else {
+                    "Installed"
+                };
+                for entry in &report.installed {
+                    println!(
+                        "{verb} skill `{}` ({}, from {})",
+                        entry.name, report.scope, entry.source
+                    );
+                    for target in &entry.targets {
+                        println!(
+                            "  [{}] {} ({} file(s)) -> {}",
+                            target.action,
+                            target.agents.join(", "),
+                            target.files_written,
+                            target.path
+                        );
+                    }
+                }
+            }
+            Ok(())
+        }
+        SkillCmd::List {
+            agents,
+            global,
+            project,
+            dir,
+            json,
+        } => {
+            let project_dir = dir.path(None, cwd);
+            let scope = if global {
+                Some(true)
+            } else if project {
+                Some(false)
+            } else {
+                None
+            };
+            let items = list_skills(&agents, scope, &project_dir)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&items)?);
+            } else if items.is_empty() {
+                println!("No installed skills found.");
+            } else {
+                for item in &items {
+                    println!(
+                        "{}  [{}] ({}) -> {}",
+                        item.name,
+                        item.scope,
+                        item.agents.join(", "),
+                        item.path
+                    );
+                }
+            }
+            Ok(())
+        }
+        SkillCmd::Remove {
+            name,
+            agents,
+            global,
+            dry_run,
+            dir,
+            json,
+        } => {
+            let project_dir = dir.path(None, cwd);
+            let report = remove_skill(&name, &agents, global, dry_run, &project_dir)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                let verb = if dry_run { "Would remove" } else { "Removed" };
+                for target in &report.targets {
+                    println!(
+                        "{verb} `{}` ({}) -> {}",
+                        report.name,
+                        target.agents.join(", "),
+                        target.path
+                    );
+                }
+            }
+            Ok(())
+        }
+        SkillCmd::Agents { dir, json } => {
+            let project_dir = dir.path(None, cwd);
+            let items = list_agents(&project_dir);
+            if json {
+                println!("{}", serde_json::to_string_pretty(&items)?);
+            } else {
+                for item in &items {
+                    let flags = match (item.detected_project, item.detected_global) {
+                        (true, true) => "detected: project, global",
+                        (true, false) => "detected: project",
+                        (false, true) => "detected: global",
+                        (false, false) => "not detected",
+                    };
+                    println!(
+                        "{:<16} {:<20} project={}  global=~/{}  [{}]",
+                        item.id,
+                        item.display_name,
+                        item.project_skills_dir,
+                        item.global_skills_dir,
+                        flags
+                    );
+                }
+            }
+            Ok(())
+        }
+        SkillCmd::Show { name, dir, json } => {
+            let project_dir = dir.path(None, cwd);
+            let report = show_skill(name.as_deref(), &project_dir)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                print!("{}", report.content);
+            }
+            Ok(())
+        }
+    }
 }
 
 #[cfg(test)]

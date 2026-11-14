@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `harness skill` (`skills`) command to install, list, inspect, and remove AI
+  agent skills (`SKILL.md` packages) across project and user-global agent
+  directories (`antigravity`, `claude-code`, `cursor`, `codex`, `gemini-cli`,
+  `github-copilot`, `cline`, `windsurf`, `opencode`, `continue`, `goose`, `amp`,
+  `augment`, `roo`, `universal`), supporting the bundled `harness` skill
+  offline, local paths, and `<owner>/<repo>` / HTTPS Git repositories
+  (`add`/`install`, `list`/`ls`, `remove`/`rm`, `agents`, `show`/`print`).
+
+### Changed
+
+- Improved `templates/.agents/skills/harness/SKILL.md`, `.agents/skills/harness/SKILL.md`,
+  and `templates/AGENTS.md` with clear cold-start orientation for uninitialized
+  parent folders, full Workspace mode workflows, and `harness skill add --global`.
+- `harness upgrade` now syncs the full `<!-- HARNESS:BEGIN -->..<!-- HARNESS:END -->`
+  managed block in `AGENTS.md` (preserving `harness-project-id` and user prose
+  outside markers) and refreshes `.agents/skills/harness/SKILL.md`, with
+  embedded fallback templates and `--dry-run` / `--json` support.
+
 ## [0.31.0] - 2026-11-14
 
 ### Added

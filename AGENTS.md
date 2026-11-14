@@ -202,9 +202,28 @@ For an all-projects grant, send `X-Harness-Project: <id>` (preferred) or
 ### Upgrade
 
 When a newer harness CLI version is installed (`npm i -g 5harness`),
-run `harness upgrade` to update the harness block in this AGENTS.md.
-Only the harness-managed section (markers HARNESS:BEGIN through HARNESS:END)
-is modified — all other content is preserved.
+run `harness upgrade` to sync this managed harness block in `AGENTS.md` and
+refresh `.agents/skills/harness/SKILL.md`. Only the harness-managed section
+(markers HARNESS:BEGIN through HARNESS:END) is modified in `AGENTS.md` — all
+other content is preserved.
+
+### Workspace mode & agent skill
+
+When coordinating multiple child repositories from a parent directory (even if
+the parent is not a Git repository or Harness project):
+
+```bash
+harness workspace discover --json
+harness workspace link --yes
+harness workspace status --json
+harness workspace context --task "…" --max-chars 8000 --json
+harness workspace impact check --source <member> --story <US-ID> --create --json
+harness workspace impact update <IMP-ID> --status updated|no_change_needed|waived --reason "…"
+```
+
+Install the `harness` agent skill globally across supported AI tools (for
+parent folders and non-harnessed sessions) with `harness skill add --global`.
+Run `harness skill --help` and `harness workspace --help` for full flags.
 <!-- HARNESS:END -->
 
 ## Security Audit Log

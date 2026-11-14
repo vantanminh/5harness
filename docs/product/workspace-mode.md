@@ -64,3 +64,13 @@ When a project belongs to a workspace whose `policy.impact_gate` is `required` (
 - Start MCP in a parent workspace directory with `harness mcp --workspace` (or `harness mcp` without `AGENTS.md`). Bind `X-Harness-Project: <ws-id>` (or a harnessed member's `project_id`) on `tools/call`.
 - When bound to `<ws-id>`, workspace tools (`harness_workspace_status`, `harness_workspace_context`, `harness_workspace_impact_list`, `harness_workspace_impact_check`, `harness_workspace_impact_update`) are enabled while local single-project mutations fail closed until a member `project_id` is selected.
 - Dashboard exposes `GET /api/workspaces` and renders a **Workspaces** table alongside **Projects** without mutating parent workspace directories.
+
+## Teaching AI Agents on Uninitialized Parent Folders
+
+Because a parent workspace directory has no `AGENTS.md` or `.agents/skills/` of its own, install the bundled `harness` skill globally into your AI agents once:
+
+```bash
+harness skill add --global                # auto-detect installed agents + ~/.agents/skills
+harness skill add --global -a antigravity -a claude-code
+harness skill agents --json
+```

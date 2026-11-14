@@ -11,6 +11,7 @@ pub mod plan;
 pub mod project_link;
 pub mod query;
 mod self_update;
+pub mod skill;
 pub mod status;
 pub mod sync;
 pub mod workspace;
