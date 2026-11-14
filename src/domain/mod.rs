@@ -7,3 +7,4 @@ pub mod project_id;
 pub mod registry;
 pub mod upgrade;
 pub mod wikilinks;
+pub mod workspace;

@@ -199,6 +199,13 @@ pub fn update_story(project_root: &Path, input: StoryUpdate) -> Result<EntityFil
             "story update requires at least one field to change",
         ));
     }
+    if input.status.is_some() && as_string(&data, "status").as_deref() == Some("implemented") {
+        crate::app::workspace::check_story_impact_gate(
+            project_root,
+            &id,
+            as_string(&data, "contract").as_deref(),
+        )?;
+    }
     insert_str(&mut data, "updated_at", now_iso());
     let written = write_entity_file(project_root, &file.relative_path, &data, &file.body)?;
     if as_string(&data, "status").as_deref() == Some("implemented") {

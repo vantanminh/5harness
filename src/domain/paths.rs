@@ -55,6 +55,10 @@ pub fn registry_file_path(harness_home: &Path) -> PathBuf {
     harness_home.join("registry.json")
 }
 
+pub fn workspaces_file_path(harness_home: &Path) -> PathBuf {
+    harness_home.join("workspaces.json")
+}
+
 pub fn resolve_project_state_root(project_root: &Path) -> PathBuf {
     project_root.join(PROJECT_STATE_DIRNAME)
 }

@@ -337,7 +337,9 @@ pub fn atomic_write(path: &Path, content: &str) -> Result<()> {
     let sensitive = path
         .components()
         .any(|component| component.as_os_str() == ".5harness")
-        || path.file_name().is_some_and(|name| name == "registry.json");
+        || path
+            .file_name()
+            .is_some_and(|name| name == "registry.json" || name == "workspaces.json");
     let mut file = OpenOptions::new().write(true).create_new(true).open(&tmp)?;
     #[cfg(unix)]
     if sensitive {

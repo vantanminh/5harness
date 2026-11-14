@@ -33,6 +33,10 @@ use crate::app::query::{query_view, query_view_json};
 use crate::app::status::{
     doctor_json, format_doctor, format_handoff, format_status, next_items, status_json,
 };
+use crate::app::workspace::{
+    self, ContextOptions, ImpactCheckOptions, LinkWorkspaceOptions, DEFAULT_CONTEXT_LIMIT,
+    DEFAULT_CONTEXT_MAX_CHARS,
+};
 use crate::app::{maybe_auto_update, perform_update, UpdateMode};
 use crate::domain::frontmatter::as_string;
 use crate::domain::paths::resolve_target_dir;
@@ -157,6 +161,11 @@ enum Commands {
     Project {
         #[command(subcommand)]
         cmd: ProjectCmd,
+    },
+    /// Coordinate multi-repo workspaces from a parent folder (discovery, context, impacts)
+    Workspace {
+        #[command(subcommand)]
+        cmd: WorkspaceCmd,
     },
     /// Create and manage target-owned Project Link reports
     Report {
@@ -1057,6 +1066,330 @@ enum ExportCmd {
     },
 }
 
+#[derive(Subcommand, Debug)]
+enum WorkspaceCmd {
+    /// Preview child Git repositories and Harness projects under a parent workspace directory
+    Discover {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "depth")]
+        depth: Option<usize>,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Register a workspace folder and confirmed child projects in ~/.5harness/workspaces.json
+    Link {
+        #[arg(value_name = "directory")]
+        target: Option<String>,
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "name")]
+        name: Option<String>,
+        #[arg(long = "depth")]
+        depth: Option<usize>,
+        #[arg(long = "project")]
+        projects: Vec<String>,
+        #[arg(long = "exclude")]
+        excludes: Vec<String>,
+        #[arg(long = "all")]
+        all: bool,
+        #[arg(long = "yes")]
+        yes: bool,
+        #[arg(long = "dry-run")]
+        dry_run: bool,
+        #[arg(long = "init-missing")]
+        init_missing: bool,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Remove a workspace registration (does not modify project files)
+    Unlink {
+        #[arg(value_name = "directory")]
+        target: Option<String>,
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "workspace")]
+        workspace: Option<String>,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// List registered workspaces
+    List {
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Add or refresh a single child project in an existing workspace
+    Add {
+        member: String,
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "workspace")]
+        workspace: Option<String>,
+        #[arg(long = "name")]
+        name: Option<String>,
+        #[arg(long = "init-missing")]
+        init_missing: bool,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Remove a child project from a workspace registration
+    Remove {
+        member: String,
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "workspace")]
+        workspace: Option<String>,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Show workspace health, members, dependencies, and open impacts (partial-failure resilient)
+    Status {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "workspace")]
+        workspace: Option<String>,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Return bounded composite context across workspace members
+    Context {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "workspace")]
+        workspace: Option<String>,
+        #[arg(long = "task")]
+        task: Option<String>,
+        #[arg(long = "project")]
+        project: Option<String>,
+        #[arg(long = "role")]
+        role: Option<String>,
+        #[arg(long = "limit", default_value_t = DEFAULT_CONTEXT_LIMIT)]
+        limit: usize,
+        #[arg(long = "max-chars", default_value_t = DEFAULT_CONTEXT_MAX_CHARS)]
+        max_chars: usize,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Diagnose workspace config and member health (use --repair to recover corrupt store)
+    Doctor {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "workspace")]
+        workspace: Option<String>,
+        #[arg(long = "repair")]
+        repair: bool,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Reconcile moved or changed workspace member paths without losing history
+    Reconcile {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "workspace")]
+        workspace: Option<String>,
+        #[arg(long = "depth")]
+        depth: Option<usize>,
+        #[arg(long = "prune-missing")]
+        prune_missing: bool,
+        #[arg(long = "dry-run")]
+        dry_run: bool,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Configure workspace impact gating policy
+    Policy {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "workspace")]
+        workspace: Option<String>,
+        #[arg(long = "impact-gate")]
+        impact_gate: Option<String>,
+        #[arg(long = "require-contract-story")]
+        require_contract_story: Option<bool>,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Manage cross-project dependencies
+    Dep {
+        #[command(subcommand)]
+        cmd: WorkspaceDepCmd,
+    },
+    /// Detect, record, and resolve cross-project change obligations
+    Impact {
+        #[command(subcommand)]
+        cmd: WorkspaceImpactCmd,
+    },
+    /// Export or apply an explicit portable workspace manifest
+    Manifest {
+        #[command(subcommand)]
+        cmd: WorkspaceManifestCmd,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum WorkspaceDepCmd {
+    /// Declare a directed dependency from upstream producer to downstream consumer
+    Add {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "workspace")]
+        workspace: Option<String>,
+        #[arg(long = "from")]
+        from: String,
+        #[arg(long = "to")]
+        to: String,
+        #[arg(long = "kind", default_value = "api_contract")]
+        kind: String,
+        #[arg(long = "optional")]
+        optional: bool,
+        #[arg(long = "contract-path")]
+        contract_paths: Vec<String>,
+        #[arg(long = "notes")]
+        notes: Option<String>,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Remove a declared dependency by id
+    Remove {
+        id: String,
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "workspace")]
+        workspace: Option<String>,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// List declared workspace dependencies
+    List {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "workspace")]
+        workspace: Option<String>,
+        #[arg(long = "json")]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum WorkspaceImpactCmd {
+    /// Inspect changed files and contract stories to preview or create downstream obligations
+    Check {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "workspace")]
+        workspace: Option<String>,
+        #[arg(long = "source")]
+        source: Option<String>,
+        #[arg(long = "story")]
+        story: Option<String>,
+        #[arg(long = "since")]
+        since: Option<String>,
+        #[arg(long = "no-uncommitted")]
+        no_uncommitted: bool,
+        #[arg(long = "create")]
+        create: bool,
+        #[arg(long = "emit-reports")]
+        emit_reports: bool,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Manually record a cross-project impact obligation
+    Add {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "workspace")]
+        workspace: Option<String>,
+        #[arg(long = "from")]
+        from: String,
+        #[arg(long = "to")]
+        to: String,
+        #[arg(long = "summary")]
+        summary: String,
+        #[arg(long = "kind", default_value = "api_contract")]
+        kind: String,
+        #[arg(long = "optional")]
+        optional: bool,
+        #[arg(long = "story")]
+        story: Option<String>,
+        #[arg(long = "dep")]
+        dep: Option<String>,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// List recorded cross-project impacts
+    List {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "workspace")]
+        workspace: Option<String>,
+        #[arg(long = "status")]
+        status: Option<String>,
+        #[arg(long = "source")]
+        source: Option<String>,
+        #[arg(long = "target")]
+        target: Option<String>,
+        #[arg(long = "story")]
+        story: Option<String>,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Update an impact disposition (updated | no_change_needed | waived | pending)
+    Update {
+        id: String,
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "workspace")]
+        workspace: Option<String>,
+        #[arg(long = "status")]
+        status: String,
+        #[arg(long = "reason")]
+        reason: Option<String>,
+        #[arg(long = "note")]
+        note: Option<String>,
+        #[arg(long = "target-story")]
+        target_story: Option<String>,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Check whether a story passes workspace downstream impact gating
+    Gate {
+        #[arg(value_name = "story")]
+        story: String,
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "workspace")]
+        workspace: Option<String>,
+        #[arg(long = "source")]
+        source: Option<String>,
+        #[arg(long = "json")]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum WorkspaceManifestCmd {
+    /// Export workspace configuration to an explicit portable manifest file
+    Export {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "workspace")]
+        workspace: Option<String>,
+        #[arg(long = "out", default_value = ".harness-workspace.json")]
+        out: String,
+        #[arg(long = "json")]
+        json: bool,
+    },
+    /// Apply an explicit portable workspace manifest file into ~/.5harness/workspaces.json
+    Apply {
+        #[command(flatten)]
+        dir: DirOpts,
+        #[arg(long = "file", default_value = ".harness-workspace.json")]
+        file: String,
+        #[arg(long = "json")]
+        json: bool,
+    },
+}
+
 pub fn run() -> Result<()> {
     if let Err(err) = maybe_auto_update() {
         if env::var_os("HARNESS_DEBUG").is_some() {
@@ -1243,6 +1576,7 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
         },
         Commands::Report { cmd } => report_cmd(cmd, cwd),
         Commands::Peer { cmd } => peer_cmd(cmd, cwd),
+        Commands::Workspace { cmd } => workspace_cmd(cmd, cwd),
         Commands::Dashboard { port, host, public_url, cmd } => match cmd {
             Some(DashboardCmd::SetPassword { password }) => {
                 let password = password.ok_or_else(|| Error::new("dashboard set-password requires --password"))?;
@@ -2726,6 +3060,679 @@ fn entity_mtime_fingerprint(project_root: &Path) -> u128 {
         }
     }
     latest
+}
+
+fn workspace_cmd(cmd: WorkspaceCmd, cwd: &Path) -> Result<()> {
+    match cmd {
+        WorkspaceCmd::Discover { dir, depth, json } => {
+            let target = dir.path(None, cwd);
+            let report = workspace::discover_workspace(&target, depth)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                println!(
+                    "Workspace discovery for {} (depth={}, root_git={}, root_harnessed={}):",
+                    report.root_path, report.depth, report.root_is_git, report.root_is_harnessed
+                );
+                for cand in &report.candidates {
+                    let marker = if cand.selected_by_default { "x" } else { " " };
+                    println!(
+                        "  [{marker}] {}  kind={}  harnessed={}  role={}",
+                        cand.relative_path,
+                        cand.kind,
+                        cand.harnessed,
+                        cand.role.as_deref().unwrap_or("-")
+                    );
+                    if cand.worktree_duplicate {
+                        println!(
+                            "      duplicate worktree of {}",
+                            cand.duplicate_of.as_deref().unwrap_or("primary")
+                        );
+                    }
+                    if let Some(dup_id) = &cand.duplicate_id_with {
+                        println!("      duplicate project_id with {dup_id}");
+                    }
+                }
+                for w in &report.warnings {
+                    println!("  [warn] {w}");
+                }
+            }
+            Ok(())
+        }
+        WorkspaceCmd::Link {
+            target,
+            dir,
+            name,
+            depth,
+            projects,
+            excludes,
+            all,
+            yes,
+            dry_run,
+            init_missing,
+            json,
+        } => {
+            let root = dir.path(target.as_deref(), cwd);
+            let res = workspace::link_workspace(
+                &root,
+                &LinkWorkspaceOptions {
+                    name,
+                    depth,
+                    projects,
+                    excludes,
+                    all,
+                    yes,
+                    dry_run,
+                    init_missing,
+                },
+            )?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&res)?);
+            } else {
+                let verb = if res.dry_run { "Preview" } else { "Linked" };
+                println!(
+                    "{verb} workspace {} ({}) at {}",
+                    res.workspace.name, res.workspace.id, res.workspace.root_path
+                );
+                println!("  members: {}", res.workspace.projects.len());
+                for m in &res.workspace.projects {
+                    println!(
+                        "    - {} [{}] harnessed={} role={}",
+                        m.name,
+                        m.relative_path,
+                        m.harnessed,
+                        m.role.as_deref().unwrap_or("-")
+                    );
+                }
+                if !res.initialized.is_empty() {
+                    println!("  initialized: {}", res.initialized.join(", "));
+                }
+                for w in &res.warnings {
+                    println!("  [warn] {w}");
+                }
+                if !res.dry_run {
+                    println!("  store: {}", res.store_path.display());
+                }
+            }
+            Ok(())
+        }
+        WorkspaceCmd::Unlink {
+            target,
+            dir,
+            workspace: ws_sel,
+            json,
+        } => {
+            let root = dir.path(target.as_deref(), cwd);
+            let removed = workspace::unlink_workspace(&root, ws_sel.as_deref())?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&removed)?);
+            } else {
+                println!("Unlinked workspace {} ({}).", removed.name, removed.id);
+            }
+            Ok(())
+        }
+        WorkspaceCmd::List { json } => {
+            let items = workspace::list_workspaces()?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&items)?);
+            } else if items.is_empty() {
+                println!("No workspaces linked.");
+            } else {
+                for ws in &items {
+                    println!(
+                        "{}  {}  {}  members={}  deps={}  open_impacts={}",
+                        ws.id,
+                        ws.name,
+                        ws.root_path,
+                        ws.projects.len(),
+                        ws.dependencies.len(),
+                        ws.impacts.iter().filter(|i| i.status == "pending").count()
+                    );
+                }
+            }
+            Ok(())
+        }
+        WorkspaceCmd::Add {
+            member,
+            dir,
+            workspace: ws_sel,
+            name,
+            init_missing,
+            json,
+        } => {
+            let root = dir.path(None, cwd);
+            let ws = workspace::add_member_to_workspace(
+                &root,
+                ws_sel.as_deref(),
+                &member,
+                name.as_deref(),
+                init_missing,
+            )?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&ws)?);
+            } else {
+                println!(
+                    "Workspace {} now has {} member(s).",
+                    ws.name,
+                    ws.projects.len()
+                );
+            }
+            Ok(())
+        }
+        WorkspaceCmd::Remove {
+            member,
+            dir,
+            workspace: ws_sel,
+            json,
+        } => {
+            let root = dir.path(None, cwd);
+            let (ws, removed_name) =
+                workspace::remove_member_from_workspace(&root, ws_sel.as_deref(), &member)?;
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "removed": removed_name,
+                        "workspace": ws,
+                    }))?
+                );
+            } else {
+                println!(
+                    "Removed member '{removed_name}' from workspace {}.",
+                    ws.name
+                );
+            }
+            Ok(())
+        }
+        WorkspaceCmd::Status {
+            dir,
+            workspace: ws_sel,
+            json,
+        } => {
+            let root = dir.path(None, cwd);
+            let status = workspace::workspace_status(&root, ws_sel.as_deref())?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&status)?);
+            } else {
+                println!(
+                    "Workspace {} ({}) [{}]",
+                    status["workspace"]["name"].as_str().unwrap_or(""),
+                    status["workspace"]["id"].as_str().unwrap_or(""),
+                    status["workspace"]["root_path"].as_str().unwrap_or("")
+                );
+                println!(
+                    "  members: {} (degraded: {})  deps: {}  pending_impacts: {} (required: {})",
+                    status["summary"]["members_total"],
+                    status["summary"]["members_degraded"],
+                    status["summary"]["dependencies"],
+                    status["summary"]["impacts_pending"],
+                    status["summary"]["impacts_pending_required"]
+                );
+                if let Some(members) = status["members"].as_array() {
+                    for m in members {
+                        println!(
+                            "  - {} [{}] status={} harnessed={} role={}",
+                            m["name"].as_str().unwrap_or(""),
+                            m["relative_path"].as_str().unwrap_or(""),
+                            m["status"].as_str().unwrap_or(""),
+                            m["harnessed"].as_bool().unwrap_or(false),
+                            m["role"].as_str().unwrap_or("-")
+                        );
+                        if let Some(err) = m["error"].as_str() {
+                            println!("      error: {err}");
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }
+        WorkspaceCmd::Context {
+            dir,
+            workspace: ws_sel,
+            task,
+            project,
+            role,
+            limit,
+            max_chars,
+            json,
+        } => {
+            let root = dir.path(None, cwd);
+            let opts = ContextOptions {
+                task,
+                project,
+                role,
+                limit,
+                max_chars,
+            };
+            let ctx = workspace::workspace_context(&root, ws_sel.as_deref(), &opts)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&ctx)?);
+            } else {
+                print!(
+                    "{}",
+                    workspace::format_workspace_context_text(&ctx, max_chars)
+                );
+            }
+            Ok(())
+        }
+        WorkspaceCmd::Doctor {
+            dir,
+            workspace: ws_sel,
+            repair,
+            json,
+        } => {
+            let root = dir.path(None, cwd);
+            let report = workspace::doctor_workspace(&root, ws_sel.as_deref(), repair)?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else if report["repaired"].as_bool() == Some(true) {
+                println!(
+                    "Repaired workspace store at {} (backup: {}).",
+                    report["store_path"].as_str().unwrap_or(""),
+                    report["backup_path"].as_str().unwrap_or("none")
+                );
+            } else {
+                println!(
+                    "Workspace doctor: healthy={} store={}",
+                    report["healthy"],
+                    report["store_path"].as_str().unwrap_or("")
+                );
+                if let Some(items) = report["workspaces"].as_array() {
+                    for ws in items {
+                        println!(
+                            "  {} ({})",
+                            ws["name"].as_str().unwrap_or(""),
+                            ws["id"].as_str().unwrap_or("")
+                        );
+                        if let Some(issues) = ws["issues"].as_array() {
+                            for issue in issues {
+                                println!("    [issue] {}", issue.as_str().unwrap_or(""));
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }
+        WorkspaceCmd::Reconcile {
+            dir,
+            workspace: ws_sel,
+            depth,
+            prune_missing,
+            dry_run,
+            json,
+        } => {
+            let root = dir.path(None, cwd);
+            let report = workspace::reconcile_workspace(
+                &root,
+                ws_sel.as_deref(),
+                depth,
+                prune_missing,
+                dry_run,
+            )?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                println!(
+                    "Reconcile workspace {} (dry_run={}): relinked={}, refreshed={}, missing={}, pruned={}",
+                    report["workspace_name"].as_str().unwrap_or(""),
+                    dry_run,
+                    report["relinked"].as_array().map_or(0, Vec::len),
+                    report["refreshed"].as_array().map_or(0, Vec::len),
+                    report["missing"].as_array().map_or(0, Vec::len),
+                    report["pruned"].as_array().map_or(0, Vec::len)
+                );
+            }
+            Ok(())
+        }
+        WorkspaceCmd::Policy {
+            dir,
+            workspace: ws_sel,
+            impact_gate,
+            require_contract_story,
+            json,
+        } => {
+            let root = dir.path(None, cwd);
+            let policy = workspace::set_workspace_policy(
+                &root,
+                ws_sel.as_deref(),
+                impact_gate.as_deref(),
+                require_contract_story,
+            )?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&policy)?);
+            } else {
+                println!(
+                    "Workspace policy updated: impact_gate={}, require_impact_on_contract_story={}",
+                    policy.impact_gate, policy.require_impact_on_contract_story
+                );
+            }
+            Ok(())
+        }
+        WorkspaceCmd::Dep { cmd } => match cmd {
+            WorkspaceDepCmd::Add {
+                dir,
+                workspace: ws_sel,
+                from,
+                to,
+                kind,
+                optional,
+                contract_paths,
+                notes,
+                json,
+            } => {
+                let root = dir.path(None, cwd);
+                let (dep, created) = workspace::add_dependency(
+                    &root,
+                    ws_sel.as_deref(),
+                    &from,
+                    &to,
+                    &kind,
+                    !optional,
+                    contract_paths,
+                    notes.as_deref(),
+                )?;
+                if json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&serde_json::json!({
+                            "created": created,
+                            "dependency": dep,
+                        }))?
+                    );
+                } else {
+                    println!(
+                        "{} dependency {}: {} -> {} ({}, required={})",
+                        if created { "Added" } else { "Updated" },
+                        dep.id,
+                        dep.from,
+                        dep.to,
+                        dep.kind,
+                        dep.required
+                    );
+                }
+                Ok(())
+            }
+            WorkspaceDepCmd::Remove {
+                id,
+                dir,
+                workspace: ws_sel,
+                json,
+            } => {
+                let root = dir.path(None, cwd);
+                let removed = workspace::remove_dependency(&root, ws_sel.as_deref(), &id)?;
+                if json {
+                    println!("{}", serde_json::json!({ "id": id, "removed": removed }));
+                } else if removed {
+                    println!("Removed dependency {id}.");
+                } else {
+                    println!("Dependency {id} not found.");
+                }
+                Ok(())
+            }
+            WorkspaceDepCmd::List {
+                dir,
+                workspace: ws_sel,
+                json,
+            } => {
+                let root = dir.path(None, cwd);
+                let deps = workspace::list_dependencies(&root, ws_sel.as_deref())?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&deps)?);
+                } else if deps.is_empty() {
+                    println!("No workspace dependencies declared.");
+                } else {
+                    for d in &deps {
+                        println!(
+                            "{}  {} -> {}  kind={}  required={}  paths={}",
+                            d.id,
+                            d.from,
+                            d.to,
+                            d.kind,
+                            d.required,
+                            d.contract_paths.join(",")
+                        );
+                    }
+                }
+                Ok(())
+            }
+        },
+        WorkspaceCmd::Impact { cmd } => match cmd {
+            WorkspaceImpactCmd::Check {
+                dir,
+                workspace: ws_sel,
+                source,
+                story,
+                since,
+                no_uncommitted,
+                create,
+                emit_reports,
+                json,
+            } => {
+                let root = dir.path(None, cwd);
+                let res = workspace::impact_check(
+                    &root,
+                    ws_sel.as_deref(),
+                    &ImpactCheckOptions {
+                        source,
+                        story,
+                        since,
+                        include_uncommitted: !no_uncommitted,
+                        create,
+                        emit_reports,
+                    },
+                )?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&res)?);
+                } else {
+                    let count = res["obligations"].as_array().map_or(0, Vec::len);
+                    println!(
+                        "Workspace impact check ({}, created={create}): {count} obligation(s)",
+                        res["workspace_name"].as_str().unwrap_or("")
+                    );
+                    if let Some(items) = res["obligations"].as_array() {
+                        for item in items {
+                            if let Some(imp) = item.get("impact") {
+                                println!(
+                                    "  {} [{}] {} -> {}: {}",
+                                    imp["id"].as_str().unwrap_or(""),
+                                    imp["status"].as_str().unwrap_or(""),
+                                    imp["source_member"].as_str().unwrap_or(""),
+                                    imp["target_member"].as_str().unwrap_or(""),
+                                    imp["summary"].as_str().unwrap_or("")
+                                );
+                            } else {
+                                println!(
+                                    "  [preview] {} -> {}: {}",
+                                    item["source_member"].as_str().unwrap_or(""),
+                                    item["target_member"].as_str().unwrap_or(""),
+                                    item["summary"].as_str().unwrap_or("")
+                                );
+                            }
+                        }
+                    }
+                    if let Some(adv) = res["advisory_suggestions"].as_array() {
+                        for a in adv {
+                            println!(
+                                "  [hint] {}: {}",
+                                a["source_member"].as_str().unwrap_or(""),
+                                a["hint"].as_str().unwrap_or("")
+                            );
+                        }
+                    }
+                }
+                Ok(())
+            }
+            WorkspaceImpactCmd::Add {
+                dir,
+                workspace: ws_sel,
+                from,
+                to,
+                summary,
+                kind,
+                optional,
+                story,
+                dep,
+                json,
+            } => {
+                let root = dir.path(None, cwd);
+                let imp = workspace::add_impact(
+                    &root,
+                    ws_sel.as_deref(),
+                    &from,
+                    &to,
+                    &summary,
+                    &kind,
+                    !optional,
+                    story.as_deref(),
+                    dep.as_deref(),
+                )?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&imp)?);
+                } else {
+                    println!(
+                        "Recorded impact {} ({} -> {}, status={}): {}",
+                        imp.id, imp.source_member, imp.target_member, imp.status, imp.summary
+                    );
+                }
+                Ok(())
+            }
+            WorkspaceImpactCmd::List {
+                dir,
+                workspace: ws_sel,
+                status,
+                source,
+                target,
+                story,
+                json,
+            } => {
+                let root = dir.path(None, cwd);
+                let items = workspace::list_impacts(
+                    &root,
+                    ws_sel.as_deref(),
+                    status.as_deref(),
+                    source.as_deref(),
+                    target.as_deref(),
+                    story.as_deref(),
+                )?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&items)?);
+                } else if items.is_empty() {
+                    println!("No matching workspace impacts.");
+                } else {
+                    for imp in &items {
+                        println!(
+                            "{}  [{}]  {} -> {}  required={}  {}",
+                            imp.id,
+                            imp.status,
+                            imp.source_member,
+                            imp.target_member,
+                            imp.required,
+                            imp.summary
+                        );
+                    }
+                }
+                Ok(())
+            }
+            WorkspaceImpactCmd::Update {
+                id,
+                dir,
+                workspace: ws_sel,
+                status,
+                reason,
+                note,
+                target_story,
+                json,
+            } => {
+                let root = dir.path(None, cwd);
+                let imp = workspace::update_impact(
+                    &root,
+                    ws_sel.as_deref(),
+                    &id,
+                    &status,
+                    reason.as_deref(),
+                    note.as_deref(),
+                    target_story.as_deref(),
+                )?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&imp)?);
+                } else {
+                    println!("Updated impact {} -> {}", imp.id, imp.status);
+                }
+                Ok(())
+            }
+            WorkspaceImpactCmd::Gate {
+                story,
+                dir,
+                workspace: ws_sel,
+                source,
+                json,
+            } => {
+                let root = dir.path(None, cwd);
+                let res =
+                    workspace::gate_report(&root, ws_sel.as_deref(), source.as_deref(), &story)?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&res)?);
+                } else if res["passed"].as_bool() == Some(true) {
+                    println!("Impact gate passed for {story}.");
+                } else {
+                    println!(
+                        "Impact gate blocked {story}: {}",
+                        res["reason"].as_str().unwrap_or("")
+                    );
+                }
+                if res["passed"].as_bool() != Some(true) {
+                    return Err(Error::with_code(
+                        "HARNESS_E_IMPACT_GATE",
+                        res["reason"]
+                            .as_str()
+                            .unwrap_or("Workspace impact gate blocked")
+                            .to_string(),
+                    ));
+                }
+                Ok(())
+            }
+        },
+        WorkspaceCmd::Manifest { cmd } => match cmd {
+            WorkspaceManifestCmd::Export {
+                dir,
+                workspace: ws_sel,
+                out,
+                json,
+            } => {
+                let root = dir.path(None, cwd);
+                let res = workspace::export_workspace_manifest(
+                    &root,
+                    ws_sel.as_deref(),
+                    Path::new(&out),
+                )?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&res)?);
+                } else {
+                    println!(
+                        "Exported workspace manifest to {}",
+                        res["manifest_path"].as_str().unwrap_or(&out)
+                    );
+                }
+                Ok(())
+            }
+            WorkspaceManifestCmd::Apply { dir, file, json } => {
+                let root = dir.path(None, cwd);
+                let ws = workspace::apply_workspace_manifest(&root, Path::new(&file))?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&ws)?);
+                } else {
+                    println!(
+                        "Applied workspace manifest for {} ({}) with {} member(s).",
+                        ws.name,
+                        ws.id,
+                        ws.projects.len()
+                    );
+                }
+                Ok(())
+            }
+        },
+    }
 }
 
 fn run_dashboard(host: &str, port: u16, forever: bool, public_url: Option<&str>) -> Result<()> {

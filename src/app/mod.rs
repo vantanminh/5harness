@@ -13,5 +13,6 @@ pub mod query;
 mod self_update;
 pub mod status;
 pub mod sync;
+pub mod workspace;
 
 pub use self_update::{maybe_auto_update, perform_update, UpdateMode};
