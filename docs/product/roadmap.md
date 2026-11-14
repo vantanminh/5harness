@@ -177,6 +177,9 @@ proof: `harness query matrix`.
 | [US-087](../stories/US-087.md) | 3 | 1.0 public contract freeze | US-069, 0023 | implemented |
 | [US-092](../stories/US-092.md) | distribution | Complete macOS/Linux/Windows native installers and artifacts | 0018, IN-027 | implemented |
 | [US-093](../stories/US-093.md) | high-risk | Implement agent reliability and security hardening | 0023, 0017 | in_progress |
+| [US-114](../stories/US-114.md) | high-risk | Workspace discovery, safe registration, and recovery | 0028, IN-040 | implemented |
+| [US-115](../stories/US-115.md) | high-risk | Bounded workspace context, cross-repo impacts, and story gating | 0028, US-114 | implemented |
+| [US-116](../stories/US-116.md) | normal | Workspace MCP parity, dashboard view, and docs | US-114, US-115 | implemented |
 
 US-077 was dropped (would have implemented `query friction`).
 
@@ -220,5 +223,6 @@ Exact versions may shift; keep `CHANGELOG.md` as release truth.
 | [durable-layer.md](./durable-layer.md) | Markdown SoT |
 | [agent-index.md](./agent-index.md) | Index + retrieval tools |
 | [cli-contract.md](./cli-contract.md) | Command surface |
+| [workspace-mode.md](./workspace-mode.md) | Parent workspace orchestration |
 | [init-payload.md](./init-payload.md) | Init files |
 | [distribution.md](./distribution.md) | Install story |

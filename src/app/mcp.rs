@@ -95,12 +95,36 @@ pub fn mcp_tools() -> Value {
     ])
 }
 
-fn mcp_tools_for_root(root: Option<&PathBuf>) -> Value {
-    let mut tools = mcp_tools().as_array().cloned().unwrap_or_default();
+fn workspace_tool_schemas() -> [Value; 5] {
+    [
+        json!({"name":"harness_workspace_status","description":"Read workspace health, registered child projects, dependencies, and open impacts.","inputSchema":{"type":"object","properties":{"workspace":{"type":"string"}}}}),
+        json!({"name":"harness_workspace_context","description":"Read bounded composite context across workspace child projects without whole-vault dumps.","inputSchema":{"type":"object","properties":{"workspace":{"type":"string"},"task":{"type":"string"},"project":{"type":"string"},"role":{"type":"string"},"limit":{"type":"integer"},"max_chars":{"type":"integer"}}}}),
+        json!({"name":"harness_workspace_impact_list","description":"List recorded cross-project impact obligations in the workspace.","inputSchema":{"type":"object","properties":{"workspace":{"type":"string"},"status":{"type":"string"},"source":{"type":"string"},"target":{"type":"string"},"story":{"type":"string"}}}}),
+        json!({"name":"harness_workspace_impact_check","description":"Detect changed contracts across workspace dependencies and optionally create pending obligations or reports.","inputSchema":{"type":"object","properties":{"workspace":{"type":"string"},"source":{"type":"string"},"story":{"type":"string"},"since":{"type":"string"},"create":{"type":"boolean"},"emit_reports":{"type":"boolean"}}}}),
+        json!({"name":"harness_workspace_impact_update","description":"Update a cross-project impact disposition (updated | no_change_needed | waived | pending).","inputSchema":{"type":"object","properties":{"workspace":{"type":"string"},"id":{"type":"string"},"status":{"type":"string"},"reason":{"type":"string"},"note":{"type":"string"},"target_story":{"type":"string"}},"required":["id","status"]}}),
+    ]
+}
+
+fn mcp_tools_for_mode(root: Option<&PathBuf>, workspace_only: bool) -> Value {
+    let mut tools = if workspace_only {
+        vec![
+            json!({"name":"harness_plan_get","description":"Load a cloud implementation brief by token from `please implement plan from harness --TOKEN`. Returns the full plan and coding-agent prompt.","inputSchema":{"type":"object","properties":{"token":{"type":"string"}},"required":["token"]}}),
+        ]
+    } else {
+        mcp_tools().as_array().cloned().unwrap_or_default()
+    };
     if let Some(root) = root {
-        if project_link::peers(root)
-            .map(|p| !p.is_empty())
-            .unwrap_or(false)
+        let in_workspace = workspace_only
+            || super::workspace::workspaces_for_project(root)
+                .map(|ws| !ws.is_empty())
+                .unwrap_or(false);
+        if in_workspace {
+            tools.extend(workspace_tool_schemas());
+        }
+        if !workspace_only
+            && project_link::peers(root)
+                .map(|p| !p.is_empty())
+                .unwrap_or(false)
         {
             tools.extend([
                 json!({"name":"harness_peer_search","description":"Search one configured peer.","inputSchema":{"type":"object","properties":{"query":{"type":"string"},"peer_id":{"type":"string"},"role":{"type":"string"}},"required":["query"]}}),
@@ -179,6 +203,15 @@ fn bound_mcp_response_payload(payload: String) -> String {
 }
 
 fn handle_mcp_request_with_auth(root: Option<&PathBuf>, body: &str, authenticated: bool) -> Value {
+    handle_mcp_request_with_mode(root, body, authenticated, false)
+}
+
+fn handle_mcp_request_with_mode(
+    root: Option<&PathBuf>,
+    body: &str,
+    authenticated: bool,
+    workspace_only: bool,
+) -> Value {
     let parsed: Value = match serde_json::from_str(body) {
         Ok(value) => value,
         Err(_) => {
@@ -204,7 +237,7 @@ fn handle_mcp_request_with_auth(root: Option<&PathBuf>, body: &str, authenticate
         "tools/list" => json!({
             "jsonrpc":"2.0",
             "id": id,
-            "result": {"tools": mcp_tools_for_root(root)}
+            "result": {"tools": mcp_tools_for_mode(root, workspace_only)}
         }),
         "tools/call" => {
             if !authenticated {
@@ -219,6 +252,16 @@ fn handle_mcp_request_with_auth(root: Option<&PathBuf>, body: &str, authenticate
             };
             let params = parsed.get("params").cloned().unwrap_or(json!({}));
             let name = params.get("name").and_then(|n| n.as_str()).unwrap_or("");
+            if workspace_only
+                && !name.starts_with("harness_workspace_")
+                && name != "harness_plan_get"
+            {
+                return json!({
+                    "jsonrpc":"2.0",
+                    "id": id,
+                    "error":{"code":-32002,"message": format!("Tool '{name}' requires a member project binding; pass a harnessed member project_id in X-Harness-Project or use harness_workspace_* tools.")}
+                });
+            }
             let args = params.get("arguments").cloned().unwrap_or(json!({}));
             match call_tool(root, name, &args) {
                 Ok(text) => json!({
@@ -568,7 +611,132 @@ fn call_tool(root: &Path, name: &str, args: &Value) -> Result<String> {
             )?;
             Ok(format!("Report {id} updated."))
         }
+        "harness_workspace_status" => {
+            let ws_sel = resolve_authorized_workspace_selector(root, args)?;
+            let status = super::workspace::workspace_status(root, ws_sel.as_deref())?;
+            Ok(serde_json::to_string(&status)?)
+        }
+        "harness_workspace_context" => {
+            let ws_sel = resolve_authorized_workspace_selector(root, args)?;
+            let opts = super::workspace::ContextOptions {
+                task: args
+                    .get("task")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string),
+                project: args
+                    .get("project")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string),
+                role: args
+                    .get("role")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string),
+                limit: args
+                    .get("limit")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as usize)
+                    .unwrap_or(super::workspace::DEFAULT_CONTEXT_LIMIT),
+                max_chars: args
+                    .get("max_chars")
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as usize)
+                    .unwrap_or(super::workspace::DEFAULT_CONTEXT_MAX_CHARS),
+            };
+            let ctx = super::workspace::workspace_context(root, ws_sel.as_deref(), &opts)?;
+            Ok(serde_json::to_string(&ctx)?)
+        }
+        "harness_workspace_impact_list" => {
+            let ws_sel = resolve_authorized_workspace_selector(root, args)?;
+            let items = super::workspace::list_impacts(
+                root,
+                ws_sel.as_deref(),
+                args.get("status").and_then(|v| v.as_str()),
+                args.get("source").and_then(|v| v.as_str()),
+                args.get("target").and_then(|v| v.as_str()),
+                args.get("story").and_then(|v| v.as_str()),
+            )?;
+            Ok(serde_json::to_string(&items)?)
+        }
+        "harness_workspace_impact_check" => {
+            let ws_sel = resolve_authorized_workspace_selector(root, args)?;
+            let opts = super::workspace::ImpactCheckOptions {
+                source: args
+                    .get("source")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string),
+                story: args
+                    .get("story")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string),
+                since: args
+                    .get("since")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string),
+                include_uncommitted: true,
+                create: args
+                    .get("create")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+                emit_reports: args
+                    .get("emit_reports")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+            };
+            let res = super::workspace::impact_check(root, ws_sel.as_deref(), &opts)?;
+            Ok(serde_json::to_string(&res)?)
+        }
+        "harness_workspace_impact_update" => {
+            let ws_sel = resolve_authorized_workspace_selector(root, args)?;
+            let id = args
+                .get("id")
+                .and_then(|v| v.as_str())
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| Error::new("harness_workspace_impact_update requires id"))?;
+            let status = args
+                .get("status")
+                .and_then(|v| v.as_str())
+                .filter(|v| !v.trim().is_empty())
+                .ok_or_else(|| Error::new("harness_workspace_impact_update requires status"))?;
+            let updated = super::workspace::update_impact(
+                root,
+                ws_sel.as_deref(),
+                id,
+                status,
+                args.get("reason").and_then(|v| v.as_str()),
+                args.get("note").and_then(|v| v.as_str()),
+                args.get("target_story").and_then(|v| v.as_str()),
+            )?;
+            Ok(serde_json::to_string(&updated)?)
+        }
         _ => Err(Error::new(format!("Unknown tool {name}"))),
+    }
+}
+
+fn resolve_authorized_workspace_selector(root: &Path, args: &Value) -> Result<Option<String>> {
+    let requested = args
+        .get("workspace")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let authorized = super::workspace::workspaces_for_project(root)?;
+    if authorized.is_empty() {
+        return Err(Error::with_code(
+            "HARNESS_E_NOT_FOUND",
+            "Current MCP root is not registered in any workspace",
+        ));
+    }
+    match requested {
+        None => Ok(Some(authorized[0].id.clone())),
+        Some(sel) => authorized
+            .iter()
+            .find(|ws| ws.id == sel || ws.name.eq_ignore_ascii_case(sel))
+            .map(|ws| Some(ws.id.clone()))
+            .ok_or_else(|| {
+                Error::with_code(
+                    "HARNESS_E_CONFLICT",
+                    format!("Workspace '{sel}' is outside the authorized MCP root"),
+                )
+            }),
     }
 }
 
@@ -590,6 +758,45 @@ pub fn start_mcp(
     serve_forever: bool,
     public_url: Option<&str>,
     token: Option<String>,
+) -> Result<RunningServer> {
+    start_mcp_inner(
+        host,
+        port,
+        project_root,
+        serve_forever,
+        public_url,
+        token,
+        false,
+    )
+}
+
+pub fn start_workspace_mcp(
+    host: &str,
+    port: u16,
+    project_root: PathBuf,
+    serve_forever: bool,
+    public_url: Option<&str>,
+    token: Option<String>,
+) -> Result<RunningServer> {
+    start_mcp_inner(
+        host,
+        port,
+        project_root,
+        serve_forever,
+        public_url,
+        token,
+        true,
+    )
+}
+
+fn start_mcp_inner(
+    host: &str,
+    port: u16,
+    project_root: PathBuf,
+    serve_forever: bool,
+    public_url: Option<&str>,
+    token: Option<String>,
+    require_workspace: bool,
 ) -> Result<RunningServer> {
     if !is_loopback_bind_host(host) {
         let url = public_url.ok_or_else(|| {
@@ -626,9 +833,22 @@ pub fn start_mcp(
         .unwrap_or(DEFAULT_MCP_RATE_LIMIT_PER_MINUTE);
     let public_bind = !is_loopback_bind_host(host);
     let token_expires_at = std::time::Instant::now() + Duration::from_secs(ttl_secs);
-    let project_id = std::fs::read_to_string(project_root.join("AGENTS.md"))
-        .ok()
-        .and_then(|text| extract_project_id(&text));
+    let project_id = if require_workspace {
+        None
+    } else {
+        std::fs::read_to_string(project_root.join("AGENTS.md"))
+            .ok()
+            .and_then(|text| extract_project_id(&text))
+    };
+    let workspace_entry = if require_workspace || project_id.is_none() {
+        match super::workspace::lookup_workspace(&project_root, None) {
+            Ok(ws) => Some(ws),
+            Err(err) if require_workspace => return Err(err),
+            Err(_) => None,
+        }
+    } else {
+        None
+    };
     let listener = TcpListener::bind((host, port))
         .map_err(|e| Error::new(format!("mcp bind {host}:{port} failed: {e}")))?;
     let actual = listener.local_addr()?.port();
@@ -650,6 +870,7 @@ pub fn start_mcp(
             flag,
             project_root,
             project_id,
+            workspace_entry,
             issuer,
             token,
             token_expires_at,
@@ -677,6 +898,7 @@ fn mcp_loop(
     shutdown: Arc<AtomicBool>,
     project_root: PathBuf,
     project_id: Option<String>,
+    workspace_entry: Option<crate::domain::workspace::WorkspaceEntry>,
     issuer: String,
     token: String,
     token_expires_at: std::time::Instant,
@@ -773,9 +995,24 @@ fn mcp_loop(
                     && query_project.is_some()
                     && header_project != query_project;
                 let supplied_project = header_project.or(query_project);
-                let project_bound = project_id
-                    .as_deref()
-                    .is_some_and(|id| supplied_project == Some(id));
+                let (project_bound, effective_root, call_workspace_only) =
+                    if let Some(pid) = project_id.as_deref() {
+                        (supplied_project == Some(pid), project_root.clone(), false)
+                    } else if let Some(ws) = workspace_entry.as_ref() {
+                        if supplied_project == Some(ws.id.as_str()) {
+                            (true, project_root.clone(), true)
+                        } else if let Some(member) = supplied_project.and_then(|sel| {
+                            ws.projects
+                                .iter()
+                                .find(|m| m.harnessed && m.project_id.as_deref() == Some(sel))
+                        }) {
+                            (true, PathBuf::from(&member.path), false)
+                        } else {
+                            (false, project_root.clone(), true)
+                        }
+                    } else {
+                        (false, project_root.clone(), false)
+                    };
                 let (status, ctype, payload, www_authenticate) = if rate_limited {
                     (
                         429,
@@ -801,7 +1038,8 @@ fn mcp_loop(
                             "version": VERSION,
                             "protocolVersion": "2024-11-05",
                             "transport": "streamable-http",
-                            "tools": mcp_tools_for_root(Some(&project_root))
+                            "workspaceId": workspace_entry.as_ref().map(|w| w.id.as_str()),
+                            "tools": mcp_tools_for_mode(Some(&project_root), project_id.is_none() && workspace_entry.is_some())
                         }))
                             .unwrap_or_else(|_| "{}".into()),
                         false,
@@ -852,7 +1090,7 @@ fn mcp_loop(
                     (Method::Post, "/mcp") | (Method::Post, "/") => (
                         200,
                         "application/json; charset=utf-8",
-                        serde_json::to_string(&handle_mcp_request_with_auth(Some(&project_root), &body, true))
+                        serde_json::to_string(&handle_mcp_request_with_mode(Some(&effective_root), &body, true, call_workspace_only))
                             .unwrap_or_else(|_| "{}".into()),
                         false,
                     ),
@@ -894,18 +1132,21 @@ fn mcp_loop(
                     response
                         .add_header(Header::from_bytes(&b"Retry-After"[..], &b"60"[..]).unwrap());
                 }
-                let _ = append_mcp_call(
-                    &project_root,
-                    json!({
-                        "method": method_name,
-                        "rpc_method": rpc_method,
-                        "path": path,
-                        "status": status,
-                        "authenticated": authenticated,
-                        "rate_limited": rate_limited,
-                        "source": remote,
-                    }),
-                );
+                // Never write `.5harness/` telemetry inside an uninitialized parent workspace directory.
+                if effective_root.join("AGENTS.md").is_file() {
+                    let _ = append_mcp_call(
+                        &effective_root,
+                        json!({
+                            "method": method_name,
+                            "rpc_method": rpc_method,
+                            "path": path,
+                            "status": status,
+                            "authenticated": authenticated,
+                            "rate_limited": rate_limited,
+                            "source": remote,
+                        }),
+                    );
+                }
                 let _ = request.respond(response);
             }
             Ok(None) => continue,

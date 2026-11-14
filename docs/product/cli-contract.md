@@ -250,3 +250,23 @@ Logs never intentionally write secrets (tokens, API keys, passwords are redacted
 
 `harness doctor` includes an `index-integrity` check (corrupt JSON, schema mismatch,
 checksum failure, missing entity files → fail; unresolved links / missing checksum → warn).
+
+## Commands in scope for Phase J (Workspace Mode, US-114..US-116)
+
+Orchestrates multiple repositories from a parent directory (which need not be a
+Git repository or Harness project), stored in `$HARNESS_HOME/workspaces.json`:
+
+- Discovery & registration: `harness workspace discover [--depth N] [--json]`,
+  `harness workspace link [directory] [--dry-run] [--yes|--all|--project P] [--exclude E] [--init-missing] [--json]`,
+  `harness workspace unlink`, `harness workspace list`, `harness workspace add`, `harness workspace remove`,
+  `harness workspace reconcile [--prune-missing] [--dry-run]`, `harness workspace doctor [--repair]`,
+  `harness workspace manifest export|apply`.
+- Bounded composite reads: `harness workspace status [--json]`,
+  `harness workspace context [--task T] [--project P] [--role R] [--limit N] [--max-chars M] [--json]`.
+- Cross-project dependencies & gating: `harness workspace policy --impact-gate required|advisory|off [--require-contract-story true|false]`,
+  `harness workspace dep add|remove|list`,
+  `harness workspace impact check [--source S] [--story ID] [--since REF] [--create] [--emit-reports] [--json]`,
+  `harness workspace impact add|list|update|gate`.
+- MCP & Dashboard: `harness mcp [--workspace]` (`X-Harness-Project` accepts `<workspace-id>` or member `<project-id>`),
+  dashboard `GET /api/workspaces`.
+- See [workspace-mode.md](./workspace-mode.md) and [decision 0028](../decisions/0028-workspace-mode-orchestration.md).

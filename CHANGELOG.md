@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Workspace mode (`harness workspace`) to orchestrate multi-repo parent
+  directories without requiring the parent to be a Git repo or Harness project:
+  safe bounded discovery (`discover` / `link --dry-run|yes|project|init-missing`),
+  Git worktree deduplication, `reconcile` and `doctor --repair`, portable
+  `manifest export|apply`, bounded composite `workspace context`, directed
+  `workspace dep` edges with cycle rejection, hybrid `workspace impact check`
+  (contract metadata + diff + target-owned `RP-###` emission), story
+  completion gating (`story done` / `story update` / MCP), MCP workspace
+  tools (`harness mcp --workspace`), and dashboard `/api/workspaces`.
 - `harness login` now creates and stores a confirmed machine-scoped sync
   passphrase once, allowing cloud sync and auto-sync to reuse it across linked
   projects.

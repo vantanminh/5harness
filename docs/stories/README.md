@@ -56,6 +56,9 @@ The complete Phase H / E12–E15 and US-015–US-068 history remains indexed in 
 | [US-072](./US-072.md) | Remove leftover debug scripts | tiny | in_progress | [distribution](../product/distribution.md) |
 | [US-092](./US-092.md) | Complete macOS, Linux, and Windows installation artifacts | high-risk | implemented | [distribution](../product/distribution.md) |
 | [US-093](./US-093.md) | Implement agent reliability and security hardening | high-risk | in_progress | [cli-contract](../product/cli-contract.md) |
+| [US-114](./US-114.md) | Workspace discovery, safe registration, and recovery | high-risk | implemented | [Workspace Mode](../product/workspace-mode.md) |
+| [US-115](./US-115.md) | Bounded workspace context, cross-repo impacts, and story gating | high-risk | implemented | [Workspace Mode](../product/workspace-mode.md) |
+| [US-116](./US-116.md) | Workspace MCP parity, dashboard view, and docs | normal | implemented | [Workspace Mode](../product/workspace-mode.md) |
 
 ## Recommended implement order
 

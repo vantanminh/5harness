@@ -87,6 +87,22 @@ harness dashboard            # or bare: harness
 | **Cloud sync** | Auto-sync after login; GitHub-like commits; hosted MCP for web AIs at `https://5harness.knotree.com` |
 | **Releases** | CI multi-OS matrix, OIDC publish, GitHub Releases, SBOM |
 
+### Workspace Mode (parent folder orchestration)
+
+Work across multiple child repos from a **non-repo parent workspace folder**
+without running `harness init` in the parent directory:
+
+```bash
+cd /path/to/workspace-parent
+harness workspace discover --json         # preview repos, worktrees deduplicated
+harness workspace link --yes              # save to ~/.5harness/workspaces.json
+harness workspace context --max-chars 8000 --json
+harness workspace dep add --from backend --to web --kind api_contract --contract-path openapi/
+harness workspace impact check --source backend --story US-001 --create --emit-reports
+```
+
+See [docs/product/workspace-mode.md](docs/product/workspace-mode.md) for the full contract.
+
 ### Project Link (opt-in)
 
 Project Link lets related repositories declare roles, resolve explicitly

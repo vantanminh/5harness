@@ -390,6 +390,11 @@ fn route(method: &Method, url: &str) -> (u16, String, String) {
             "application/json; charset=utf-8".into(),
             serde_json::to_string_pretty(&projects_json()).unwrap_or_else(|_| "[]".into()),
         ),
+        (Method::Get, "/api/workspaces") => (
+            200,
+            "application/json; charset=utf-8".into(),
+            serde_json::to_string_pretty(&workspaces_json()).unwrap_or_else(|_| "{}".into()),
+        ),
         (Method::Get, "/api/health") => (
             200,
             "application/json; charset=utf-8".into(),
@@ -442,6 +447,41 @@ fn projects_json() -> serde_json::Value {
     serde_json::Value::Array(projects)
 }
 
+fn workspaces_json() -> serde_json::Value {
+    match super::workspace::list_workspaces() {
+        Ok(items) => {
+            let list: Vec<serde_json::Value> = items
+                .into_iter()
+                .map(|ws| {
+                    let pending_impacts =
+                        ws.impacts.iter().filter(|i| i.status == "pending").count();
+                    let pending_required = ws
+                        .impacts
+                        .iter()
+                        .filter(|i| i.status == "pending" && i.required)
+                        .count();
+                    serde_json::json!({
+                        "id": ws.id,
+                        "name": ws.name,
+                        "root_path": ws.root_path,
+                        "policy": ws.policy,
+                        "members_total": ws.projects.len(),
+                        "dependencies_total": ws.dependencies.len(),
+                        "impacts_pending": pending_impacts,
+                        "impacts_pending_required": pending_required,
+                        "members": ws.projects,
+                    })
+                })
+                .collect();
+            serde_json::json!({ "workspaces": list, "error": serde_json::Value::Null })
+        }
+        Err(err) => serde_json::json!({
+            "workspaces": [],
+            "error": err.message,
+        }),
+    }
+}
+
 fn count_stats(path: &Path) -> serde_json::Value {
     match build_catalog(path) {
         Ok(cat) => serde_json::json!({
@@ -487,6 +527,46 @@ fn render_home() -> String {
         rows = "<tr><td colspan=\"4\">No linked projects. Run <code>harness link</code>.</td></tr>"
             .into();
     }
+    let (ws_rows, ws_error_html, ws_count) = match super::workspace::list_workspaces() {
+        Ok(items) => {
+            let mut out = String::new();
+            for ws in &items {
+                let pending = ws.impacts.iter().filter(|i| i.status == "pending").count();
+                let req = ws
+                    .impacts
+                    .iter()
+                    .filter(|i| i.status == "pending" && i.required)
+                    .count();
+                let root_ok = Path::new(&ws.root_path).is_dir();
+                let st_class = if !root_ok {
+                    "error"
+                } else if req > 0 {
+                    "missing"
+                } else {
+                    "ok"
+                };
+                out.push_str(&format!(
+                    "<tr><td>{}</td><td><code>{}</code></td><td>{}</td><td>{}</td><td class=\"status-{st_class}\">{pending} pending ({req} required)</td></tr>",
+                    html_escape(&ws.name),
+                    html_escape(&ws.root_path),
+                    ws.projects.len(),
+                    ws.dependencies.len(),
+                ));
+            }
+            if out.is_empty() {
+                out = "<tr><td colspan=\"5\">No linked workspaces. Run <code>harness workspace link --yes</code> in a parent workspace folder.</td></tr>".into();
+            }
+            (out, String::new(), items.len())
+        }
+        Err(err) => (
+            "<tr><td colspan=\"5\">Workspace store unavailable.</td></tr>".into(),
+            format!(
+                "<p class=\"status-error\">Workspace store error: {}</p>",
+                html_escape(&err.message)
+            ),
+            0,
+        ),
+    };
     let _ = (query_matrix, query_stats);
     format!(
         r#"<!DOCTYPE html>
@@ -500,6 +580,7 @@ fn render_home() -> String {
     body {{ font-family: ui-sans-serif, system-ui, sans-serif; background: var(--bg); color: var(--fg); margin: 0; padding: 1.5rem 2rem; }}
     a {{ color: var(--link); }}
     h1 {{ margin: 0 0 0.4rem; }}
+    h2 {{ margin: 2rem 0 0.4rem; font-size: 1.15rem; }}
     .muted {{ color: var(--muted); }}
     table {{ width: 100%; border-collapse: collapse; margin-top: 1rem; }}
     th, td {{ text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border); }}
@@ -512,8 +593,8 @@ fn render_home() -> String {
 </head>
 <body>
   <h1>Harness Dashboard</h1>
-  <p class="muted">Local cockpit for linked projects — next work, matrix, reports, MCP.</p>
-  <p><a href="/api/projects">JSON /api/projects</a></p>
+  <p class="muted">Local cockpit for linked projects & workspaces — next work, matrix, reports, MCP.</p>
+  <p><a href="/api/projects">JSON /api/projects</a> · <a href="/api/workspaces">JSON /api/workspaces</a></p>
   <table>
     <thead><tr><th>Name</th><th>Path</th><th>Status</th><th>Summary</th></tr></thead>
     <tbody>
@@ -521,6 +602,15 @@ fn render_home() -> String {
     </tbody>
   </table>
   <p class="muted">{count} project(s) — totals: {total_stories} stories, {total_decisions} decisions, {total_intakes} intakes</p>
+  <h2>Workspaces</h2>
+  {ws_error_html}
+  <table>
+    <thead><tr><th>Workspace</th><th>Root</th><th>Members</th><th>Deps</th><th>Impacts</th></tr></thead>
+    <tbody>
+      {ws_rows}
+    </tbody>
+  </table>
+  <p class="muted">{ws_count} workspace(s)</p>
   <div class="footer"><p>Harness v{VERSION} — github.com/vantanminh/5harness</p></div>
 </body>
 </html>"#,

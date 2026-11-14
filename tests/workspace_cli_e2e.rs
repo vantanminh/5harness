@@ -1,6 +1,8 @@
 use std::fs;
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::TcpStream;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Child, Command, Output, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -692,4 +694,254 @@ fn peer_write_roots_blocks_unauthorized_report_and_context_honors_budget() {
         None,
     );
     assert_eq!(bounded["truncated"], true);
+}
+
+struct ChildGuard(Child);
+
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+fn spawn_and_read_addr(args: &[&str], cwd: &Path, home: &Path) -> (ChildGuard, String) {
+    let mut cmd = Command::new(TestEnv::bin());
+    cmd.args(args)
+        .current_dir(cwd)
+        .env("HARNESS_NO_UPDATE_CHECK", "1")
+        .env("HARNESS_HOME", home)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit());
+    let mut child = cmd.spawn().expect("spawn server");
+    let stdout = child.stdout.take().expect("piped stdout");
+    let mut reader = BufReader::new(stdout);
+    let mut addr = None;
+    for _ in 0..20 {
+        let mut line = String::new();
+        if reader.read_line(&mut line).unwrap_or(0) == 0 {
+            break;
+        }
+        if addr.is_none() {
+            if let Some(pos) = line.find("http://127.0.0.1:") {
+                let rest = &line[pos + "http://".len()..];
+                addr = Some(rest.trim().trim_end_matches('/').to_string());
+            }
+        }
+        if line.contains("Press Ctrl+C to stop.") {
+            break;
+        }
+    }
+    std::thread::spawn(move || {
+        let _ = std::io::copy(&mut reader, &mut std::io::sink());
+    });
+    (
+        ChildGuard(child),
+        addr.expect("server did not print http://127.0.0.1:<port>/"),
+    )
+}
+
+fn http_send(
+    addr: &str,
+    method: &str,
+    path: &str,
+    headers: &[(&str, &str)],
+    body: &str,
+) -> (u16, String) {
+    let mut stream = TcpStream::connect(addr).expect("connect server");
+    let mut req = format!(
+        "{method} {path} HTTP/1.0\r\nHost: {addr}\r\nConnection: close\r\nContent-Length: {}\r\n",
+        body.len()
+    );
+    for (k, v) in headers {
+        req.push_str(&format!("{k}: {v}\r\n"));
+    }
+    req.push_str("\r\n");
+    req.push_str(body);
+    stream.write_all(req.as_bytes()).unwrap();
+    let mut resp = String::new();
+    stream.read_to_string(&mut resp).unwrap();
+    let (head, resp_body) = resp.split_once("\r\n\r\n").unwrap_or((&resp, ""));
+    let status = head
+        .lines()
+        .next()
+        .and_then(|l| l.split_whitespace().nth(1))
+        .and_then(|s| s.parse::<u16>().ok())
+        .unwrap_or(0);
+    (status, resp_body.to_string())
+}
+
+#[test]
+fn mcp_and_dashboard_workspace_parity() {
+    let env = TestEnv::new("mcp-dash");
+    let backend = env.init_harnessed_repo("backend", "backend");
+    let _web = env.init_harnessed_repo("web", "frontend");
+
+    let linked = env.run_json(&["workspace", "link", "--yes", "--json"], None);
+    let ws_id = linked["workspace"]["id"].as_str().unwrap().to_string();
+
+    env.run_ok(
+        &[
+            "workspace",
+            "dep",
+            "add",
+            "--from",
+            "backend",
+            "--to",
+            "web",
+            "--kind",
+            "api_contract",
+        ],
+        None,
+    );
+    env.run_ok(
+        &[
+            "story",
+            "add",
+            "--id",
+            "US-001",
+            "--title",
+            "Token refresh contract",
+            "--lane",
+            "normal",
+            "--contract",
+            "POST /refresh",
+        ],
+        Some(&backend),
+    );
+    env.run_ok(&["story", "start", "US-001"], Some(&backend));
+    let check = env.run_json(
+        &[
+            "workspace",
+            "impact",
+            "check",
+            "--source",
+            "backend",
+            "--story",
+            "US-001",
+            "--create",
+            "--json",
+        ],
+        None,
+    );
+    let imp_id = check["obligations"][0]["impact"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let (_mcp_guard, mcp_addr) = spawn_and_read_addr(
+        &[
+            "mcp",
+            "--workspace",
+            "--port",
+            "0",
+            "--token",
+            "ws-secret-tok",
+        ],
+        &env.root,
+        &env.home,
+    );
+
+    let (st, meta_body) = http_send(&mcp_addr, "GET", "/mcp", &[], "");
+    assert_eq!(st, 200);
+    let meta: serde_json::Value = serde_json::from_str(&meta_body).unwrap();
+    assert_eq!(meta["workspaceId"], ws_id);
+    assert!(meta["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|t| t["name"] == "harness_workspace_context"));
+
+    let call_ctx = r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"harness_workspace_context","arguments":{"max_chars":4000}}}"#;
+    let (st_unbound, _) = http_send(
+        &mcp_addr,
+        "POST",
+        "/mcp",
+        &[
+            ("Authorization", "Bearer ws-secret-tok"),
+            ("Content-Type", "application/json"),
+        ],
+        call_ctx,
+    );
+    assert_eq!(st_unbound, 403);
+
+    let (st_wrong, _) = http_send(
+        &mcp_addr,
+        "POST",
+        "/mcp",
+        &[
+            ("Authorization", "Bearer ws-secret-tok"),
+            ("X-Harness-Project", "wrong-proj"),
+            ("Content-Type", "application/json"),
+        ],
+        call_ctx,
+    );
+    assert_eq!(st_wrong, 403);
+
+    let (st_ok, ctx_body) = http_send(
+        &mcp_addr,
+        "POST",
+        "/mcp",
+        &[
+            ("Authorization", "Bearer ws-secret-tok"),
+            ("X-Harness-Project", &ws_id),
+            ("Content-Type", "application/json"),
+        ],
+        call_ctx,
+    );
+    assert_eq!(st_ok, 200);
+    let rpc: serde_json::Value = serde_json::from_str(&ctx_body).unwrap();
+    let inner_text = rpc["result"]["content"][0]["text"].as_str().unwrap();
+    let inner: serde_json::Value = serde_json::from_str(inner_text).unwrap();
+    assert_eq!(inner["projects"].as_array().unwrap().len(), 2);
+
+    let call_local = r#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"harness_get","arguments":{"id":"US-001"}}}"#;
+    let (st_local, local_body) = http_send(
+        &mcp_addr,
+        "POST",
+        "/mcp",
+        &[
+            ("Authorization", "Bearer ws-secret-tok"),
+            ("X-Harness-Project", &ws_id),
+            ("Content-Type", "application/json"),
+        ],
+        call_local,
+    );
+    assert_eq!(st_local, 200);
+    let local_rpc: serde_json::Value = serde_json::from_str(&local_body).unwrap();
+    assert_eq!(local_rpc["error"]["code"], -32002);
+
+    let call_update = format!(
+        r#"{{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{{"name":"harness_workspace_impact_update","arguments":{{"id":"{imp_id}","status":"waived","reason":"Waived via MCP test"}}}}}}"#
+    );
+    let (st_upd, upd_body) = http_send(
+        &mcp_addr,
+        "POST",
+        "/mcp",
+        &[
+            ("Authorization", "Bearer ws-secret-tok"),
+            ("X-Harness-Project", &ws_id),
+            ("Content-Type", "application/json"),
+        ],
+        &call_update,
+    );
+    assert_eq!(st_upd, 200);
+    assert!(upd_body.contains("waived"), "{upd_body}");
+    assert!(
+        !env.root.join(".5harness").exists(),
+        "MCP must not create .5harness in parent dir"
+    );
+
+    let (_dash_guard, dash_addr) =
+        spawn_and_read_addr(&["dashboard", "--port", "0"], &env.root, &env.home);
+    let (dst_api, ws_json_body) = http_send(&dash_addr, "GET", "/api/workspaces", &[], "");
+    assert_eq!(dst_api, 200);
+    let ws_api: serde_json::Value = serde_json::from_str(&ws_json_body).unwrap();
+    assert_eq!(ws_api["workspaces"].as_array().unwrap().len(), 1);
+    assert_eq!(ws_api["workspaces"][0]["impacts_pending"], 0);
+
+    let (dst_home, home_html) = http_send(&dash_addr, "GET", "/", &[], "");
+    assert_eq!(dst_home, 200);
+    assert!(home_html.contains("Workspaces"));
+    assert!(home_html.contains("/api/workspaces"));
 }

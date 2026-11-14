@@ -466,6 +466,9 @@ enum Commands {
         /// bearer token for MCP clients (generated when omitted)
         #[arg(long = "token")]
         token: Option<String>,
+        /// bind MCP to a registered parent workspace directory
+        #[arg(long = "workspace")]
+        workspace: bool,
     },
 }
 
@@ -2193,9 +2196,13 @@ fn dispatch(cmd: Commands, cwd: &Path) -> Result<()> {
             }
             Ok(())
         }
-        Commands::Mcp { dir, port, host, public_url, token } => {
+        Commands::Mcp { dir, port, host, public_url, token, workspace } => {
             let target = dir.path(None, cwd);
-            let dash = crate::app::mcp::start_mcp(&host, port, target, false, public_url.as_deref(), token)?;
+            let dash = if workspace {
+                crate::app::mcp::start_workspace_mcp(&host, port, target, false, public_url.as_deref(), token)?
+            } else {
+                crate::app::mcp::start_mcp(&host, port, target, false, public_url.as_deref(), token)?
+            };
             println!("Harness MCP");
             println!("  {}", dash.url);
             println!("  MCP: {}mcp", dash.url);

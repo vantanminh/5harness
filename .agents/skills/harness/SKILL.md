@@ -77,3 +77,14 @@ That returns the full plan and coding-agent prompt. Do not invent the token.
 
 Do not call unimplemented commands (decision 0023). The shipped CLI is the
 contract — run `harness --help`.
+
+## Parent Workspace Mode
+
+When working from a parent folder containing multiple repositories:
+```bash
+harness workspace discover --json
+harness workspace link --yes
+harness workspace context --max-chars 8000 --json
+harness workspace impact check --source <member> --story <US-ID> --create --json
+harness workspace impact update <IMP-ID> --status updated|no_change_needed|waived --reason "..."
+```

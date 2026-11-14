@@ -366,6 +366,21 @@ Agents must not bypass harness CLI/MCP failures by hand-editing durable
 entities. See decision **0017** and the harness block in `AGENTS.md` /
 `templates/AGENTS.md`.
 
+## Workspace Mode Boundaries (US-114..US-116)
+
+- `$HARNESS_HOME/workspaces.json` stores workspace registrations locally with
+  strict schema version validation (`v1`), `0o600` permissions on Unix, and
+  explicit `--repair` backup recovery on corruption (never silent resets).
+- Parent workspace directories are never mutated unless the user explicitly
+  runs `harness workspace manifest export`.
+- Discovery enforces depth (`<= 5`), directory caps (`500`), symlink/junction
+  containment within the workspace root, Git worktree deduplication, and
+  duplicate `harness-project-id` rejection.
+- Cross-project report emission via `workspace impact check --emit-reports`
+  enforces `HARNESS_PEER_WRITE_ROOTS`.
+- `harness mcp --workspace` requires `X-Harness-Project` to match the bound
+  workspace ID (workspace tools only) or an authorized member `project_id`.
+
 ---
 
 ## Related files
